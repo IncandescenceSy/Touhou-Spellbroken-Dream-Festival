@@ -1,0 +1,178 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Seiran 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Seiran 1st"]
+#Text["Seiran 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Starting boss life
+int _lifeMax = 28000;
+
+// Boss colors
+int _colorA = COLOR_ORANGE;
+int _colorB = COLOR_AZURE;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 3);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SEIRAN);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 379, 660, 143, 107, 50, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	int[][] types = 
+	[
+		// Shot graphics
+		[SHOT_BALL_RED, SHOT_BALL_GREEN, SHOT_BALL_BLUE],
+		
+		// Line colors
+		[COLOR_RED, COLOR_GREEN, COLOR_BLUE]
+	];
+
+	wait(60);
+	
+	loop
+	{
+		for(int i = 0; i < length(types[0]); i++)
+		{
+			_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+			wait(70);
+			_3dShape(types[0][i], types[1][i]);
+			wait(480);
+		}
+	}
+}
+
+task _3dShape(int graphic_, int color_)
+{
+	float scale = 0;
+	float scaleMax = 5; 
+	
+	float rot = 4;
+	
+	// Yeah
+	float[][] arrPos = 
+	[
+		// 2, 1, 0
+		[100, 0, 0], [90, 10, 0], [80, 20, 0], [70, 30, 0], [60, 40, 0], [50, 50, 0], [40, 60, 0], [30, 70, 0], [20, 80, 0], [10, 90, 0],
+	    [-100, 0, 0], [-90, -10, 0], [-80, -20, 0], [-70, -30, 0], [-60, -40, 0], [-50, -50, 0], [-40, -60, 0], [-30, -70, 0], [-20, -80, 0], [-10, -90, 0],
+		
+		// 2, 0, 1
+	    [100, 0, 0], [90, 0, 10], [80, 0, 20], [70, 0, 30], [60, 0, 40], [50, 0, 50], [40, 0, 60], [30, 0, 70], [20, 0, 80], [10, 0, 90], [-100, 0, 0], 
+		[-90, 0, -10], [-80, 0, -20], [-70, 0, -30], [-60, 0, -40], [-50, 0, -50], [-40, 0, -60], [-30, 0, -70], [-20, 0, -80], [-10, 0, -90],
+		
+		// 1, 2, 0
+	    [0, 100, 0], [10, 90, 0], [20, 80, 0], [30, 70, 0], [40, 60, 0], [50, 50, 0], [60, 40, 0], [70, 30, 0], [80, 20, 0], [90, 10, 0],
+	    [0, -100, 0], [-10, -90, 0], [-20, -80, 0], [-30, -70, 0], [-40, -60, 0], [-50, -50, 0], [-60, -40, 0], [-70, -30, 0], [-80, -20, 0], [-90, -10, 0],
+		
+		// 0, 2, 1
+	    [0, 100, 0], [0, 90, 10], [0, 80, 20], [0, 70, 30], [0, 60, 40], [0, 50, 50], [0, 40, 60], [0, 30, 70], [0, 20, 80], [0, 10, 90],
+	    [0, -100, 0], [0, -90, -10], [0, -80, -20], [0, -70, -30], [0, -60, -40], [0, -50, -50], [0, -40, -60], [0, -30, -70], [0, -20, -80], [0, -10, -90],
+		
+		// 1, 0, 2
+	    [0, 0, 100], [10, 0, 90], [20, 0, 80], [30, 0, 70], [40, 0, 60], [50, 0, 50], [60, 0, 40], [70, 0, 30], [80, 0, 20], [90, 0, 10],
+	    [0, 0, -100], [-10, 0, -90], [-20, 0, -80], [-30, 0, -70], [-40, 0, -60], [-50, 0, -50], [-60, 0, -40], [-70, 0, -30], [-80, 0, -20], [-90, 0, -10],
+		
+		// 0, 1, 2
+	    [0, 0, 100], [0, 10, 90], [0, 20, 80], [0, 30, 70], [0, 40, 60], [0, 50, 50], [0, 60, 40], [0, 70, 30], [0, 80, 20], [0, 90, 10],
+	    [0, 0, -100], [0, -10, -90], [0, -20, -80], [0, -30, -70], [0, -40, -60], [0, -50, -50], [0, -60, -40], [0, -70, -30], [0, -80, -20], [0, -90, -10]
+	];
+	
+	int[] arrObj = [];
+	
+	loop(length(arrPos)) arrObj ~= [CreateShot_Enemy(0, 0, 0, 0, 0, 0, graphic_, 45)];
+	
+	int arrLine = CreatePrimObject(RP_STG_SHADOW - 1, PRIMITIVE_LINESTRIP, length(arrObj));
+	ObjRender_SetColor(arrLine, color_);
+
+	int iMax = 1000;
+	for(int i = 0; i <= iMax; i++)
+	{
+		for each(int j, int iObj in ref arrObj)
+	    {
+			float[] oldPos = arrPos[j] * scale;
+			float[] newPos = Rotate3D(oldPos[0], oldPos[1], oldPos[2], i / rot, i / rot, i / rot); // Rotate on all axes for this example just to make sure they work
+			ObjMove_SetPosition(iObj, newPos[0] + CENTER_X, newPos[1] + CENTER_Y); // Offset by whatever coords you want to be the origin
+			ObjPrim_SetVertexPosition(arrLine, j, newPos[0] + CENTER_X, newPos[1] + CENTER_Y, ID_INVALID);
+	    }
+		
+		scale = Interpolate_Smooth(scale, scaleMax, 0.025);
+		
+		yield;
+	}
+	
+	// Cleanup
+	_FadeOut(arrLine, 45);
+	
+	for each(int iObj in ref arrObj) Obj_Delete(iObj);
+	
+	wait(45);
+	
+	Obj_Delete(arrLine);
+}

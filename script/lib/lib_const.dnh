@@ -1,0 +1,775 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Constant Library //////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+
+
+/////////////////////// Library Content ///////////////////////
+
+
+//////////////////////////// Misc /////////////////////////////
+	
+// Game resolution
+const float RES = GetScreenHeight() / 480;
+
+// Coordinates
+const int CENTER_X       = 200;
+const int CENTER_Y       = 220;
+const int FRAME_WIDTH    = 400;
+const int FRAME_HEIGHT   = 440;
+const int FRAME_LEFT     = 120 * RES;
+const int FRAME_TOP      = 20  * RES;
+const int FRAME_RIGHT    = 520 * RES;
+const int FRAME_BOTTOM   = 460 * RES;
+
+// Big numbers
+const int INT_MAX = 2147483647;
+const int INT_MIN = -2147483648;
+
+// Standards
+const float STANDARD_ENEMYSCALE  = 0.09;
+const int   STANDARD_ENEMYHITBOX = 20;
+const int   STANDARD_SPELLSCORE  = 9999999999;
+const int   FINAL_SPELLSCORE     = 999999999999;
+
+// Misc
+const int POWER_MAX = 1000;
+
+
+///////////////////////// Filepaths ///////////////////////////
+
+const string DIR = GetModuleDirectory();
+
+	// Screenshots
+	const string DIR_SCREENSHOTS = DIR ~ "/screenshots/";
+	
+	// Assets
+	const string DIR_ASSETS = DIR ~ "/script/assets/";
+	
+	const string DIR_BGM = DIR_ASSETS ~ "/bgm/"; // Music
+	
+	const string DIR_FNT = DIR_ASSETS ~ "/fnt/"; // Fonts
+	
+	const string DIR_IMG = DIR_ASSETS ~ "/img/"; // Images
+		const string DIR_IMG_BG   = DIR_IMG ~ "/bg/";
+		const string DIR_IMG_CHAR = DIR_IMG ~ "/char/";
+		const string DIR_IMG_EFF  = DIR_IMG ~ "/eff/";
+		const string DIR_IMG_ENM  = DIR_IMG ~ "/enm/";
+		const string DIR_IMG_PKG  = DIR_IMG ~ "/pkg/";
+		const string DIR_IMG_PL   = DIR_IMG ~ "/pl/";
+		const string DIR_IMG_SYS  = DIR_IMG ~ "/sys/";
+	
+	const string DIR_SDR = DIR_ASSETS ~ "/sdr/"; // Shaders
+	
+	const string DIR_SFX = DIR_ASSETS ~ "/sfx/"; // Sounds
+	
+	const string DIR_TXT_A = DIR_ASSETS ~ "/txt/"; // Text files
+	
+	const string DIR_TXT_R = DIR ~ "/txt/lang/"; // Language text files 
+	
+	// Script
+	const string DIR_DAT = DIR ~ "/data/";           // Save files
+	
+	const string DIR_LIB = DIR ~ "/script/lib/";     // Library
+	
+	const string DIR_PKG = DIR ~ "/script/package/"; // Package
+	
+	const string DIR_PLR = DIR ~ "/script/player/";  // Player
+	
+	const string DIR_STG = DIR ~ "/script/stg/";     // Game
+	
+	const string DIR_SYS = DIR ~ "/script/system/";  // System
+
+// Music
+const string DIR_BGM_TITLE   = DIR_BGM ~ "/title.ogg";
+const string DIR_BGM_S1      = DIR_BGM ~ "/s1.ogg";
+const string DIR_BGM_S2      = DIR_BGM ~ "/s2.ogg";
+const string DIR_BGM_S3      = DIR_BGM ~ "/s3.ogg";
+const string DIR_BGM_S4      = DIR_BGM ~ "/s4.ogg";
+const string DIR_BGM_S5      = DIR_BGM ~ "/s5.ogg";
+const string DIR_BGM_S6      = DIR_BGM ~ "/s6.ogg";
+const string DIR_BGM_S7      = DIR_BGM ~ "/s7.ogg";
+const string DIR_BGM_S8      = DIR_BGM ~ "/s8.ogg";
+const string DIR_BGM_FINAL   = DIR_BGM ~ "/final.ogg";
+const string DIR_BGM_CREDITS = DIR_BGM ~ "/credits.ogg";
+const string DIR_BGM_S9      = DIR_BGM ~ "/s9.ogg";
+
+// Fonts
+const string DIR_FNT_KORURI           = DIR_FNT ~ "/koruri.ttf";
+const string DIR_FNT_KOUZAN_BRUSH     = DIR_FNT ~ "/kouzan_brush.ttf";
+const string DIR_FNT_RECORDED_HISTORY = DIR_FNT ~ "/recorded_history.ttf";
+
+// Images
+
+const string DIR_IMG_BG_BACK_CRYSTAL   = DIR_IMG_BG ~ "/back_crystal.png";
+const string DIR_IMG_BG_BACK_FIRE      = DIR_IMG_BG ~ "/back_fire.png";
+const string DIR_IMG_BG_BACK_ICE       = DIR_IMG_BG ~ "/back_ice.png";
+const string DIR_IMG_BG_BACK_LIGHTNING = DIR_IMG_BG ~ "/back_lightning.png";
+const string DIR_IMG_BG_GRADIENT       = DIR_IMG_BG ~ "/gradient.png";
+const string DIR_IMG_BG_GRID           = DIR_IMG_BG ~ "/grid.png";
+
+const string DIR_IMG_CHAR_PORTRAIT_FLANDRE = DIR_IMG_CHAR ~ "/portrait_flandre.png";
+const string DIR_IMG_CHAR_PORTRAIT_MARISA  = DIR_IMG_CHAR ~ "/portrait_marisa.png";
+const string DIR_IMG_CHAR_PORTRAIT_REIMU   = DIR_IMG_CHAR ~ "/portrait_reimu.png";
+const string DIR_IMG_CHAR_PORTRAIT_SANAE   = DIR_IMG_CHAR ~ "/portrait_sanae.png";
+const string DIR_IMG_CHAR_TITLE_FLANDRE    = DIR_IMG_CHAR ~ "/title_flandre.png";
+
+const string DIR_IMG_EFF_BED                  = DIR_IMG_EFF ~ "/bed.png";
+const string DIR_IMG_EFF_BOX                  = DIR_IMG_EFF ~ "/box.png";
+const string DIR_IMG_EFF_CANCEL               = DIR_IMG_EFF ~ "/cancel.png";
+const string DIR_IMG_EFF_CIRCLE_A             = DIR_IMG_EFF ~ "/circle_a.png";
+const string DIR_IMG_EFF_CIRCLE_B             = DIR_IMG_EFF ~ "/circle_b.png";
+const string DIR_IMG_EFF_CIRCLE_MAIN          = DIR_IMG_EFF ~ "/circle_main.png";
+const string DIR_IMG_EFF_CIRCLE_TEXT          = DIR_IMG_EFF ~ "/circle_text.png";
+const string DIR_IMG_EFF_CUTIN_TEXT           = DIR_IMG_EFF ~ "/cutin_text.png";
+const string DIR_IMG_EFF_CUTIN_TYPE_SHOOTDOWN = DIR_IMG_EFF ~ "/cutin_type_shootdown.png";
+const string DIR_IMG_EFF_CUTIN_TYPE_SURVIVAL  = DIR_IMG_EFF ~ "/cutin_type_survival.png";
+const string DIR_IMG_EFF_CLOUD                = DIR_IMG_EFF ~ "/cloud.png";
+const string DIR_IMG_EFF_ELEMENT_CRYSTAL      = DIR_IMG_EFF ~ "/element_crystal.png";
+const string DIR_IMG_EFF_FIRE                 = DIR_IMG_EFF ~ "/fire.png";
+const string DIR_IMG_EFF_FIRE_AURA            = DIR_IMG_EFF ~ "/fire_aura.png";
+const string DIR_IMG_EFF_GEAR                 = DIR_IMG_EFF ~ "/gear.png";
+const string DIR_IMG_EFF_GLOW_A               = DIR_IMG_EFF ~ "/glow_a.png";
+const string DIR_IMG_EFF_GLOW_B               = DIR_IMG_EFF ~ "/glow_b.png";
+const string DIR_IMG_EFF_GLOW_C               = DIR_IMG_EFF ~ "/glow_c.png";
+const string DIR_IMG_EFF_MAX_POWER            = DIR_IMG_EFF ~ "/max_power.png";
+const string DIR_IMG_EFF_NOISE                = DIR_IMG_EFF ~ "/noise.png";
+const string DIR_IMG_EFF_NOTE                 = DIR_IMG_EFF ~ "/note.png";
+const string DIR_IMG_EFF_ROU                  = DIR_IMG_EFF ~ "/rou.png";
+const string DIR_IMG_EFF_STAR                 = DIR_IMG_EFF ~ "/star.png";
+const string DIR_IMG_EFF_TETR                 = DIR_IMG_EFF ~ "/tetr.png";
+const string DIR_IMG_EFF_TROPHY               = DIR_IMG_EFF ~ "/trophy.png";
+const string DIR_IMG_EFF_WARN_A               = DIR_IMG_EFF ~ "/warn_a.png";
+const string DIR_IMG_EFF_WARN_B               = DIR_IMG_EFF ~ "/warn_b.png";
+const string DIR_IMG_EFF_WAVE                 = DIR_IMG_EFF ~ "/wave.png";
+
+const string DIR_IMG_ENM_FAIRY = DIR_IMG_ENM ~ "/fairy.png";
+
+const string DIR_IMG_PKG_LOADING      = DIR_IMG_PKG ~ "/loading.png";
+const string DIR_IMG_PKG_LOGO         = DIR_IMG_PKG ~ "/logo.png";
+const string DIR_IMG_PKG_MENU_BACK_1  = DIR_IMG_PKG ~ "/menu_back_1.png";
+const string DIR_IMG_PKG_MENU_BACK_2  = DIR_IMG_PKG ~ "/menu_back_2.png";
+const string DIR_IMG_PKG_MENU_OPT     = DIR_IMG_PKG ~ "/menu_opt.png";
+const string DIR_IMG_PKG_MENU_TITLE   = DIR_IMG_PKG ~ "/menu_title.png";
+const string DIR_IMG_PKG_PAUSE_BACK   = DIR_IMG_PKG ~ "/pause_back.png";
+const string DIR_IMG_PKG_PAUSE_OPT    = DIR_IMG_PKG ~ "/pause_opt.png";
+const string DIR_IMG_PKG_PAUSE_TITLE  = DIR_IMG_PKG ~ "/pause_title.png";
+const string DIR_IMG_PKG_PLAYER_AFTER = DIR_IMG_PKG ~ "/player_after.png";
+const string DIR_IMG_PKG_PLAYER_OPT   = DIR_IMG_PKG ~ "/player_opt.png";
+
+const string DIR_IMG_PL_HITBOX_CENTER         = DIR_IMG_PL ~ "/hitbox_center.png";
+const string DIR_IMG_PL_HITBOX_EDGE           = DIR_IMG_PL ~ "/hitbox_edge.png";
+const string DIR_IMG_PL_LASER_END             = DIR_IMG_PL ~ "/laser_end.png";
+const string DIR_IMG_PL_LASER_PLAYER_FLANDRE  = DIR_IMG_PL ~ "/laser_player_flandre.png";
+const string DIR_IMG_PL_LASER_PLAYER_MARISA   = DIR_IMG_PL ~ "/laser_player_marisa.png";
+const string DIR_IMG_PL_OPT_PLAYER_FLANDRE    = DIR_IMG_PL ~ "/opt_player_flandre.png";
+const string DIR_IMG_PL_OPT_PLAYER_MARISA     = DIR_IMG_PL ~ "/opt_player_marisa.png";
+const string DIR_IMG_PL_OPT_PLAYER_REIMU      = DIR_IMG_PL ~ "/opt_player_reimu.png";
+const string DIR_IMG_PL_OPT_PLAYER_SANAE      = DIR_IMG_PL ~ "/opt_player_sanae.png";
+const string DIR_IMG_PL_SHOT_PLAYER_FLANDRE   = DIR_IMG_PL ~ "/shot_player_flandre.png";
+const string DIR_IMG_PL_SHOT_PLAYER_MARISA    = DIR_IMG_PL ~ "/shot_player_marisa.png";
+const string DIR_IMG_PL_SHOT_PLAYER_REIMU     = DIR_IMG_PL ~ "/shot_player_reimu.png";
+const string DIR_IMG_PL_SHOT_PLAYER_SANAE     = DIR_IMG_PL ~ "/shot_player_sanae.png";
+const string DIR_IMG_PL_SPRITE_PLAYER_FLANDRE = DIR_IMG_PL ~ "/sprite_player_flandre.png";
+const string DIR_IMG_PL_SPRITE_PLAYER_MARISA  = DIR_IMG_PL ~ "/sprite_player_marisa.png";
+const string DIR_IMG_PL_SPRITE_PLAYER_REIMU   = DIR_IMG_PL ~ "/sprite_player_reimu.png";
+const string DIR_IMG_PL_SPRITE_PLAYER_SANAE   = DIR_IMG_PL ~ "/sprite_player_sanae.png";
+const string DIR_IMG_PL_TITLE_PLAYER_MARISA   = DIR_IMG_PL ~ "/title_player_marisa.png";
+const string DIR_IMG_PL_TITLE_PLAYER_REIMU    = DIR_IMG_PL ~ "/title_player_reimu.png";
+const string DIR_IMG_PL_TITLE_PLAYER_SANAE    = DIR_IMG_PL ~ "/title_player_sanae.png";
+
+const string DIR_IMG_SYS_BOSSLIFE    = DIR_IMG_SYS ~ "/bosslife.png";
+const string DIR_IMG_SYS_CLOCK       = DIR_IMG_SYS ~ "/clock.png";
+const string DIR_IMG_SYS_CUTIN_BACK  = DIR_IMG_SYS ~ "/cutin_back.png";
+const string DIR_IMG_SYS_FRAME       = DIR_IMG_SYS ~ "/frame.png";
+const string DIR_IMG_SYS_HOLDNEXT    = DIR_IMG_SYS ~ "/holdnext.png";
+const string DIR_IMG_SYS_ITEM        = DIR_IMG_SYS ~ "/item.png";
+const string DIR_IMG_SYS_LEVEL       = DIR_IMG_SYS ~ "/level.png";
+const string DIR_IMG_SYS_LIFEBAR     = DIR_IMG_SYS ~ "/lifebar.png";
+const string DIR_IMG_SYS_LINES       = DIR_IMG_SYS ~ "/lines.png";
+const string DIR_IMG_SYS_SCORE       = DIR_IMG_SYS ~ "/score.png";
+const string DIR_IMG_SYS_SHOT_0      = DIR_IMG_SYS ~ "/shot_0.png";
+const string DIR_IMG_SYS_SHOT_1      = DIR_IMG_SYS ~ "/shot_1.png";
+const string DIR_IMG_SYS_SHOT_2      = DIR_IMG_SYS ~ "/shot_2.png";
+const string DIR_IMG_SYS_SHOT_3      = DIR_IMG_SYS ~ "/shot_3.png";
+const string DIR_IMG_SYS_SHOT_4      = DIR_IMG_SYS ~ "/shot_4.png";
+const string DIR_IMG_SYS_SHOT_5      = DIR_IMG_SYS ~ "/shot_5.png";
+const string DIR_IMG_SYS_SPELL       = DIR_IMG_SYS ~ "/spell.png";
+const string DIR_IMG_SYS_TITLE_BACK  = DIR_IMG_SYS ~ "/title_back.png";
+const string DIR_IMG_SYS_TOAST_MAJOR = DIR_IMG_SYS ~ "/toast_major.png";
+const string DIR_IMG_SYS_TOAST_MINOR = DIR_IMG_SYS ~ "/toast_minor.png";
+const string DIR_IMG_SYS_TOAST_TETR  = DIR_IMG_SYS ~ "/toast_tetr.png";
+const string DIR_IMG_SYS_TOAST_TSPIN = DIR_IMG_SYS ~ "/toast_tspin.png";
+
+const string DIR_IMG_INVALID = DIR_IMG ~ "/invalid.png";
+
+// Shaders
+const string DIR_SDR_ANGCOLOR   = DIR_SDR ~ "/angcolor.hlsl";
+const string DIR_SDR_BACK       = DIR_SDR ~ "/back.hlsl";
+const string DIR_SDR_DISTORT    = DIR_SDR ~ "/distort.hlsl";
+const string DIR_SDR_FIRE       = DIR_SDR ~ "/fire.hlsl";
+const string DIR_SDR_HUESHIFT   = DIR_SDR ~ "/hueshift.hlsl";
+const string DIR_SDR_LIFEBAR    = DIR_SDR ~ "/lifebar.hlsl";
+const string DIR_SDR_MASK_ALPHA = DIR_SDR ~ "/mask_alpha.hlsl";
+const string DIR_SDR_MASK_FRAME = DIR_SDR ~ "/mask_frame.png";
+const string DIR_SDR_MONOCHROME = DIR_SDR ~ "/monochrome.hlsl";
+const string DIR_SDR_PARTICLE   = DIR_SDR ~ "/particle.hlsl";
+const string DIR_SDR_PAUSE      = DIR_SDR ~ "/pause.hlsl";
+const string DIR_SDR_SLURP      = DIR_SDR ~ "/slurp.hlsl";
+const string DIR_SDR_TOAST      = DIR_SDR ~ "/toast.hlsl";
+const string DIR_SDR_ZERORANGER = DIR_SDR ~ "/zeroranger.hlsl";
+
+// Sound effects
+const string DIR_SFX_ACHIEVE             = DIR_SFX ~ "/achieve.wav";
+const string DIR_SFX_ACHIEVE_ALL         = DIR_SFX ~ "/achieve_all.wav";
+const string DIR_SFX_BULLET_LASER        = DIR_SFX ~ "/bullet_laser.wav";
+const string DIR_SFX_BULLET_SHOOT        = DIR_SFX ~ "/bullet_shoot.wav";
+const string DIR_SFX_BULLET_TRANS        = DIR_SFX ~ "/bullet_trans.wav";
+const string DIR_SFX_BURST               = DIR_SFX ~ "/burst.wav";
+const string DIR_SFX_CHARGE_STRONG       = DIR_SFX ~ "/charge_strong.wav";
+const string DIR_SFX_CHARGE_WEAK         = DIR_SFX ~ "/charge_weak.wav";
+const string DIR_SFX_DAMAGE_LOWHEALTH    = DIR_SFX ~ "/damage_lowhealth.wav";
+const string DIR_SFX_DAMAGE_NORMAL       = DIR_SFX ~ "/damage_normal.wav";
+const string DIR_SFX_EXPLODE_BOSS        = DIR_SFX ~ "/explode_boss.wav";
+const string DIR_SFX_EXPLODE_ENEMY       = DIR_SFX ~ "/explode_enemy.wav";
+const string DIR_SFX_EXTEND              = DIR_SFX ~ "/extend.wav";
+const string DIR_SFX_FREEZE              = DIR_SFX ~ "/freeze.wav";
+const string DIR_SFX_GRAZE               = DIR_SFX ~ "/graze.wav";
+const string DIR_SFX_ITEM_COLLECT        = DIR_SFX ~ "/item_collect.wav";
+const string DIR_SFX_MENU_CANCEL         = DIR_SFX ~ "/menu_cancel.wav";
+const string DIR_SFX_MENU_CONFIRM        = DIR_SFX ~ "/menu_confirm.wav";
+const string DIR_SFX_MENU_PAUSE          = DIR_SFX ~ "/menu_pause.wav";
+const string DIR_SFX_MENU_SELECT         = DIR_SFX ~ "/menu_select.wav";
+const string DIR_SFX_PHASE               = DIR_SFX ~ "/phase.wav";
+const string DIR_SFX_PLAYER_FIRESHOOT    = DIR_SFX ~ "/player_fireshoot.wav";
+const string DIR_SFX_PLAYER_HIT          = DIR_SFX ~ "/player_hit.wav";
+const string DIR_SFX_PLAYER_LASER        = DIR_SFX ~ "/player_laser.wav";
+const string DIR_SFX_PLAYER_MISSILEHIT   = DIR_SFX ~ "/player_missilehit.wav";
+const string DIR_SFX_PLAYER_MISSILESHOOT = DIR_SFX ~ "/player_missileshoot.wav";
+const string DIR_SFX_PLAYER_SHOOT        = DIR_SFX ~ "/player_shoot.wav";
+const string DIR_SFX_POWER_UP            = DIR_SFX ~ "/power_up.wav";
+const string DIR_SFX_SPELL_CAPTURE       = DIR_SFX ~ "/spell_capture.wav";
+const string DIR_SFX_SPELL_START         = DIR_SFX ~ "/spell_start.wav";
+const string DIR_SFX_TIMER_LOW           = DIR_SFX ~ "/timer_low.wav";
+const string DIR_SFX_WARNING             = DIR_SFX ~ "/warning.wav";
+
+// Save data files
+const string DIR_DAT_ACHIEVE      = DIR_DAT ~ "/achieve.dat";
+const string DIR_DAT_SETTINGS     = DIR_DAT ~ "/settings.dat";
+const string DIR_DAT_SPELLHISTORY = DIR_DAT ~ "/spellhistory.dat";
+
+// Text files
+const string DIR_TXT_ACHIEVE      = DIR_TXT_R ~ "/achieve.txt";
+const string DIR_TXT_CREDITS      = DIR_TXT_R ~ "/credits.txt";
+const string DIR_TXT_LOADLIST_FNT = DIR_TXT_A ~ "/loadlist_fnt.txt";
+const string DIR_TXT_LOADLIST_IMG = DIR_TXT_A ~ "/loadlist_img.txt";
+const string DIR_TXT_LOADLIST_SDR = DIR_TXT_A ~ "/loadlist_sdr.txt";
+const string DIR_TXT_LOADLIST_SND = DIR_TXT_A ~ "/loadlist_snd.txt";
+const string DIR_TXT_MANUAL       = DIR_TXT_R ~ "/manual.txt";
+const string DIR_TXT_MEDAL        = DIR_TXT_A ~ "/medal.txt";
+const string DIR_TXT_MISC         = DIR_TXT_R ~ "/misc.txt";
+const string DIR_TXT_MUSICNAME    = DIR_TXT_R ~ "/musicname.txt";
+const string DIR_TXT_SETTINGS     = DIR_TXT_R ~ "/settings.txt";
+const string DIR_TXT_SPELLNAME    = DIR_TXT_R ~ "/spellname.txt";
+const string DIR_TXT_VICTORY      = DIR_TXT_R ~ "/victory.txt";
+
+// Script files
+const string DIR_PKG_END         = DIR_PKG ~ "/end.dnh";
+const string DIR_PKG_PAUSE       = DIR_PKG ~ "/pause.dnh";
+const string DIR_PKG_REPLAY_SAVE = DIR_PKG ~ "/replay_save.dnh";
+const string DIR_PKG_STAGE       = DIR_PKG ~ "/stage.dnh";
+const string DIR_PLR_FLANDRE     = DIR_PLR ~ "/player_flandre.dnh";
+const string DIR_PLR_MARISA      = DIR_PLR ~ "/player_marisa.dnh";
+const string DIR_PLR_REIMU       = DIR_PLR ~ "/player_reimu.dnh";
+const string DIR_PLR_SANAE       = DIR_PLR ~ "/player_sanae.dnh";
+const string DIR_LIB_ITEM_DATA   = DIR_LIB ~ "/item_data.dnh";
+const string DIR_SYS_ITEM_SCRIPT = DIR_SYS ~ "/item_script.dnh";
+
+
+////////////////////// Character Names ////////////////////////
+
+// Protagonists 
+const string CHAR_REIMU  = "reimu";
+const string CHAR_MARISA = "marisa";
+const string CHAR_SANAE  = "sanae";
+
+const string CHAR_REIMU_C  = "Reimu";
+const string CHAR_MARISA_C = "Marisa";
+const string CHAR_SANAE_C  = "Sanae";
+
+// Stage one
+const string CHAR_RUMIA        = "rumia";
+const string CHAR_WAKASAGAHIME = "wakasagahime";
+const string CHAR_SEIRAN       = "seiran";
+
+// Stage two
+const string CHAR_CIRNO  = "cirno";
+const string CHAR_MYSTIA = "mystia";
+const string CHAR_KYOUKO = "kyouko";
+
+// Stage three
+const string CHAR_ALICE  = "alice";
+const string CHAR_DOREMY = "doremy";
+const string CHAR_ORANGE = "orange";
+
+// Stage four
+const string CHAR_YACHIE   = "yachie";
+const string CHAR_MISUMARU = "misumaru";
+
+// Stage five
+const string CHAR_SAKUYA     = "sakuya";
+const string CHAR_SEIJA      = "seija";
+const string CHAR_CLOWNPIECE = "clownpiece";
+
+// Stage six
+const string CHAR_REMILIA = "remilia";
+const string CHAR_YUYUKO  = "yuyuko";
+const string CHAR_YUUMA   = "yuuma";
+
+// Extra stage
+const string CHAR_KOISHI = "koishi";
+const string CHAR_MOMOYO = "momoyo";
+const string CHAR_YUKARI = "yukari";
+
+// Final boss
+const string CHAR_FLANDRE   = "flandre";
+const string CHAR_FLANDRE_C = "Flandre";
+
+// Afterparty
+const string CHAR_PATCHOULI = "patchouli";
+const string CHAR_YOUMU     = "youmu";
+const string CHAR_KAGUYA    = "kaguya";
+const string CHAR_KEIKI     = "keiki";
+const string CHAR_SARIEL    = "sariel";
+const string CHAR_SHINKI    = "shinki";
+
+
+//////////////////////// Shader Data //////////////////////////
+
+// Floats
+const string FLOAT_ALPHA_MULT     = "alphaMult_";
+const string FLOAT_BRIGHT         = "brightness_";
+const string FLOAT_CHARGE         = "charge_";
+const string FLOAT_COLORS         = "colors_";
+const string FLOAT_ENM_X          = "enmX_";
+const string FLOAT_ENM_Y          = "enmY_";
+const string FLOAT_FILTER         = "filter_";
+const string FLOAT_FRAME          = "frame_";
+const string FLOAT_FRAME_MAG      = "frameMag_";
+const string FLOAT_HUE            = "hueValue_";
+const string FLOAT_INTN           = "intn_";
+const string FLOAT_LIFE           = "life_";
+const string FLOAT_LIGHTNESS      = "lightness_";
+const string FLOAT_OVERRIDE_ALPHA = "overrideAlpha_";
+const string FLOAT_RADIUS         = "radius_";
+const string FLOAT_SCREEN_HEIGHT  = "screenHeight_";
+const string FLOAT_SCREEN_WIDTH   = "screenWidth_";
+const string FLOAT_SDR_MISC       = "sdrMisc_";
+const string FLOAT_STEP_X         = "stepX_";
+const string FLOAT_STEP_Y         = "stepY_";
+
+// Techniques
+const string TEC_ANGCOLOR   = "TecAngcolor";
+const string TEC_DISTORT    = "TecDistort";
+const string TEC_EXPL       = "TecExpl";
+const string TEC_FIRE       = "TecFire";
+const string TEC_HUESHIFT   = "TecHueshift";
+const string TEC_MASK_CONST = "TecMaskConst";
+const string TEC_MASK_MULT  = "TecMaskMult";
+const string TEC_MONOCHROME = "TecMonochrome";
+const string TEC_PAUSE      = "TecPause";
+const string TEC_RENDER     = "TecRender";
+const string TEC_SLURP      = "TecSlurp";
+const string TEC_SWIRL      = "TecSwirl";
+const string TEC_ZERORANGER = "TecZeroranger";
+
+// Textures
+const string SAMPLER_MASK = "samplerMask_";
+const string TEXTURE_MASK = "textureMask_";
+
+
+//////////////////////////// Fonts ////////////////////////////
+
+const string FONT_KORURI          = "Koruri-Regular";
+const string FONT_KOUZANBRUSH     = "KouzanBrushFontA";
+const string FONT_RECORDEDHISTORY = "Recorded History";
+
+
+/////////////////////// Render Priority ///////////////////////
+
+const int RP_MIN        = 0;   // Minimum render priority
+const int RP_FX_SHOT    = 1;   // Reserved for bullets that will be transported upwards with render targets and have shaders applied to them
+const int RP_UI_PAUSE   = 2;   // Pause menu masks
+const int RP_UI_BG      = 3;   // 3 - 4; Reserved for backgrounds
+const int RP_UI_TOAST   = 5;   // Reserved for toasts
+const int RP_UI_VIS     = 6;   // The lowest priority that is set to render
+const int RP_UI_DISTORT = 14;  // Reserved for distortion shader effects
+const int RP_FX_LOW     = 15;  // 15 - 20; reserved for graphical effects that render below the frame
+const int RP_STG_MIN    = 20;  // The lowest priority that renders outside of the frame
+const int RP_STG_LINE   = 21;  // Reserved for the position-indicating lines coming from the boss
+const int RP_STG_ENM    = 36;  // 36 - 40; reserved for the boss sprite and the special effects that surround it
+const int RP_STG_PLR    = 41;  // 41 - 45; reserved for the player sprite, options, bullets, and so on
+const int RP_FX_MED     = 46;  // 46 - 50; reserved for graphical effects that render inside of the frame but below most things
+const int RP_STG_ITEM   = 51;  // Reserved for items 
+const int RP_STG_SHADOW = 52;  // Reserved for shot shadows
+const int RP_STG_FLAKE  = 53;  // Reserved for the hitbox snowflake
+const int RP_STG_SHOT   = 54;  // 54; reserved for bullets that have shadows
+const int RP_STG_SHOT_N = 55;  // 55 - 66; reserved for bullets that don't have shadows
+const int RP_STG_LIFE   = 66;  // Reserved for the boss lifebar
+const int RP_FX_MED_H   = 67;  // Reserved for graphical effects that are affected by the 2D camera, but still render above most things.
+const int RP_STG_HITBOX = 71;  // Reserved for the player hitbox
+const int RP_FX_HIGH    = 80;  // Reserved for graphical effects that render inside of the frame but above most things
+const int RP_STG_MAX    = 81;  // The highest priority that renders inside of the frame
+const int RP_UI_FRAME   = 82;  // 82 - 83; everything on these layers will have its alpha cut to 33% and fail to render inside of the frame; reserved for the stgframe and side portraits
+const int RP_UI_MISC    = 84;  // 84+; reserved for various UI elements
+const int RP_MAX        = 100; // Maximum render priority
+
+
+/////////////////////////// Events ////////////////////////////
+
+// System-related events
+const int EV_SPELL_START             = EV_USER;      // System;  Notification of the start of a spell
+const int EV_SPELL_END               = EV_USER + 1;  // System;  Notification of the end of a spell
+const int EV_DROP_POINTS             = EV_USER + 2;  // Item;    Creates point items
+const int EV_CREATE_TOAST_MINOR      = EV_USER + 3;  // System;  Creates a small popup that flies away from the player
+const int EV_CREATE_TOAST_MAJOR      = EV_USER + 4;  // System;  Creates a large popup near the top of the screen
+const int EV_GRANT_ACHIEVE           = EV_USER + 5;  // Package; Grants an achievement
+const int EV_SAVE_DATA               = EV_USER + 6;  // System;  Finalizes spell history and hiscore save data
+const int EV_UNLOAD_TEXTURES         = EV_USER + 7;  // Package; Unloads textures that are no longer needed
+const int EV_RENDER_AURA             = EV_USER + 8;  // System;  Renders unique boss auras like Yuyuko's fan
+const int EV_RENDER_PLAYER_CIRCLE    = EV_USER + 9;  // System;  Renders a magic circle around the player
+const int EV_TOGGLE_PLAYER_CIRCLE    = EV_USER + 10; // System;  Toggles whether the magic circle around the player is hidden from view
+const int EV_RESET_SPEED             = EV_USER + 11; // System;  Waits for the boss to die, and then resets the player speed to the usual values
+const int EV_SET_LIFEBAR_ALPHA       = EV_USER + 12; // System;  Sets the destination lifebar alpha
+const int EV_WARNING_GLOW            = EV_USER + 13; // System;  Creates a momentary glow at the edges of the screen
+const int EV_CREATE_TOAST_MEDAL      = EV_USER + 14; // Package; Spawns a Star Get! popup
+const int EV_CREATE_TOAST_CONTROLS   = EV_USER + 15; // System;  Spawns a small popup that sticks to the player
+const int EV_FINAL_START             = EV_USER + 16; // System;  Notification of the start of the final spell
+const int EV_FAIRY_DROP              = EV_USER + 17; // Item;    Creates the items dropped by a standard fairy
+const int EV_ADJUST_SCROLL           = EV_USER + 18; // System;  Changes the scrolling of the background during the final scene
+const int EV_DROP_POWER              = EV_USER + 19; // Item;    Creates some power items (or point items, if power is full)
+const int EV_SET_BOSS_ALPHA          = EV_USER + 20; // System;  Sets the alpha of the boss sprite 
+const int EV_FILTER_WHILE_BOSS_LIVES = EV_USER + 21; // Package filters the game screen to be ZeroRanger
+
+// Audio-related events
+const int EV_BGM_CHANGE   = EV_USER + 25; // Package; Changes the music
+const int EV_BGM_PAUSE    = EV_USER + 26; // Package; Pauses the music
+const int EV_BGM_RESUME   = EV_USER + 27; // Package; Resumes the music
+const int EV_SFX_PLAY     = EV_USER + 28; // Package; Plays a sound effect
+const int EV_REQUEST_FREQ = EV_USER + 29; // Package; Returns a frequency array for the playing music 
+
+// Player-related events
+const int EV_KILL_PLAYER              = EV_USER + 30; // Player; Kills the player
+const int EV_CONTROL_OPTIONS          = EV_USER + 31; // Player; changes the color, scale, and render priority of the player's options
+const int EV_RECOLOR_WHILE_BOSS_LIVES = EV_USER + 32; // Player; changes the color of the player's options, waits for the boss to die, and then changes it back
+const int EV_CHANGE_DEL_RP            = EV_USER + 33; // Player; changes the render priority of the player shot deletion particle effects
+
+
+//////////////////////////// Items ////////////////////////////
+
+const int ITEM_CANCEL  = 1;
+const int ITEM_POINTS  = 2;
+const int ITEM_POWERUP = 3;  
+
+
+/////////////////////////// Toasts ////////////////////////////
+
+// Minor
+const int TOAST_MINOR_POINT     = 0; //0;
+const int TOAST_MINOR_SCORE     = 3; //1;
+const int TOAST_MINOR_POWER_UP  = 1; //2;
+const int TOAST_MINOR_POWER_MAX = 4; //3;
+const int TOAST_MINOR_SPELL     = 2; //4;
+
+// Major
+const int TOAST_MAJOR_SPELL_CAPTURE = 0;
+const int TOAST_MAJOR_SPELL_FAILURE = 1;
+
+
+//////////////////////////// Score ////////////////////////////
+
+const int SCORE_CANCEL = 2500000;
+const int SCORE_POINTS = 50000000;
+
+
+/////////////////////////// Colors ////////////////////////////
+
+const int COLOR_RED      = 0xff0000; // 255, 0,   0
+const int COLOR_DRED     = 0x800000; // 128, 0,   0
+const int COLOR_BROWN    = 0x80400c; // 128, 64,  12
+const int COLOR_ORANGE   = 0xff8000; // 255, 128, 0
+const int COLOR_DORANGE  = 0x804000; // 128, 64,  0
+const int COLOR_YELLOW   = 0xffff00; // 255, 255, 0
+const int COLOR_DYELLOW  = 0xa0a000; // 160, 160, 0
+const int COLOR_OLIVE    = 0x80ff00; // 128, 255, 0
+const int COLOR_GREEN    = 0x00ff00; // 0,   255, 0
+const int COLOR_DGREEN   = 0x008000; // 0,   128, 0
+const int COLOR_MINT     = 0x00ff80; // 0,   255, 128
+const int COLOR_DMINT    = 0x008040; // 0,   128, 64
+const int COLOR_AQUA     = 0x00ffff; // 0,   255, 255
+const int COLOR_DAQUA    = 0x008080; // 0,   128, 128
+const int COLOR_AZURE    = 0x0080ff; // 0,   128, 255
+const int COLOR_DAZURE   = 0x0040A4; // 0,   64,  164
+const int COLOR_BLUE     = 0x0000ff; // 0,   0,   255
+const int COLOR_DBLUE    = 0x000080; // 0,   0,   128
+const int COLOR_INDIGO   = 0x8000ff; // 128, 0,   255
+const int COLOR_DINDIGO  = 0x6000a2; // 96,  0,   162
+const int COLOR_PURPLE   = 0xff00ff; // 255, 0,   255
+const int COLOR_DPURPLE  = 0x802080; // 128, 32,  128
+const int COLOR_MAGENTA  = 0xff0080; // 255, 0,   128
+const int COLOR_DMAGENTA = 0x800040; // 128, 0,   64
+const int COLOR_PINK     = 0xff80C4; // 255, 128, 196
+const int COLOR_WHITE    = 0xffffff; // 255, 255, 255
+const int COLOR_VLGRAY   = 0xf5f5f5; // 245, 245, 245
+const int COLOR_LGRAY    = 0xcdcdcd; // 205, 205, 205
+const int COLOR_GRAY     = 0x808080; // 128, 128, 128
+const int COLOR_DGRAY    = 0x404040; // 64,  64,  64
+const int COLOR_BLACK    = 0x000000; // 0,   0,   0
+
+// Achievement colors
+const int COLOR_BRONZE  = 0xaf4C00; // 175, 76,  0
+const int COLOR_SILVER  = 0x9696be; // 150, 150, 190
+const int COLOR_GOLD    = 0xffd800; // 255, 216, 0
+const int COLOR_CRYSTAL = 0x49ceff; // 73,  206, 255
+
+
+/////////////////////////// Results ///////////////////////////
+
+const int RESULT_START    = 0;
+const int RESULT_AFTER    = 1;
+const int RESULT_REPLAY   = 2;
+const int RESULT_MANUAL   = 3;
+const int RESULT_ACHIEVE  = 4;
+const int RESULT_MUSIC    = 5;
+const int RESULT_SETTINGS = 6;
+const int RESULT_QUIT     = 7;
+const int RESULT_REIMU    = 8;
+const int RESULT_MARISA   = 9;
+const int RESULT_SANAE    = 10;
+
+
+//////////////////////////// Menus ////////////////////////////
+
+const int MENU_MAIN       = 0;
+const int MENU_PLAYER     = 1;
+const int MENU_SCENE      = 2;
+const int MENU_PLAYER2    = 3;
+const int MENU_AFTER      = 4;
+const int MENU_REPLAY     = 5;
+const int MENU_MANUAL     = 6;
+const int MENU_ACHIEVE    = 7;
+const int MENU_MUSIC      = 8;
+const int MENU_SETTINGS   = 9;
+const int MENU_OVER       = 10;
+const int MENU_SELECTSLOT = 11;
+const int MENU_NAMEENTRY  = 12;
+const int MENU_CREDITS    = 13;
+
+
+/////////////////////////// BGM IDs ///////////////////////////
+
+const int BGM_TITLE   = 0;
+const int BGM_S1      = 1;
+const int BGM_S2      = 2;
+const int BGM_S3      = 3;
+const int BGM_S4      = 4;
+const int BGM_S5      = 5;
+const int BGM_S6      = 6;
+const int BGM_S7      = 7;
+const int BGM_S8      = 8;
+const int BGM_FINAL   = 9;
+const int BGM_CREDITS = 10;
+const int BGM_S9      = 11;
+
+
+////////////////////// Common Data Areas //////////////////////
+
+// A common data area that contains data on achievements
+const string AREA_ACHIEVE = "areaAchieve";
+
+	const string OPEN_GAME     = "openGame";     // Open the game
+	const string READ_MANUAL   = "readManual";   // Read the manual
+	const string PLAY_SCENE    = "playScene";    // Play any scene
+	const string CAPTURE_SCENE = "captureScene"; // Capture any scene
+	const string STAGE         = "stage";        // For specific stages
+	const string FINALE_CLEAR  = "finaleClear";  // Clear the final scene
+	const string MEDAL_ALL     = "medalAll";     // Get every medal
+	const string ACHIEVE_ALL   = "achieveAll";   // Get every other achievement
+	const string MEDAL_AFTER   = "medalAfter";   // Afterparty medals
+	
+	//const string CH17 = "ch17"; // Timeout 1-7 without shooting
+	const string CH23 = "ch23"; // Capture 2-3 without entering the force field
+	const string CH28 = "ch28"; // Capture 2-8 without shooting any familiars
+	//const string CH37 = "ch37"; // Capture 3-7 while enraging alice
+	//const string CH38 = "ch38"; // Capture 3-8 without ever pressing X or C
+	const string CH41 = "ch41"; // Capture 4-1 without ever moving vertically
+	//const string CH56 = "ch56"; // Capture 5-6 without ever pressing X
+	//const string CH57 = "ch57"; // Capture 5-7 in less than 20 seconds
+	//const string CH76 = "ch76"; // Capture 7-6 without ever pressing X or C
+	
+	const string CAPTURE       = "capture";      // Append any spell ID to this to mark it as captured
+	const string CAPTURE_COUNT = "captureCount"; // Amount of spells captured in total
+	const string CREDITS       = "credits";      // Whether you've seen the credits before
+	const string DATE          = "date";         // Append this to any other achievement key to check the date you achieved it
+	const string FINAL_BOSS    = "finalBoss";    // Whether you've ever reached the final boss
+	const string HEARD         = "heard";        // Append any BGM ID to this to mark it as heard
+	const string MEDAL         = "medal";        // Append any spell ID to this to mark its medal as gained
+	const string PLAYTIME      = "playtime";     // Playtime, in frames
+	
+// A common data area that contains data on the current game session
+const string AREA_GAME = "areaGame";
+
+	const string ACHIEVE_READY    = "achieveReady";   // Whether the player is set to get a specific achievement at the end of the scene
+	const string BACKGROUND       = "background";     // Spell background image files currently in use
+	const string BOSS_NAME        = "bossName";       // Name of the current boss
+	const string FAMILIAR_KILL    = "familiarKill";   // Familiar kill count
+	const string GAME_TIME        = "gameTime";       // Time in the current scene, in frames
+	const string IS_GAME_PAUSED   = "isGamePaused";   // Whether the game is paused
+	const string IS_NORMAL_HITBOX = "isNormalHitbox"; // Whether the boss has a hitbox applied as normal
+	const string IS_PLAYER_DOWN   = "isPlayerDown";   // Whether the player is defeated
+	const string MUSIC_ROOM       = "musicRoom";      // Whether the currently playing BGM was started in the music room
+	const string PATH_PLAYER      = "pathPlayer";     // Player script path
+	const string PATH_REPLAY      = "pathReplay";     // Path to the currently running replay file, if any
+	const string PLAYING_BGM      = "playingBGM";     // Path to the currently playing BGM
+	const string SPELL_ID         = "spellID";        // Numerical ID of the current spell
+	
+// A common data area that contains spell card history
+const string AREA_HISTORY = "areaHistory";
+	
+	const string SPELL_ATTEMPT = "spellAttempt"; // Attempt / capture count
+	const string SPELL_HISCORE = "spellHiscore"; // HiScore
+
+// A common data area that contains all data that must be saved to replays
+const string AREA_REPLAY = "areaReplay";
+
+	const string DIFFICULTY  = "difficulty"; // Difficulty level
+	const string IS_PRACTICE = "isPractice"; // Whether the final scene is being played in practice mode or Keitris is being played in endless mode
+	const string PATH_SINGLE = "pathSingle"; // Single script path
+	const string POWER       = "power";      // Are the players in high-power mode
+	
+// A common data area that contains a list of script IDs
+const string AREA_SCRIPTS = "areaScripts"; 
+
+	const string SCRIPT_ITEM    = "scriptItem";    // Item script
+	const string SCRIPT_PACKAGE = "scriptPackage"; // Package script
+	const string SCRIPT_PLAYER  = "scriptPlayer";  // Player script
+	const string SCRIPT_SINGLE  = "scriptSingle";  // Single script
+	const string SCRIPT_SYSTEM  = "scriptSystem";  // System script
+	
+// A common data area that contains all option settings
+const string AREA_SETTINGS = "areaSettings";
+	
+	// 1 (on) or 0 (off)
+	const string SDR_DIST = "sdrDist"; // Boss distortion effects
+	const string EFF_SDW  = "effSdw";  // Bullet shadows
+	const string EFF_CHR  = "effChr";  // Charge effect
+	const string EFF_BOSS = "effBoss"; // Boss trail, circle, and auras
+	const string EFF_GRZ  = "effGrz";  // Graze coloring and particles
+	const string PRT_LSR  = "prtLsr";  // enemy laser blocking particles
+	const string PRT_SHT  = "prtSht";  // Shot deletion particles (player and enemy); item deletion particles; Reimu amulet trails; bullet trails in some spells
+	const string BG_STAGE = "bgStage"; // Stage background
+	const string BG_SPELL = "bgSpell"; // Spell background
+	const string SDR_MISC = "sdrMisc"; // Misc. shaders (main menu background, pause menu background blurring, spell background mask, spell cutin lines, major toasts, pause menu options and particles)
+	const string PRT_MISC = "prtMisc"; // Misc. particles (pause menu, spell cutin back trail, familiar trails, enmY explosions, minor toasts)
+	const string HINT     = "hint";    // Pause / end menu hints
+	
+	// Percentages
+	const string VOL_BGM = "volBGM"; // Music volume
+	const string VOL_SFX = "volSFX"; // Sound effect volume
+	const string FRAME   = "frame";  // Frame opacity
+
+////////////////////// Render Targets /////////////////////////
+
+// Rendered and used for the background when the game is paused
+const string RT0 = GetReservedRenderTargetName(0);
+
+// Boss distortion aura during the game; pause back mask during the pause menu; background distortion during the main menu
+const string RT1 = GetReservedRenderTargetName(1);
+
+// Lifebar distortion during the game; star particle mask during the pause menu
+const string RT2 = GetReservedRenderTargetName(2);
+
+// Position line distortion during the game; menu title distortion during the pause menu
+const string RT3 = "RT3";
+
+// Spell cutin distortion at the beginning of spells; major toast distortion at the end of spells
+const string RT4 = "RT4";
+
+// Bullet shadows during the game; first option distortion during the pause menu
+const string RT5 = "RT5";
+
+// Various things in certain spells during the game; second option distortion during the pause menu
+const string RT6 = "RT6";
+
+// Third option distortion during the pause menu
+const string RT7 = "RT7";
+
+// Menu title distortion during the confirm menu
+const string RT8 = "RT8";
+
+// First option distortion during the confirm menu
+const string RT9 = "RT9";
+
+// Second option distortion during the confirm menu
+const string RT10 = "RT10";
+
+// Confirm back mask during the confirm menu
+const string RT11 = "RT11";
+
+// Spell background mask during spells
+const string RT12 = "RT12";
+
+
+////////////////////// Object Values //////////////////////////
+
+const int VAL_MISC    = 0; // Used for various things depending on the spell
+const int VAL_MISC2   = 1; // Used for various things depending on the spell
+const int VAL_GRZCOL  = 2; // Whether a bullet should be colored when grazed
+const int VAL_DELEFF  = 3; // Whether a bullet should spawn items and particles when deleted
+const int VAL_MAXLIFE = 4; // Enemy max life 
+const int VAL_ENMCOL  = 5; // Color of a familiar
+const int VAL_TARGET  = 6; // Whether homing shots should target that enemy (currently only works with Sanae's snakes)
+const int VAL_SOURCE  = 7; // The source rect of a 2D sprite
+const int VAL_NOPRT   = 8; // Whether an item should spawn particles and minor toasts when deleted
+
+
+///////////////////////// Misc Text ///////////////////////////
+
+int misc = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(misc, DIR_TXT_MISC);
+
+const string GAME_VERSION   = ObjFileT_GetLineText(misc, 1);
+const string GAME_NAME      = ObjFileT_GetLineText(misc, 2);
+const string LOADING        = ObjFileT_GetLineText(misc, 3);
+const string LOADED         = ObjFileT_GetLineText(misc, 4);
+const string FANWORK        = ObjFileT_GetLineText(misc, 5);
+const string REPLAY_SAVE    = ObjFileT_GetLineText(misc, 6);
+const string NO_DATA        = ObjFileT_GetLineText(misc, 7);
+const string CHANGE_PAGE    = ObjFileT_GetLineText(misc, 8);
+const string CONTROLS       = ObjFileT_GetLineText(misc, 9);
+const string IS_REPLAY      = ObjFileT_GetLineText(misc, 10);
+const string CLEAR_TIME     = ObjFileT_GetLineText(misc, 11);
+const string BONUS          = ObjFileT_GetLineText(misc, 12);
+const string HISTORY        = ObjFileT_GetLineText(misc, 13);
+const string FAILED         = ObjFileT_GetLineText(misc, 14);
+const string STAGE_LOCKED   = ObjFileT_GetLineText(misc, 15);
+const string CAPTURES       = ObjFileT_GetLineText(misc, 16);
+const string MEDAL_REQ      = ObjFileT_GetLineText(misc, 17);
+const string MEDAL_GET      = ObjFileT_GetLineText(misc, 18);
+const string PRESS_X        = ObjFileT_GetLineText(misc, 19);
+const string PRESS_XC       = ObjFileT_GetLineText(misc, 20);
+const string NEXT_EXTEND    = ObjFileT_GetLineText(misc, 21);
+const string STAGE_IDK      = ObjFileT_GetLineText(misc, 22);
+const string SDF            = ObjFileT_GetLineText(misc, 23);
+const string DREAM          = ObjFileT_GetLineText(misc, 24);
+const string TOTAL_PLAYTIME = ObjFileT_GetLineText(misc, 25);
+const string FPS            = ObjFileT_GetLineText(misc, 26);
+const string VICTORY        = ObjFileT_GetLineText(misc, 27);
+const string DEFEAT         = ObjFileT_GetLineText(misc, 28);
+const string AFTER_LOCKED   = ObjFileT_GetLineText(misc, 29);
+const string TEXT_POWER     = ObjFileT_GetLineText(misc, 30);
+const string TEXT_SPELL     = ObjFileT_GetLineText(misc, 31);
+const string GET            = ObjFileT_GetLineText(misc, 32);
+
+Obj_Delete(misc);

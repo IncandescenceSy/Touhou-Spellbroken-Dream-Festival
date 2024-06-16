@@ -1,0 +1,432 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Shot Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains functions for creating and manipulating bullets
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains functions pertaining to items and bullet deletion effects
+#include "./../lib/lib_item.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Bullet cancel effect
+int _objPartCancel = CreateParticleList2D
+(
+	DIR_IMG_EFF_CANCEL,
+	0, 0, 64, 64,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+ObjShader_SetShaderF(_objPartCancel, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartCancel, TEC_RENDER);
+ObjShader_SetFloat(_objPartCancel, FLOAT_STEP_X, 64 / 512);
+ObjShader_SetFloat(_objPartCancel, FLOAT_STEP_Y, 1);
+
+// Whether laser particles are disabled
+bool _prtLsr = GetAreaCommonData(AREA_SETTINGS, PRT_LSR, 1); 
+
+// Player script ID
+const int _ID_PLAYER = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PLAYER, ID_INVALID);
+
+// Player object ID
+int _objPlayer = GetPlayerObjectID();
+
+
+/////////////////////// Library Content ///////////////////////
+
+
+function<int> CreateShot_Enemy(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, int graphic_, int delay_)
+{
+	int objShot = ObjShot_Create(OBJ_SHOT);
+	ObjShot_Regist(objShot);
+	ObjMove_SetPosition(objShot, posX_, posY_);
+	ObjMove_SetSpeed(objShot, spd_);
+	ObjMove_SetAngle(objShot, ang_);
+	ObjMove_SetAcceleration(objShot, accel_);
+	ObjMove_SetMaxSpeed(objShot, maxspd_);
+	ObjShot_SetGraphic(objShot, graphic_);
+	ObjShot_SetGrazeInvalidFrame(objShot, 63);
+	
+	if(delay_ > 0)
+	{
+		async
+		{
+			for(float i = 0; i <= delay_; i++)
+			{	
+				float scale = Interpolate_Smooth(0, 1, i / delay_);
+				ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+				ObjShot_SetIntersectionScaleXY(objShot, scale, scale);
+				
+				yield;
+			}
+		}
+	}
+	
+	return objShot;
+}
+
+function<int> CreateShot_Enemy(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, int graphic_, int delay_, float scale_)
+{
+	int objShot = ObjShot_Create(OBJ_SHOT);
+	ObjShot_Regist(objShot);
+	ObjMove_SetPosition(objShot, posX_, posY_);
+	ObjMove_SetSpeed(objShot, spd_);
+	ObjMove_SetAngle(objShot, ang_);
+	ObjMove_SetAcceleration(objShot, accel_);
+	ObjMove_SetMaxSpeed(objShot, maxspd_);
+	ObjShot_SetGraphic(objShot, graphic_);
+	ObjShot_SetGrazeInvalidFrame(objShot, 63);
+	
+	if(delay_ > 0)
+	{
+		async
+		{
+			for(float i = 0; i <= delay_; i++)
+			{	
+				float scale = Interpolate_Smooth(0, scale_, i / delay_);
+				ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+				ObjShot_SetIntersectionScaleXY(objShot, scale, scale);
+				
+				yield;
+			}
+		}
+	}
+	else
+	{
+		ObjRender_SetScaleXYZ(objShot, scale_, scale_, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objShot, scale_, scale_);
+	}
+	
+	return objShot;
+}
+
+function<int> CreateLaser_Loose(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, int graphic_, float length_, float width_, float delay_)
+{
+	int objLaser = ObjShot_Create(OBJ_LOOSE_LASER);
+	ObjShot_Regist(objLaser);
+	ObjMove_SetPosition(objLaser, posX_, posY_);
+	ObjMove_SetSpeed(objLaser, spd_);
+	ObjMove_SetAngle(objLaser, ang_);
+	ObjMove_SetAcceleration(objLaser, accel_);
+	ObjMove_SetMaxSpeed(objLaser, maxspd_);
+	ObjShot_SetGraphic(objLaser, graphic_);
+	ObjShot_SetDelay(objLaser, delay_);
+	ObjLaser_SetLength(objLaser, length_);
+	ObjLaser_SetIntersectionWidth(objLaser, width_ * 0.8);
+	ObjLaser_SetRenderWidth(objLaser, width_);
+	ObjLaser_SetInvalidLength(objLaser, 0.2, 0.2);
+	ObjShot_SetGrazeInvalidFrame(objLaser, 63);
+	ObjLaser_SetItemDistance(objLaser, 10);
+	
+	return objLaser;
+}
+
+function<int> CreateLaser_Curvy(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, int graphic_, float length_, float width_, float wvel_, int delay_)
+{
+	int objLaser = ObjShot_Create(OBJ_CURVE_LASER);
+	ObjShot_Regist(objLaser);
+	ObjMove_SetPosition(objLaser, posX_, posY_);
+	ObjMove_SetSpeed(objLaser, spd_);
+	ObjMove_SetAngle(objLaser, ang_);
+	ObjMove_SetAcceleration(objLaser, accel_);
+	ObjMove_SetMaxSpeed(objLaser, maxspd_);
+	ObjShot_SetGraphic(objLaser, graphic_);
+	ObjShot_SetDelay(objLaser, delay_);
+	ObjLaser_SetLength(objLaser, length_);
+	ObjLaser_SetIntersectionWidth(objLaser, width_ * 0.8);
+	ObjLaser_SetRenderWidth(objLaser, width_);
+	ObjLaser_SetInvalidLength(objLaser, 0.3, 0.3);
+	ObjMove_SetAngularVelocity(objLaser, wvel_);
+	ObjShot_SetGrazeInvalidFrame(objLaser, 63);
+	ObjLaser_SetItemDistance(objLaser, 10);
+	
+	return objLaser;
+}
+
+function<int> CreateLaser_Straight(float posX_, float posY_, float ang_, float length_, float width_, int deleteFrame_, int graphic_, float delay_, int color_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetIntersectionWidth(objStLaser, width_ * 0.75);
+	ObjLaser_SetRenderWidth(objStLaser, width_);
+	ObjShot_SetDeleteFrame(objStLaser, deleteFrame_);
+	ObjShot_SetGraphic(objStLaser, graphic_);
+	ObjRender_SetColor(objStLaser, color_);
+	ObjShot_SetGrazeInvalidFrame(objStLaser, 63);
+	ObjLaser_SetItemDistance(objStLaser, 10);
+	
+	async
+	{
+		for(int i = 0; i <= delay_; i++)
+		{
+			ObjLaser_SetLength(objStLaser, Interpolate_Smooth(0, length_, i / delay_));
+			
+			yield;
+		}
+	}
+
+	return objStLaser;
+}
+
+function<int> CreateLaser_Blockable(float posX_, float posY_, float ang_, float length_, float width_, int deleteFrame_, int graphic_, float rate_, int rad_, int objPart_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetIntersectionWidth(objStLaser, width_);
+	ObjLaser_SetRenderWidth(objStLaser, width_);
+	ObjShot_SetDeleteFrame(objStLaser, deleteFrame_);
+	ObjShot_SetGraphic(objStLaser, graphic_);
+	ObjShot_SetGrazeInvalidFrame(objStLaser, 63);
+	ObjLaser_SetItemDistance(objStLaser, 10);
+	
+	int[] shotColor = GetShotDataInfoA1(graphic_, TARGET_ENEMY, INFO_DELAY_COLOR);
+	
+	async
+	{
+		int t = 0;
+		while(Obj_IsExists(objStLaser))
+		{
+			local
+            {
+                int lx = ObjMove_GetX(objStLaser);
+                int ly = ObjMove_GetY(objStLaser);
+				
+                float px = GetPlayerX();
+                float py = GetPlayerY();
+                
+                let dx = px - lx;
+                let dy = py - ly;
+                
+				ang_ = ObjStLaser_GetAngle(objStLaser);
+                let vx = cos(ang_);
+                let vy = sin(ang_);
+                
+                let lw = dx * vy - dy * vx;
+                let ld = dx * vx + dy * vy;
+                
+                ObjLaser_SetLength(objStLaser, min(t * 12, length_));
+				
+                if (ld > 0) 
+				{
+                    let lh = rad_ * rad_ - lw * lw;
+                    if (lh > 0)
+					{
+                        let ll = ld - sqrt(lh);
+                        ObjLaser_SetLength(objStLaser, min(min(t * 12, length_), max(ll, 0)));
+						
+						float pdx = GetPlayerX() + (vx * rate_);
+						float pdy = GetPlayerY() + (vy * rate_);
+						if(t * 12 >= GetObjectDistance(_objPlayer, objStLaser))
+						{
+							if(!Pos_IsInArea(pdx, pdy, 6, 6, FRAME_WIDTH - 6, FRAME_HEIGHT - 6)) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, ID_INVALID);
+							ObjMove_SetPosition(_objPlayer, pdx, pdy);
+						
+						
+							float laserEndX = lx + (max(ll, 0) * vx);
+							float laserEndY = ly + (max(ll, 0) * vy);
+							
+							if(_prtLsr)
+							{
+								if(t % 18 == 0) _CreateDeletionEffect([laserEndX, laserEndY], shotColor);
+								
+								// Deletion particle effect
+								if(t % 6 == 0)
+								{
+									async
+									{
+										float rad = prand(30, 50);
+						
+										float orgX = laserEndX + prand(-10, 10);
+										float orgY = laserEndY + prand(-10, 10);
+										
+										float posX = orgX;
+										float posY = orgY;
+										
+										float destX = posX + (rad * cos(prand(0, 360))); 
+										float destY = posY + (rad * sin(prand(0, 360))); 
+										
+										float angX = prand(0, 180);
+										float angY = prand(0, 180);
+										
+										float scaleOrg = prand(0.25, 0.3);
+										float scaleCur = scaleOrg;
+										
+										float alphaOrg = 0;
+										float alphaCur = alphaOrg;
+										
+										float iMax = 60;
+										for(int i = 0; i <= iMax; i++)
+										{
+											// Color
+											ObjParticleList_SetColor(objPart_, shotColor[0], shotColor[1], shotColor[2]);
+										
+											// Position
+											posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+											posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+											ObjParticleList_SetPosition(objPart_, posX, posY, ID_INVALID);
+											
+											// Rotation
+											angX += prand(1, 2);
+											angY -= prand(1, 2);
+											ObjParticleList_SetAngle(objPart_, angX, angY, (angX * angY) / 100);
+											
+											// Size
+											scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+											ObjParticleList_SetScale(objPart_, scaleCur);
+											
+											// Fade
+											alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+											ObjParticleList_SetAlpha(objPart_, alphaCur);
+											
+											ObjParticleList_AddInstance(objPart_);
+											
+											yield;
+										}
+									}
+								}
+							}
+						}
+                    }
+                }
+            }
+        
+            t++;
+			
+            yield;
+		}
+	}
+	
+	return objStLaser;
+}
+
+// Creates a curvy laser tipped with a butterfly
+function<int[]> CreateLaserButterfly(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, float length_, float width_, float wvel_, int graphicA_, int graphicB_, int delay_)
+{
+	int objShot = CreateShot_Enemy(posX_, posY_, spd_, ang_, accel_, maxspd_, graphicA_, delay_);
+	ObjMove_SetAngularVelocity(objShot, wvel_);
+	
+	int objLaser = CreateLaser_Curvy(posX_, posY_, spd_, ang_, accel_, maxspd_, graphicB_, length_, width_, wvel_, 0);
+	
+	return [objShot, objLaser];
+}
+
+function<int> CreateShot_Inverse(int rad_, int ang_, int move_, int graphic_, int shrink_)
+{
+	int objShot = ObjShot_Create(OBJ_SHOT);
+	ObjShot_Regist(objShot);
+	ObjShot_SetAutoDelete(objShot, false);
+	ObjMove_SetPosition(objShot, _enmX + rad_ * cos(ang_), _enmY + rad_ * sin(ang_));
+	ObjMove_SetDestAtFrame(objShot, _enmX, _enmY, move_, LERP_SMOOTH);
+	ObjShot_SetGraphic(objShot, graphic_);
+	ObjShot_SetGrazeInvalidFrame(objShot, 63);
+	ObjRender_SetAngleZ(objShot, 180);
+	
+	async
+	{
+		wait(move_ - shrink_);
+		
+		if(shrink_ > 0)
+		{
+			for(float i = 0; i <= shrink_; i++)
+			{	
+				float scale = Interpolate_Smooth(1, 0, i / shrink_);
+				ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+				ObjShot_SetIntersectionScaleXY(objShot, scale, scale);
+				
+				yield;
+			}
+		}
+		
+		Obj_Delete(objShot);
+	}
+	
+	return objShot;
+}
+
+function<void> CreateLaser_Inferno(float posX_, float width_, int deleteFrame_, float delay_, int color_)
+{	
+	int base = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_STG_SHOT - 1, BLEND_ALPHA,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(base, color_);
+	
+	int glowA = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_STG_SHOT - 1, BLEND_ADD_ARGB,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(glowA, color_);
+	
+	int glowB = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_STG_SHOT - 1, BLEND_ADD_ARGB,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(glowB, color_);
+	
+	async
+	{
+		for(int i = 0; i <= delay_; i++)
+		{
+			float width = Interpolate_Smooth(0, width_, i / delay_);
+			
+			ObjSprite2D_SetSourceRect(base, i * 1.5, -i * 1.5, width + (i * 1.5), 450 - (i * 1.5));
+			ObjSprite2D_SetSourceRect(glowA, i, i, width + i, 450 + i);
+			ObjSprite2D_SetSourceRect(glowB, -i, -i, width - i, 450 - i);
+			
+			ObjSprite2D_SetDestRect(base, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			ObjSprite2D_SetDestRect(glowA, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			ObjSprite2D_SetDestRect(glowB, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			
+			yield;
+		}
+		
+		int frame = delay_;
+		
+		for(; frame <= deleteFrame_ + delay_; frame++)
+		{
+			ObjSprite2D_SetSourceRect(base, frame * 1.5, -frame * 1.5, width_ + (frame * 1.5), 450 - (frame * 1.5));
+			ObjSprite2D_SetSourceRect(glowA, frame, frame, width_ + frame, 450 + frame);
+			ObjSprite2D_SetSourceRect(glowB, -frame, -frame, width_ - frame, 450 - frame);
+			
+			ObjSprite2D_SetDestRect(base, posX_ - (width_ / 2), -5, posX_ + (width_ / 2), 445);
+			ObjSprite2D_SetDestRect(glowA, posX_ - (width_ / 2), -5, posX_ + (width_ / 2), 445);
+			ObjSprite2D_SetDestRect(glowB, posX_ - (width_ / 2), -5, posX_ + (width_ / 2), 445);
+			
+			if(Obj_IsInArea(_objPlayer, posX_ - (width_ / 2), -5, posX_ + (width_ / 2), 445)) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, ID_INVALID);
+			
+			yield;
+		}
+		
+		for(int i = 0; i <= delay_; i++, frame++)
+		{
+			float width = Interpolate_Smooth(width_, 0, i / delay_);
+			
+			ObjSprite2D_SetSourceRect(base, frame * 1.5, -frame * 1.5, width + (frame * 1.5), 450 - (frame * 1.5));
+			ObjSprite2D_SetSourceRect(glowA, frame, frame, width + frame, 450 + frame);
+			ObjSprite2D_SetSourceRect(glowB, -frame, -frame, width - frame, 450 - frame);
+			
+			ObjSprite2D_SetDestRect(base, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			ObjSprite2D_SetDestRect(glowA, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			ObjSprite2D_SetDestRect(glowB, posX_ - (width / 2), -5, posX_ + (width / 2), 445);
+			
+			yield;
+		}
+		
+		Obj_Delete(base);
+		Obj_Delete(glowA);
+		Obj_Delete(glowB);
+	}
+}

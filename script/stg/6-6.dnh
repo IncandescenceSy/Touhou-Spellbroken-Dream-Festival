@@ -1,0 +1,172 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Yuuma 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yuuma 2nd"]
+#Text["Yuuma 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DRED;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 51);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUUMA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 477, 600, 190, 105, 45, _colorA, _colorB, CENTER_X, 110, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(18000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	const int[] SHOTS = [SHOT_FIREBALL_RED, SHOT_FIREBALL_GREY];
+	
+	for(int i = 0; ; i++)
+	{
+		_RenderExtendedCharge();
+		
+		int way = 37;
+		
+		for(int j = 0; j < (155 * 2) + 62; j++)
+		{
+			if((j % 15 == 0) && j < (155 * 2)) for(int k = 0; k < way; k++) CreateShot_Inverse(400, (k * (360 / way)) + (j * 5), 200, SHOTS[i % 2], 20);
+			
+			float ang = GetAngleToPlayer(_objBoss) + 180;
+			ObjMove_SetX(_objPlayer, GetPlayerX() + 1 * cos(ang));
+			ObjMove_SetY(_objPlayer, GetPlayerY() + 1 * sin(ang));
+
+			yield;
+		}
+		
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, FRAME_HEIGHT + 180, 140, LERP_SMOOTH);
+		
+		for(int j = 0; j < 220; j++)
+		{
+			if(j % 15 == 0)
+			{
+				way = 20;
+				float off = rand(0, 360);
+				for(int k = 0; k <= way; k++)
+				{
+					float ang = (k * (360 / way)) + off;
+					ObjMove_AddPatternB2(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOTS[i % 2], 15), 0, 1.5 * cos(ang), 1.5 * sin(ang), -0.001 * cos(ang), 0.015, -0.7 * cos(ang), 2);
+					ObjMove_AddPatternB2(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOTS[i % 2], 15), 0, 1.5 * cos(ang), 1.5 * sin(ang), -0.001 * cos(ang), -0.015, -0.7 * cos(ang), -2);
+				}
+				
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			}
+			
+			if(j == 140)
+			{
+				ObjMove_SetY(_objBoss, -180);
+				ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 110, 120, LERP_DECELERATE);
+			}
+			
+			yield;
+		}
+		
+		wait(140);
+	}
+}
+
+task _RenderExtendedCharge()
+{
+	loop(2)
+	{	
+		for(int i = 0; i < 155; i++)
+		{
+			if(_effChr)
+			{
+				_RenderChargeParticle(_enmX, _enmY, _colorB);
+				if(i % 31 == 0)
+				{
+					_RenderChargeWave(_enmX, _enmY, 3.5, 0, 0, 255, _colorA);
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_CHARGE_STRONG);
+				}
+			}
+				
+			yield;
+		}
+	}
+	
+	for(int i = 0; i <= 62; i++)
+	{
+		if(_effChr)
+		{
+			_RenderChargeParticle(_enmX, _enmY, _colorB);
+			if(i % 31 == 0)
+			{
+				_RenderChargeWave(_enmX, _enmY, 3.5, 0, 0, 255, _colorA);
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_CHARGE_STRONG);
+			}
+		}
+			
+		yield;
+	}
+}

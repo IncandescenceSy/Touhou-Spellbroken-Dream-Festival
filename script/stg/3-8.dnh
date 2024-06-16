@@ -1,0 +1,417 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Doremy 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Doremy 3rd"]
+#Text["Doremy 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PINK;
+int _colorB = COLOR_DINDIGO;
+
+// Circle colors
+const int[] _RGB_COLOR_AZURE  = ColorHexToARGB(COLOR_AZURE, COLOR_PERMUTE_RGB);
+const int[] _RGB_COLOR_INDIGO = ColorHexToARGB(COLOR_INDIGO, COLOR_PERMUTE_RGB);
+const int[] _RGB_COLOR_GREEN  = ColorHexToARGB(COLOR_GREEN, COLOR_PERMUTE_RGB);
+const int[][] _COLORS = [_RGB_COLOR_INDIGO, _RGB_COLOR_GREEN, _RGB_COLOR_AZURE];
+
+int[][] _colorsA = [[Interpolate_Linear(_RGB_COLOR_INDIGO[0], 255, 0.35), Interpolate_Linear(_RGB_COLOR_INDIGO[1], 255, 0.35), Interpolate_Linear(_RGB_COLOR_INDIGO[2], 255, 0.35)], [Interpolate_Linear(_RGB_COLOR_GREEN[0], 255, 0.35), Interpolate_Linear(_RGB_COLOR_GREEN[1], 255, 0.35), Interpolate_Linear(_RGB_COLOR_GREEN[2], 255, 0.35)], [Interpolate_Linear(_RGB_COLOR_AZURE[0], 255, 0.35), Interpolate_Linear(_RGB_COLOR_AZURE[1], 255, 0.35), Interpolate_Linear(_RGB_COLOR_AZURE[2], 255, 0.35)]];
+int[] _colorsB = [ColorARGBToHex(255, _colorsA[0][0], _colorsA[0][1], _colorsA[0][2]), ColorARGBToHex(255, _colorsA[1][0], _colorsA[1][1], _colorsA[1][2]), ColorARGBToHex(255, _colorsA[2][0], _colorsA[2][1], _colorsA[2][2])];
+
+int _barrier = 0;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 26);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_DOREMY);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 389, 640, 178, 107, 60, _colorA, _colorB, CENTER_X, 120, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_CONTROLS, PRESS_XC);
+	NotifyEvent(_ID_PLAYER, EV_RECOLOR_WHILE_BOSS_LIVES, [255, 255, 255], _objBoss);
+	
+	// Pattern
+	_CirclePlayer();
+	//_CircleBoss();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(33000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	// Key checking
+	if(GetVirtualKeyState(VK_BOMB) == KEY_PUSH)
+	{
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		_barrier++;
+	}
+	else if(GetVirtualKeyState(VK_USER1) == KEY_PUSH)
+	{
+		_barrier--;
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	}
+	if(_barrier > 2) _barrier = 0;
+	else if(_barrier < 0) _barrier = 2;
+	
+	// Player color
+	int[] col = ObjRender_GetColor(_objPlayer);
+	ObjRender_SetColor(_objPlayer, Interpolate_Smooth(col[0], _colorsA[_barrier][0], 0.15), Interpolate_Smooth(col[1], _colorsA[_barrier][1], 0.15), Interpolate_Smooth(col[2], _colorsA[_barrier][2], 0.15));
+		
+	// Player option scale, color, and render priority
+	NotifyEvent(_ID_PLAYER, EV_CONTROL_OPTIONS, 1, _colorsA[_barrier], RP_STG_PLR + 3, _colorsB[_barrier]);
+	
+	for each(int iShots in ref GetShotIdInCircleA2(GetPlayerX(), GetPlayerY(), 56, TARGET_ENEMY))
+	{
+		int graphic = ObjShot_GetImageID(iShots);
+		if(GetShotDataInfoA1(graphic, TARGET_ENEMY, INFO_DELAY_COLOR) == _COLORS[_barrier] && Obj_IsInArea(iShots, 0, 0, FRAME_WIDTH, FRAME_HEIGHT) && !Obj_GetValueDI(iShots, VAL_MISC, false))
+		{
+			AddScore(3300000);
+			ObjMove_SetAngle(iShots, GetAngleToPlayer(iShots));
+			ObjMove_SetSpeed(iShots, ObjMove_GetSpeed(iShots) / 2);
+			ObjShot_SetGraphic(iShots, graphic - 26);
+			Obj_SetValueI(iShots, VAL_MISC, true);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		}
+	} 
+		
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _CirclePlayer()
+{
+	float scale = 0.2;
+	
+	float plX = GetPlayerX();
+	float plY = GetPlayerY();
+	
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ALPHA,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetColor(circleA, COLOR_AZURE);
+	
+	// Glowing circle
+	int circleB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetAlpha(circleB, 0);
+	ObjRender_SetColor(circleB, COLOR_AZURE);
+	
+	int targetAlpha;
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Rotation
+		ObjRender_SetAngleZ(circleA, z * 0.7);
+		ObjRender_SetAngleZ(circleB, z * 0.7);
+		
+		// Glow
+		ObjRender_SetAlpha(circleB, Interpolate_Smooth(255, 0, absolute(sin(z * 3))));
+		
+		// Attaches it to the player
+		plX = GetPlayerX();
+		plY = GetPlayerY();
+		
+		ObjRender_SetPosition(circleA, plX, plY, ID_INVALID);
+		ObjRender_SetPosition(circleB, plX, plY, ID_INVALID);
+		
+		// Color
+		int[] col = ObjRender_GetColor(circleA);
+		ObjRender_SetColor(circleA, Interpolate_Smooth(col[0], _COLORS[_barrier][0], 0.3), Interpolate_Smooth(col[1], _COLORS[_barrier][1], 0.3), Interpolate_Smooth(col[2], _COLORS[_barrier][2], 0.3));
+		ObjRender_SetColor(circleB, Interpolate_Smooth(col[0], _COLORS[_barrier][0], 0.3), Interpolate_Smooth(col[1], _COLORS[_barrier][1], 0.3), Interpolate_Smooth(col[2], _COLORS[_barrier][2], 0.3));
+		
+		// Counter variable
+		z++;
+		
+		yield;
+	}
+}
+
+/*
+task _CircleBoss()
+{
+	int objSquare = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_FX_MED_H, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_WHITE
+	);
+
+	int objShader = ObjShader_Create();
+	ObjShader_SetShaderF(objShader, DIR_SDR_CIRCLE);
+	ObjShader_SetTechnique(objShader, TEC_CIRCLE);
+	ObjShader_SetFloat(objShader, FLOAT_ENM_X, (ObjMove_GetX(_objBoss) * RES) + FRAME_LEFT);
+	ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (ObjMove_GetY(_objBoss) * RES) + FRAME_TOP);
+	ObjShader_SetVector(objShader, FLOAT_FILTER, 1, 0, 0, 0.5);
+	ObjShader_SetShaderO(objSquare, objShader);
+	
+	int objPlayer = GetPlayerObjectID();
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjShader_SetFloat(objShader, FLOAT_ENM_X, (ObjMove_GetX(_objBoss) * RES) + FRAME_LEFT);
+		ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (ObjMove_GetY(_objBoss) * RES) + FRAME_TOP);
+		
+		ObjShader_SetFloat(objShader, FLOAT_RADIUS, Interpolate_Smooth(0, 16384 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	loop
+	{
+		ObjShader_SetFloat(objShader, FLOAT_ENM_X, (ObjMove_GetX(_objBoss) * RES) + FRAME_LEFT);
+		ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (ObjMove_GetY(_objBoss) * RES) + FRAME_TOP);
+		
+		if(GetObjectDistance(objPlayer, _objBoss) < 103) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, ID_INVALID);
+		
+		yield;
+	}
+}*/
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int[] shots = [SHOT_RICE_INVERT_PURPLE, SHOT_RICE_INVERT_GREEN, SHOT_RICE_INVERT_AZURE];
+	
+	int iMax = length(shots);
+	for(int i = 0; i < iMax; i++)
+	{
+		int[] bullets = [];
+		int way = 220;
+		float off = rand(0, 360);
+		for(int j = 0; j <= way; j++) bullets ~= [CreateShot_Enemy(_enmX, _enmY, 0, off + (j * (360 / way)), 0.0125, 2, SHOT_RICE_INVERT_GREY, 25)];
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		_ManageShots(bullets, shots[i]);
+		wait(120);
+	}
+	
+	wait(60);
+	
+	loop
+	{
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemy(CreateEnemy
+			(
+				1, 0, false, true,
+				COLOR_PURPLE, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_PURPLE, i * (360 / 2));
+		}
+		
+		wait(220);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemy(CreateEnemy
+			(
+				1, 0, false, true,
+				COLOR_GREEN, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_GREEN, i * (360 / 2));
+		}
+		
+		wait(220);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemy(CreateEnemy
+			(
+				1, 0, false, true,
+				COLOR_AZURE, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_AZURE, i * (360 / 2));
+		}
+		
+		//wait(280);
+		
+		/*for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyA(CreateEnemy
+			(
+				4000, STANDARD_ENEMYHITBOX, true, true,
+				COLOR_AZURE, STANDARD_ENEMYSCALE, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_AZURE, i * (360 / 2));
+		}
+		
+		wait(220);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyA(CreateEnemy
+			(
+				4000, STANDARD_ENEMYHITBOX, true, true,
+				COLOR_PURPLE, STANDARD_ENEMYSCALE, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_PURPLE, i * (360 / 2));
+		}
+		
+		wait(220);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyA(CreateEnemy
+			(
+				4000, STANDARD_ENEMYHITBOX, true, true,
+				COLOR_GREEN, STANDARD_ENEMYSCALE, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_GREEN, i * (360 / 2));
+		}*/
+		
+		wait(220);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyB(CreateEnemy
+			(
+				1, 0, false, false,
+				COLOR_PURPLE, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_PURPLE, i * (360 / 2));
+		}
+		
+		wait(350);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyB(CreateEnemy
+			(
+				1, 0, false, false,
+				COLOR_GREEN, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_GREEN, i * (360 / 2));
+		}
+		
+		wait(350);
+		
+		for(int i = 0; i < 2; i++)
+		{
+			_ManageEnemyB(CreateEnemy
+			(
+				1, 0, false, false,
+				COLOR_AZURE, STANDARD_ENEMYSCALE, true, true,
+				CENTER_X, 120, CENTER_X, 120, 0
+			), SHOT_RICE_INVERT_AZURE, i * (360 / 2));
+		}
+		
+		wait(350);
+	}
+}
+
+task _ManageShots(int[] bullets_, int shot_)
+{
+	wait(120);
+	for each(int iBullets in ref bullets_) ObjShot_SetGraphic(iBullets, shot_);
+}
+
+task _ManageEnemy(int objEnemy_, int shot_, int ang_)
+{
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		ObjMove_SetPosition(objEnemy_, CENTER_X + i * cos(i + ang_), 120 + i * sin(i));
+		
+		if(i % 2 == 0) for(int j = 0; j <= 1; j++) CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, i + (j * 180), 0.0125, 2, shot_, 25);
+		
+		yield;
+	}
+}
+
+task _ManageEnemyA(int objEnemy_, int shot_, int ang_)
+{
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		ObjMove_SetPosition(objEnemy_, CENTER_X + i * cos(i + ang_), 120 + i * sin(i + ang_));
+		
+		if(i % 2 == 0) CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, i, 0.0075, 1.5, shot_, 25);
+		
+		yield;
+	}
+}
+
+task _ManageEnemyB(int objEnemy_, int shot_, int ang_)
+{
+	for(int i = 300; i > -300; i--)
+	{
+		ObjMove_SetPosition(objEnemy_, CENTER_X + i * cos(i + ang_), CENTER_Y + i * sin(i + ang_));
+		
+		if(i % 2 == 0) CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, i, 0.0125, 2, shot_, 25);
+		
+		yield;
+	}
+	
+	ObjEnemy_SetLife(objEnemy_, 0);
+}

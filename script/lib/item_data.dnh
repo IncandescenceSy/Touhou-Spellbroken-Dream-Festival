@@ -1,0 +1,12 @@
+#UserItemData
+
+item_image = "./../assets/img/sys/item.png"
+
+// Cancel item
+ItemData{id = 1 rect = (0, 0, 48, 48) render = ALPHA}
+
+// Point item
+ItemData{id = 2 rect = (48, 0, 96, 48) out = (96, 0, 144, 48) render = ALPHA}
+
+// Power item
+ItemData{id = 3 rect = (144, 0, 192, 48) out = (192, 0, 240, 48) render = ALPHA}

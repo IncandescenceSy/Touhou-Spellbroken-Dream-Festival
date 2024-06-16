@@ -1,0 +1,178 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Sanae ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Sanae"]
+#Text["Sanae"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DGREEN;
+
+// Bullet graphics
+const int[] _SHOTS = [SHOT_RICE_RED, SHOT_RICE_ORANGE, SHOT_RICE_YELLOW, SHOT_RICE_GREEN, SHOT_RICE_AQUA, SHOT_RICE_AZURE, SHOT_RICE_PURPLE, SHOT_RICE_PINK];
+const int[] _LASERS = [SHOT_CURVY_LASER_RED, SHOT_CURVY_LASER_ORANGE, SHOT_CURVY_LASER_YELLOW, SHOT_CURVY_LASER_GREEN, SHOT_CURVY_LASER_AQUA, SHOT_CURVY_LASER_AZURE, SHOT_CURVY_LASER_PURPLE, SHOT_CURVY_LASER_PINK];
+
+// Star point offset
+const int[][] _POINTS = 
+[
+	[0, -140],   // First point
+	[120, 110],  // Second point
+	[-130, -40],   // Third point
+	[130, -40],    // Fourth point
+	[-120, 110], // Fifth point
+	[0, -140]    // First point again
+];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 36);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SANAE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 404, 580, 178, 107, 55, _colorA, _colorB, CENTER_X, 80, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	float off = rand(0, 360);
+	
+	int iMax = 20;
+	int way  = 35;
+	
+	for(int i = 0; i <= iMax; i++)
+	{
+		for(int j = 0; j <= way; j++)
+		{
+			float ang = (j * (360 / way) + (i * way)) + off;
+			ObjMove_AddPatternB2(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, _SHOTS[prand_int(0, 7)], 25), 0, 1.5 * cos(ang), 1.95 * sin(ang), 0.01 * cos(ang), absolute(0.0175 * sin(ang)), INT_MAX * cos(ang), INT_MAX); 
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(20);
+	}
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 150, 45, LERP_DECELERATE);
+	
+	wait(45);
+	
+	for(int i = 0; i <= 4; i++) _DrawStar(i);
+	
+	wait(120);
+	
+	loop
+	{
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		for(int i = 0; i <= 4; i++) _DrawStar(i);
+		
+		wait(225);
+	}
+}
+
+task _DrawStar(int start_)
+{
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	int objLaser = CreateLaser_Curvy(_POINTS[start_][0] + _enmX, _POINTS[start_][1] + _enmY, 0, 0, 0, 0, SHOT_CURVY_LASER_GREEN, 20, 15, 0, 0);
+	
+	int[] shots = [];
+	
+	for(int i = start_; i <= start_ + 5; i++)
+	{
+		float destX = _POINTS[i % 5][0] + _enmX;
+		float destY = _POINTS[i % 5][1] + _enmY;
+		
+		ObjMove_SetDestAtFrame(objLaser, destX, destY, 30, LERP_SMOOTH);
+		
+		for(int j = 0; j <= 10; j++)
+		{
+			shots ~= [CreateShot_Enemy(ObjMove_GetX(objLaser), ObjMove_GetY(objLaser), 0, ObjMove_GetAngle(objLaser) + (j * (360 / 10)) + (start_ * (360 / 5)), 0, 3, _SHOTS[prand_int(0, 7)], 25)];
+			
+			wait(3);
+		}
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	for each(int iShots in ref shots) ObjMove_SetAcceleration(iShots, 0.0125);
+	
+	for(int i = -3; i <= 3; i++) CreateLaser_Curvy(ObjMove_GetX(objLaser), ObjMove_GetY(objLaser), 0, [270, 45, 180, 0, 135][start_] + (i * (45 / 8)), 0.01, 1, _LASERS[i + 3], 200, 10, i * 0.07, 0);
+	
+	ObjLaser_SetLength(objLaser, 100);
+	ObjMove_SetAngle(objLaser, GetAngleToPlayer(objLaser));
+	ObjMove_SetAcceleration(objLaser, 0.03);
+	ObjMove_SetMaxSpeed(objLaser, 5);
+}

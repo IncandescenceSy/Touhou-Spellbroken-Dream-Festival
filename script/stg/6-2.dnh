@@ -1,0 +1,356 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yuyuko 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yuyuko 1st"]
+#Text["Yuyuko 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DMAGENTA;
+
+// Particle list for laser collision effects
+int _objPartStar = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 47);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUYUKO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 334, 620, 189, 115, 45, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_PLAYER_CIRCLE, _objBoss, 0.2, _colorB);
+	NotifyEvent(_ID_SYSTEM, EV_WARNING_GLOW, _colorA);
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(26500);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	/*wait(12);
+	
+	SetShotAutoDeleteClip(64, 64, (64 + FRAME_WIDTH) - (RES * FRAME_WIDTH), (64 + FRAME_HEIGHT) - (RES * FRAME_HEIGHT));
+	
+	// Beginning
+	int way = 26;
+	for(int i = 0; i <= way; i++)
+	{
+		_Rotate(CreateLaser_Blockable(_enmX, _enmY, i * (360 / way), 1024, 15, 420, SHOT_CURVY_LASER_AQUA, 0.9, 56, _objPartStar), 0.5, 1);
+		_Rotate(CreateLaser_Blockable(_enmX, _enmY, i * (360 / way), 1024, 15, 420, SHOT_CURVY_LASER_BLUE, 0.9, 56, _objPartStar), 0.5, -1);
+	}
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	int rad = 190;
+	way = 43;
+	int off = 0;
+		
+	loop(20)
+	{
+		for(int i = 0; i <= way; i++)
+		{
+			int ang = (i * (360 / way)) + off;
+			
+			float posX = _enmX + rad * cos(ang);
+			float posY = _enmY + rad * sin(ang);
+			
+			CreateLaserButterfly(posX, posY, 0.25, ang, 0.03, 3, 50, 15, 0.06, SHOT_BUTTERFLY_PINK, SHOT_CURVY_LASER_PINK, 0);
+			CreateLaserButterfly(posX, posY, 0.25, ang, 0.03, 3, 50, 15, -0.06, SHOT_BUTTERFLY_PURPLE, SHOT_CURVY_LASER_PURPLE, 0);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		off += (360 / way) / 2;
+		
+		wait(20);
+	}
+	
+	
+	// Spell start
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 140, 60, LERP_DECELERATE);
+	
+	_Hitbox();*/
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_AURA, _objBoss, DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", _colorB, COLOR_AZURE, 608, 304, 5, 1, 0);
+	
+	// Spell
+	_Growth();
+	
+	loop
+	{
+		_BossSwoop(70, 140, SHOT_BUTTERFLY_PINK, SHOT_CURVY_LASER_PINK, 1);
+		
+		wait(180);
+		
+		_BossSwoop(CENTER_X, 110, SHOT_BUTTERFLY_PINK, SHOT_CURVY_LASER_PINK, 1);
+		
+		wait(180);
+		
+		_BossSwoop(FRAME_WIDTH - 70, 140, SHOT_BUTTERFLY_PURPLE, SHOT_CURVY_LASER_PURPLE, -1);
+		
+		wait(180);
+		
+		_BossSwoop(CENTER_X, 110, SHOT_BUTTERFLY_PURPLE, SHOT_CURVY_LASER_PURPLE, -1);
+		
+		wait(180);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(30);
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, true);
+		
+		wait(40);
+		
+		int way = 12;
+		for(int i = 0; i <= way; i++)
+		{
+			_Rotate(CreateLaser_Blockable(_enmX, _enmY, i * (360 / way), 512, 15, 120, SHOT_CURVY_LASER_PURPLE, 0.7, 56, _objPartStar), 1, 1);
+			_Rotate(CreateLaser_Blockable(_enmX, _enmY, i * (360 / way), 512, 15, 120, SHOT_CURVY_LASER_PINK, 0.7, 56, _objPartStar), 1, -1);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		wait(160);
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, false);
+		
+		wait(20);
+	}
+		
+}
+
+task _Growth()
+{
+	int index = 0;
+	float wvel = 0.5;
+	
+	int[] shots  = [SHOT_BUTTERFLY_AQUA, SHOT_BUTTERFLY_BLUE, SHOT_CURVY_LASER_AQUA, SHOT_CURVY_LASER_BLUE];
+	int[] shotsA = [SHOT_RICE_AQUA, SHOT_RICE_BLUE];
+	
+	loop
+	{
+		int way = 10;
+		for(int i = -(way / 2); i <= way * 1.5; i++)
+		{
+			_HandleGrowth(CreateLaserButterfly(i * (FRAME_WIDTH / way), -20, 0.25, 90, 0.03, 3, 50, 13, wvel, shots[index % 2 == 0], shots[(index % 2 == 0) + 2], 0), shotsA[index % 2 == 0], wvel * 2);
+		}
+		
+		index++;
+		wvel *= -1;
+		
+		wait(90);
+	}
+}
+
+task _HandleGrowth(int[] objShots_, int bud_, int dir_)
+{
+	_Wiggle(objShots_[0], dir_);
+	_Wiggle(objShots_[1], dir_);
+	
+	for(int i = 5; i >= 0; i--)
+	{
+		//_HandleBud(CreateShot_Enemy(ObjMove_GetX(objShots_[0]), ObjMove_GetY(objShots_[1]), 0, ObjMove_GetAngle(objShots_[0] - 90), 0, 0, bud_, 30), i);
+		//_HandleBud(CreateShot_Enemy(ObjMove_GetX(objShots_[0]), ObjMove_GetY(objShots_[1]), 0, ObjMove_GetAngle(objShots_[0] + 90), 0, 0, bud_, 30), i);
+		
+		wait(10);
+	}
+	
+	for each(i in ref objShots_)
+	{
+		ObjMove_SetAcceleration(i, -0.05);
+		ObjMove_SetMaxSpeed(i, 0);
+	}
+	
+	wait(45);
+	
+	for each(i in ref objShots_)
+	{
+		ObjMove_SetAcceleration(i, 0.03);
+		ObjMove_SetMaxSpeed(i, 2.5);
+	}
+}
+
+task _HandleBud(int objShot_, int index_)
+{
+	wait((index_ * 10) + 45);
+	
+	ObjMove_SetAcceleration(objShot_, 0.03);
+	ObjMove_SetMaxSpeed(objShot_, 3.5);
+}
+
+task _Rotate(int objLaser_, float spd_, int dir_)
+{
+	ObjShot_SetAutoDelete(objLaser_, false);
+	
+	while(Obj_IsExists(objLaser_))
+	{
+		ObjStLaser_SetAngle(objLaser_, ObjStLaser_GetAngle(objLaser_) + (spd_ * dir_));
+		
+		yield;
+	}
+}
+
+task _Wiggle(int objLaser_, int dir_)
+{
+	wait(15);
+	
+	while(Obj_IsExists(objLaser_))
+	{
+		ObjMove_SetAngularVelocity(objLaser_, -1.25 * dir_);
+		
+		wait(30);
+		
+		ObjMove_SetAngularVelocity(objLaser_, 1.25 * dir_);
+		
+		wait(30);
+	}
+}
+
+task _BossSwoop(float destX_, float destY_, int graphicA_, int graphicB_, int dir_)
+{
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(70);
+		
+	_EnemyMoveSwoop(_objBoss, destX_, destY_, 0.5, 90);
+		
+	int rad;
+	
+	// Counter variable
+	int frame = 1;
+	
+	loop(6)
+	{
+		rad = 90 * sin(frame * 8);
+		
+		int way = 10;
+		int off = 0;
+		
+		for(int i = 0; i <= way; i++)
+		{
+			int ang = (off + (i * (360 / way))) * sin(frame * 8);
+				
+			float posX = _enmX + rad * cos(ang);
+			float posY = _enmY + rad * sin(ang);
+				
+			CreateLaserButterfly(posX, posY, 0.25, ang, 0.04, 3.5, 25, 10, 0, graphicA_, graphicB_, 15);
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		off += 20;
+		
+		// Counter variable
+		frame++;
+		
+		wait(15);
+	}
+}
+
+task _Flash(int objShot_, int objLaser_)
+{
+	// Counter variable
+	int frame = 0;
+	
+	while(Obj_IsExists(objLaser_) && Obj_IsExists(objShot_))
+	{
+		int[] color = GetShotDataInfoA1(ObjShot_GetImageID(objShot_), TARGET_ENEMY, INFO_DELAY_COLOR);
+		float intn = sin(frame);
+		intn = (intn > 0) ? intn : -intn;
+		color *= intn;
+		
+		ObjRender_SetColor(objShot_, color[0], color[1], color[2]);
+		ObjRender_SetColor(objLaser_, color[0], color[1], color[2]);
+		
+		// Counter variable
+		frame++;
+		
+		yield;
+	}
+}
+
+task _Hitbox()
+{
+	const int RADIUS_HITBOX = 32;
+	
+	loop
+	{
+		ObjEnemy_SetIntersectionCircleToShot(_objBoss, _enmX, _enmY, RADIUS_HITBOX);
+		ObjEnemy_SetIntersectionCircleToPlayer(_objBoss, _enmX, _enmY, RADIUS_HITBOX / 2);
+		
+		yield;
+	}
+}

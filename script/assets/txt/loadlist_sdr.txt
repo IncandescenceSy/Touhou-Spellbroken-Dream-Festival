@@ -1,0 +1,13 @@
+angcolor.hlsl
+back.hlsl
+distort.hlsl
+fire.hlsl
+hueshift.hlsl
+lifebar.hlsl
+mask_alpha.hlsl
+monochrome.hlsl
+particle.hlsl
+pause.hlsl
+slurp.hlsl
+toast.hlsl
+zeroranger.hlsl

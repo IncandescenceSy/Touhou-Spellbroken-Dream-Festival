@@ -1,0 +1,1169 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Final Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains all variables and functions unique to the final boss
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library (by Shijimi Nono) contains animation code for fairies
+#include "./lib_anime_enemy.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Background scroll speed
+float _scroll = 3;
+
+// Boss phase
+int _phase = 7;
+
+//const int[][] _PHASE_COLORS = [[255, 127, 191], [191, 0, 191], [0, 127, 255], [0, 255, 255], [0, 255, 0], [255, 255, 0], [255, 127, 0], [255, 0, 0]];
+const int[][] _PHASE_COLORS = [[255, 0, 0], [255, 127, 0], [255, 255, 0], [0, 255, 0], [0, 255, 255], [0, 127, 255], [191, 0, 191], [255, 127, 191]];
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Tracks the current phase
+task _TrackPhase(int objBoss_, int objScene_)
+{
+	while(!ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_SPELL)) yield;
+
+	while(!Obj_IsDeleted(objBoss_))
+	{
+		_phase = (ceil(ObjEnemy_GetInfo(objBoss_, INFO_LIFE) / 10000)) - 1;
+		
+		yield;
+	}
+}
+
+// Boss lifebar and position-indicating lines
+task _RenderBossLifebarF(int objBoss_, int objScene_, int objPlayer_, int spellID_)
+{
+	while(!ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_SPELL)) yield;
+	
+	// Octagonal lifebar
+	int objLife = CreatePrimObject(DIR_IMG_SYS_LIFEBAR, RP_STG_LIFE, PRIMITIVE_TRIANGLESTRIP, 18);
+	
+	// Octagonal lifebar outline
+	int objLine = CreatePrimObject(DIR_IMG_SYS_LIFEBAR, RP_STG_LIFE, PRIMITIVE_TRIANGLESTRIP, 18);
+	
+	// Color shader
+	int objShader = ObjShader_Create();
+	ObjShader_SetShaderF(objShader, DIR_SDR_ANGCOLOR);
+	ObjShader_SetTechnique(objShader, TEC_ANGCOLOR);
+	ObjShader_SetFloat(objShader, FLOAT_COLORS, 8);
+	ObjShader_SetFloat(objShader, FLOAT_ENM_X, (_enmX * RES) + FRAME_LEFT);
+	ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (_enmY * RES) + FRAME_TOP);
+	SetShaderI(objShader, RP_STG_LIFE, RP_STG_LIFE);
+	
+	// Position-indicating lines
+	int objPos = CreatePrimObject(RP_STG_LINE, PRIMITIVE_LINELIST, 4);
+	float iMax = 3;
+	for(int i = 0; i <= iMax; i++) ObjPrim_SetVertexPosition(objPos, i, ObjMove_GetX(objBoss_), ObjMove_GetY(objBoss_), 0);
+	
+	// Life percentage
+	/*int objPerc = CreateTextObject
+	(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		0, 460 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);*/
+	
+	// Needed for the filling up / expanding animations as it forms
+	float lifeRateRender = 0;
+	float lifeRadiusRender = 0;
+	
+	// Boss position
+	float bossX = ObjMove_GetX(objBoss_);
+	float bossY = ObjMove_GetY(objBoss_);
+	
+	// Is the current pattern a timeout spell?
+	bool isTimeout = ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_DURABLE_SPELL);
+	
+	// Maximum life, current life, and ratio between them
+	float lifeTotalMax;
+	float lifeTotal;
+	if(!isTimeout)
+	{
+		lifeTotalMax = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+		lifeTotal = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+	}
+	else
+	{
+		lifeTotalMax = ObjEnemyBossScene_GetInfo(objScene_, INFO_ORGTIMERF);
+		lifeTotal = ObjEnemyBossScene_GetInfo(objScene_, INFO_TIMERF);
+	}
+	float lifeRate = min(lifeTotal / lifeTotalMax, lifeRateRender);
+	
+	// Current phase
+	int phase = ceil(lifeTotal / 10000);
+	float phaseTotalMax = 10000;
+	float phaseTotal = lifeTotal - ((phase - 1) * 10000);
+	float phaseRate = min(phaseTotal / phaseTotalMax, lifeRateRender);
+	
+	float edgeCount = 1 + floor(lifeRate / 0.125);
+	
+	// Sets the source on the image
+	iMax = 8;
+    for(int i = 0; i <= iMax; i++)
+    {
+        int curVert = i * 2;
+        ObjPrim_SetVertexUVT(objLife, curVert, 0, 0);
+        ObjPrim_SetVertexUVT(objLife, curVert + 1, 10, 32); 
+        ObjPrim_SetVertexUVT(objLine, curVert, 10, 0);
+        ObjPrim_SetVertexUVT(objLine, curVert + 1, 19, 32);
+    }
+	
+	while(ObjEnemy_GetInfo(objBoss_, INFO_LIFE) > 0)
+	{
+		// Rechecks the current life or timer to edit the ratio
+		if(!isTimeout) lifeTotal = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+		else lifeTotal = ObjEnemyBossScene_GetInfo(objScene_, INFO_TIMERF);
+		lifeRate = min(lifeTotal / lifeTotalMax, lifeRateRender);
+		
+		phase = ceil(lifeTotal / 10000);
+		phaseTotal = lifeTotal - ((phase - 1) * 10000);
+		phaseRate = min(phaseTotal / phaseTotalMax, lifeRateRender);
+		
+		// Rechecks the current boss position
+		bossX = ObjMove_GetX(objBoss_);
+	    bossY = ObjMove_GetY(objBoss_);
+	
+		// Amount of lifebar edges to render
+        edgeCount = 1 + floor(lifeRate / 0.125);
+        
+        // Draw every edge that is to be fully rendered
+		for(int i = 0; i < edgeCount; i++)
+		{
+			ObjPrim_SetVertexPosition(objLife, i * 2, cos(-90 - i * 45) * lifeRadiusRender, sin(-90 - i * 45) * lifeRadiusRender, 0);
+			ObjPrim_SetVertexPosition(objLife, (i * 2) + 1, cos(-90 - i * 45) * lifeRadiusRender * 1.083, sin(-90 - i * 45) * lifeRadiusRender * 1.083, 0);
+		}
+				
+		// Draws the edge that needs to be only partially rendered
+		float x1 = cos(-90 - (edgeCount) * 45) * lifeRadiusRender;
+		float y1 = sin(-90 - (edgeCount) * 45) * lifeRadiusRender;
+		float x2 = cos(-90 - (edgeCount - 1) * 45) * lifeRadiusRender;
+		float y2 = sin(-90 - (edgeCount - 1) * 45) * lifeRadiusRender;
+		float rate = (lifeRate % 0.125) * 8;
+		
+		iMax = 8;
+		
+		for(int i = edgeCount; i <= iMax; i++) ObjPrim_SetVertexPosition(objLife, i * 2, Interpolate_Lifebar(x1, x2, rate), Interpolate_Lifebar(y1, y2, rate), 0);
+				
+		x1 = cos(-90 - (edgeCount) * 45) * lifeRadiusRender * 1.083;
+		y1 = sin(-90 - (edgeCount) * 45) * lifeRadiusRender * 1.083;
+		x2 = cos(-90 - (edgeCount - 1) * 45) * lifeRadiusRender * 1.083;
+		y2 = sin(-90 - (edgeCount - 1) * 45) * lifeRadiusRender * 1.083;
+        
+		for(int i = edgeCount; i <= iMax; i++) ObjPrim_SetVertexPosition(objLife, (i * 2) + 1, Interpolate_Lifebar(x1, x2, rate), Interpolate_Lifebar(y1, y2, rate), 0);
+        
+        // Outline
+       for(int i = 0; i <= iMax; i++)
+        {
+            int curVert = i * 2;
+			
+            float angle = min(360, (360 / 8 * i));
+            
+            float posX = lifeRadiusRender * cos(angle - 90);
+            float posY = lifeRadiusRender * sin(angle - 90);
+            
+            ObjPrim_SetVertexPosition(objLine, curVert, posX, posY, 0);
+            
+            posX = (lifeRadiusRender * 1.083) * cos(angle - 90);
+            posY = (lifeRadiusRender * 1.083) * sin(angle - 90);
+            
+            ObjPrim_SetVertexPosition(objLine, curVert + 1, posX, posY, 0);
+        }
+		
+		// Sets the percentage
+		//ObjText_SetText(objPerc, itoa(lifeRate * 100) ~ "%");
+		
+		// Fades out the lifebars if the player is nearby
+		if(GetObjectDistance(objPlayer_, objBoss_) < 95)
+		{
+			ObjRender_SetAlpha(objLife, Interpolate_Linear(ObjRender_GetAlpha(objLife), _lifeAlpha / 3, 0.1));
+			ObjRender_SetAlpha(objLine, Interpolate_Linear(ObjRender_GetAlpha(objLine), _lifeAlpha / 3, 0.1));
+		}
+		else
+		{
+			ObjRender_SetAlpha(objLife, Interpolate_Linear(ObjRender_GetAlpha(objLife), _lifeAlpha, 0.1));
+			ObjRender_SetAlpha(objLine, Interpolate_Linear(ObjRender_GetAlpha(objLine), _lifeAlpha, 0.1));
+		}
+		
+		// Fades out the percentage if the player is nearby
+		//if(GetPlayerY() > FRAME_HEIGHT - 25) ObjRender_SetAlpha(objPerc, Interpolate_Linear(ObjRender_GetAlpha(objPerc), _lifeAlpha / 3, 0.1));
+		//ObjRender_SetAlpha(objPerc, Interpolate_Linear(ObjRender_GetAlpha(objPerc), _lifeAlpha, 0.1));
+		
+		// Sets the octagonal lifebar, position-indicating lines, and percentage to the boss
+		
+		// Octagonal lifebar
+		ObjRender_SetPosition(objLife, bossX, bossY, ID_INVALID);
+		ObjRender_SetPosition(objLine, bossX, bossY, ID_INVALID);
+		
+		// Horizontal line
+		ObjPrim_SetVertexPosition(objPos, 0, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 0)[0], 0, 0.035), bossY, 0);
+		ObjPrim_SetVertexPosition(objPos, 1, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 1)[0], FRAME_WIDTH, 0.035), bossY, 0);
+		
+		// Vertical line
+		ObjPrim_SetVertexPosition(objPos, 2, bossX, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 2)[1], 0, 0.035), 0);
+		ObjPrim_SetVertexPosition(objPos, 3, bossX, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 3)[1], FRAME_HEIGHT, 0.035), 0);
+		
+		// Percentage
+		//ObjRender_SetX(objPerc, (FRAME_LEFT + (GetPlayerX() * RES)) - (ObjText_GetTotalWidth(objPerc) / 2));
+		
+		// Sets the color of the octagonal lifebar, position-indicating lines, and percentage, fading from green -> yellow -> orange -> red as health lowers
+		
+		if(ObjEnemy_GetInfo(objBoss_, INFO_DAMAGE_RATE_SHOT) > 0 && !ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_DURABLE_SPELL))
+		{
+			// Position-indicating lines
+			ObjRender_SetColorHSV(objPos, 120 * phaseRate, 255, 255);
+		}
+		else
+		{
+			// Position-indicating lines
+			ObjRender_SetColorHSV(objPos, 255 - (80 * phaseRate), 255, 255);
+		}
+		
+		// Percentage
+		//ObjRender_SetColorHSV(objPerc, 120 * lifeRate, 255, 255);
+		
+		// Sets the rendering variables for the spawning animations
+		lifeRateRender = min(lifeRateRender + 0.01, 1);
+		lifeRadiusRender = min(lifeRadiusRender + 1, 64);
+		
+		// Color shader
+		ObjShader_SetFloat(objShader, FLOAT_ENM_X, (bossX * RES) + FRAME_LEFT);
+		ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (bossY * RES) + FRAME_TOP);
+		
+		yield;
+	}
+	// Cleanly fades out the lifebars and lines before deleting them once the boss they are attached to is gone and it is no longer needed
+	iMax = 60;
+	
+	float lifeAlpha = ObjRender_GetAlpha(objLife);
+	float lineAlpha = ObjRender_GetAlpha(objLine);
+	
+	float lineVertX0 = ObjPrim_GetVertexPosition(objPos, 0)[0];
+	float lineVertX1 = ObjPrim_GetVertexPosition(objPos, 1)[0];
+	float lineVertY2 = ObjPrim_GetVertexPosition(objPos, 2)[1];
+	float lineVertY3 = ObjPrim_GetVertexPosition(objPos, 3)[1];
+	
+	//float percAlpha = ObjRender_GetAlpha(objPerc);
+	
+	for(float i = 0; i <= iMax; i++)
+	{		
+		// Octagonal lifebar
+		ObjRender_SetAlpha(objLife, Interpolate_Smooth(lifeAlpha, 0, i / iMax));
+		ObjRender_SetAlpha(objLine, Interpolate_Smooth(lineAlpha, 0, i / iMax));
+		
+		
+		// Position-indicating lines
+		
+		// Horizontal line
+		ObjPrim_SetVertexPosition(objPos, 0, Interpolate_Linear(lineVertX0, bossX, i / iMax), bossY, 0);
+		ObjPrim_SetVertexPosition(objPos, 1, Interpolate_Linear(lineVertX1, bossX, i / iMax), bossY, 0);
+		
+		// Vertical line
+		ObjPrim_SetVertexPosition(objPos, 2, bossX, Interpolate_Linear(lineVertY2, bossY, i / iMax), 0);
+		ObjPrim_SetVertexPosition(objPos, 3, bossX, Interpolate_Linear(lineVertY3, bossY, i / iMax), 0);
+		
+		// Percentage
+		//ObjRender_SetAlpha(objPerc, Interpolate_Smooth(percAlpha, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objLife);
+	Obj_Delete(objLine);
+	Obj_Delete(objPos);
+	//Obj_Delete(objPerc);
+}
+
+// Creates the boss portrait and title on the side of the screen
+task _RenderBossPortraitF
+(
+	string bossName_, int objScene_,
+	int rectPortraitX_, int rectPortraitY_, int rectTitleX_, int rectTitleY_, 
+	float offX_, int spellID_
+)
+{
+	if(spellID_ == 64) wait(6042 - 60);
+	
+	bool frame = GetAreaCommonData(AREA_SETTINGS, FRAME, 40) > 0;
+	// Portrait
+	int objPortrait;
+	
+	if(frame)
+	{
+		objPortrait = CreateSprite2D_Pos
+		(
+			DIR_IMG_CHAR_PORTRAIT_FLANDRE, RP_UI_FRAME + 1, BLEND_ALPHA,
+			0, 0, rectPortraitX_, rectPortraitY_,
+			1, 1,
+			SCREEN_WIDTH + (160 * RES), SCREEN_HEIGHT / 2
+		);
+		ObjRender_SetAngleY(objPortrait, 180);
+	}
+	
+	// Title back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_SYS_TITLE_BACK, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 148, 400,
+		1, 1,
+		SCREEN_WIDTH - (FRAME_LEFT / 2), SCREEN_HEIGHT + (110 * RES)
+	);
+	ObjRender_SetColor(objBack, 255, 0, 0);
+	
+	// Title
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_CHAR_TITLE_FLANDRE, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, rectTitleX_, rectTitleY_,
+		1, 1,
+		SCREEN_WIDTH - (FRAME_LEFT / 2), -50 * RES
+	);
+	
+	// Hue shift shader
+	int objShader = ObjShader_Create();
+	ObjShader_SetShaderF(objShader, DIR_SDR_HUESHIFT);
+	ObjShader_SetTechnique(objShader, TEC_HUESHIFT);
+	ObjShader_SetShaderO(objTitle, objShader);
+	
+	async
+	{
+		for(float i = 0; ; i += 0.05) 
+		{
+			int[] colA = ObjRender_GetColor(objBack);
+			int[] colB = _PHASE_COLORS[_phase];
+			int[] col = [Interpolate_Smooth(colA[0], colB[0], 0.1), Interpolate_Smooth(colA[1], colB[1], 0.1), Interpolate_Smooth(colA[2], colB[2], 0.1)];
+			ObjRender_SetColor(objBack, col[0], col[1], col[2]);
+			
+			ObjShader_SetFloat(objShader, FLOAT_HUE, i);
+		
+			yield;
+		}
+	}
+	
+	while(!ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_SPELL)) yield;
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		if(frame) ObjRender_SetX(objPortrait, Interpolate_Smooth(SCREEN_WIDTH + (160 * RES), SCREEN_WIDTH - (offX_ * RES), i / iMax));
+		ObjRender_SetY(objBack, Interpolate_Smooth(SCREEN_HEIGHT + (110 * RES), SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		ObjRender_SetY(objTitle, Interpolate_Smooth(-50 * RES, SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		
+		yield;
+	}
+}
+
+// Draws the magic circle around the boss
+task _RenderBossCircleF(int objBoss_, int spellID_)
+{
+	if(!GetAreaCommonData(AREA_SETTINGS, EFF_BOSS, 1)) return;
+	
+	if(spellID_ == 64) wait(6042 - 60);
+	
+	// Chooses the text used
+	int index  = 0;
+	int offset = prand_int(0, 1000);
+				
+	if(offset >= 990 && offset < 1000) index = 2; // Map Orb Game Player
+	//else if(offset == 1000)            index = 3; // Microintervals of Dawn
+	else if(GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(0), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(1), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(2), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(3), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(4), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(5), false) && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(6), false)) index = 4; // Spell Card Mastery
+	
+	float enmX = ObjMove_GetX(objBoss_);
+	float enmY = ObjMove_GetY(objBoss_);
+	
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_ENM, BLEND_ALPHA,
+		0, 0, 627, 627,
+		0.4, 0.4,
+		enmX, enmY
+	);
+	ObjRender_SetColor(circleA, 255 * 0.965, 127 * 0.965, 191 * 0.965);
+	
+	// Glowing circle
+	int circleB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_ENM, BLEND_ADD_ARGB,
+		0, 0, 627, 627,
+		0.4, 0.4,
+		enmX, enmY
+	);
+	ObjRender_SetColor(circleB, 255 * 0.965, 127 * 0.965, 191 * 0.965);
+	
+	// Main text
+	int textA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_TEXT, RP_STG_ENM, BLEND_ALPHA,
+		index * 627, index * 627, 627 + (index * 627), 627 + (index * 627),
+		0.4, 0.4,
+		enmX, enmY
+	);
+	ObjRender_SetColor(textA, 255 * 0.965, 127 * 0.965, 191 * 0.965);
+	
+	// Glowing text
+	int textB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_TEXT, RP_STG_ENM, BLEND_ADD_ARGB,
+		index * 627, index * 627, 627 + (index * 627), 627 + (index * 627),
+		0.4, 0.4,
+		enmX, enmY
+	);
+	ObjRender_SetColor(textB, 255 * 0.965, 127 * 0.965, 191 * 0.965);
+	
+	// Manipulates the graphic while the boss exists
+	for(int i = 0; ObjEnemy_GetInfo(objBoss_, INFO_LIFE) > 0; i++)
+	{
+		// Rotation
+		float sz = sin(i);
+		float cz = cos(i);
+		
+		ObjRender_SetAngleXYZ(circleA, sz + (i * 0.3), cz + (i * 0.3), i * 0.7);
+		ObjRender_SetAngleXYZ(circleB, sz + (i * 0.3), cz + (i * 0.3), i * 0.7);
+		ObjRender_SetAngleXYZ(textA, sz + (i * 0.3), cz + (i * 0.3), -i);
+		ObjRender_SetAngleXYZ(textB, sz + (i * 0.3), cz + (i * 0.3), -i);
+		
+		// Color
+		int[] colA = ObjRender_GetColor(circleA);
+		int[] colB = _PHASE_COLORS[_phase];
+		int[] col = [Interpolate_Smooth(colA[0], colB[0], 0.1), Interpolate_Smooth(colA[1], colB[1], 0.1), Interpolate_Smooth(colA[2], colB[2], 0.1)];
+		ObjRender_SetColor(circleA, col[0] * 0.965, col[1] * 0.965, col[2] * 0.965);
+		ObjRender_SetColor(circleB, col[0] * 0.965, col[1] * 0.965, col[2] * 0.965);
+		ObjRender_SetColor(textA, col[0] * 0.965, col[1] * 0.965, col[2] * 0.965);
+		ObjRender_SetColor(textB, col[0] * 0.965, col[1] * 0.965, col[2] * 0.965);
+		
+		// Glow
+		ObjRender_SetAlpha(circleB, Interpolate_Smooth(255, 0, absolute(sin(i * 3))));
+		ObjRender_SetAlpha(textB, Interpolate_Smooth(255, 0, absolute(sin(i * 3))));
+		
+		// Attaches it to the boss
+		enmX = ObjMove_GetX(objBoss_);
+		enmY = ObjMove_GetY(objBoss_);
+	
+		ObjRender_SetPosition(circleA, enmX, enmY, ID_INVALID);
+		ObjRender_SetPosition(circleB, enmX, enmY, ID_INVALID);
+		ObjRender_SetPosition(textA, enmX, enmY, ID_INVALID);
+		ObjRender_SetPosition(textB, enmX, enmY, ID_INVALID);
+		
+		yield;
+	}
+	
+	// Circle shrinking animation
+	float iMax = 60;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetScaleXYZ(circleA, Interpolate_Smooth(0.4, 0, i / iMax), Interpolate_Smooth(0.4, 0, i / iMax), ID_INVALID);
+		ObjRender_SetScaleXYZ(circleB, Interpolate_Smooth(0.4, 0, i / iMax), Interpolate_Smooth(0.4, 0, i / iMax), ID_INVALID);
+		ObjRender_SetScaleXYZ(textA, Interpolate_Smooth(0.4, 0, i / iMax),Interpolate_Smooth(0.4, 0, i / iMax), ID_INVALID);
+		ObjRender_SetScaleXYZ(textB, Interpolate_Smooth(0.4, 0, i / iMax), Interpolate_Smooth(0.4, 0, i / iMax), ID_INVALID);
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(circleA);
+	Obj_Delete(circleB);
+	Obj_Delete(textA);
+	Obj_Delete(textB);
+}
+
+// Draws the boss' sprite
+task _RenderBossSpriteF(int objBoss_, string bossName_, int spellID_)
+{
+	if(spellID_ == 64) wait(6042 - 60);
+	
+	bool effBoss = GetAreaCommonData(AREA_SETTINGS, EFF_BOSS, 1);
+	
+	int[] colorA = [255, 0, 0];
+	
+	const int SPRITE_SIZE = 128;
+	
+	int rectIdle = 0;
+	int rectMove = 0;
+	int bossAura;
+	
+	int bossLife = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+	
+	// Main sprite
+	int bossSprite = CreateSprite2D_Pos
+	(
+		DIR_IMG_ENM  ~ "/sprite_"   ~ bossName_ ~ ".png", RP_STG_ENM + 2, BLEND_ALPHA,
+		0, 0, 128, 128,
+		1.25, 1.25,
+		ObjMove_GetX(objBoss_), ObjMove_GetY(objBoss_)
+	);
+	
+	for(int i = 0; ObjEnemy_GetInfo(objBoss_, INFO_LIFE) > 0; i++)
+	{
+		colorA = _PHASE_COLORS[_phase];
+		
+		// The boss flashes if it's being shot
+		int curLife = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+		if(curLife < bossLife)
+		{
+			ObjRender_SetColor(bossSprite, Interpolate_Smooth(255, colorA[0], absolute(sin(i * 15))), Interpolate_Smooth(255, colorA[1], absolute(sin(i * 15))), Interpolate_Smooth(255, colorA[2], absolute(sin(i * 15))));
+		}
+		else
+		{
+			int[] col = ObjRender_GetColor(bossSprite);
+			ObjRender_SetColor(bossSprite, Interpolate_Smooth(col[0], 255, 0.3), Interpolate_Smooth(col[1], 255, 0.3), Interpolate_Smooth(col[2], 255, 0.3));
+		}
+		
+		if(i % 30 == 0) bossLife = curLife;
+		
+		// Update the animation every 10 frames
+		if(i % 10 == 0) 
+		{
+			rectIdle++; 
+			rectIdle %= 3; 
+			rectMove++; 
+			rectMove %= 2;
+		}
+		
+		// Create a new aura texture every 5 frames
+		if(effBoss && i % 5 == 0)
+		{
+			bossAura = CreateSprite2D_Pos
+			(
+				DIR_IMG_ENM  ~ "/sprite_"   ~ bossName_ ~ ".png", RP_STG_ENM + 1, BLEND_ADD_ARGB,
+				0, 0, 128, 128,
+				1.25, 1.25,
+				ObjMove_GetX(objBoss_), ObjMove_GetY(objBoss_)
+			);
+			ObjRender_SetColor(bossAura, colorA[0], colorA[1], colorA[2]);
+		}
+		
+		// Sprite animation
+		if(ObjMove_GetSpeed(objBoss_) > 0) // Moving
+		{
+			if(cos(ObjMove_GetAngle(objBoss_)) > 0) // Moving left
+			{
+				// Main boss sprite
+				ObjSprite2D_SetSourceRect(bossSprite, SPRITE_SIZE * 2, SPRITE_SIZE * rectMove, SPRITE_SIZE * 3, SPRITE_SIZE + (SPRITE_SIZE * rectMove));
+
+				// Aura, if applicable
+				if(effBoss && i % 5 == 0) ObjSprite2D_SetSourceRect(bossAura, SPRITE_SIZE * 2, SPRITE_SIZE * rectMove, SPRITE_SIZE * 3, SPRITE_SIZE + (SPRITE_SIZE * rectMove));
+			}
+			else // Moving right
+			{
+				// Main boss sprite
+				ObjSprite2D_SetSourceRect(bossSprite, SPRITE_SIZE * 2, (SPRITE_SIZE * 2) + (SPRITE_SIZE * rectMove), SPRITE_SIZE * 3, (SPRITE_SIZE * 3) + (SPRITE_SIZE * rectMove));
+				
+				// Aura, if applicable
+				if(effBoss && i % 5 == 0) ObjSprite2D_SetSourceRect(bossAura, SPRITE_SIZE * 2, (SPRITE_SIZE * 2) + (SPRITE_SIZE * rectMove), SPRITE_SIZE * 3, (SPRITE_SIZE * 3) + (SPRITE_SIZE * rectMove));
+			}
+		}
+		else // Idle
+		{
+			// Main boss sprite
+			ObjSprite2D_SetSourceRect(bossSprite, 0, SPRITE_SIZE * rectIdle, SPRITE_SIZE, SPRITE_SIZE + (SPRITE_SIZE * rectIdle));
+			
+			// Aura, if applicable
+			if(effBoss && i % 5 == 0) ObjSprite2D_SetSourceRect(bossAura, 0, SPRITE_SIZE * rectIdle, SPRITE_SIZE, SPRITE_SIZE + (SPRITE_SIZE * rectIdle));
+		}
+		
+		// Attach the sprite and flash to the boss
+		ObjRender_SetPosition(bossSprite, ObjMove_GetX(objBoss_), ObjMove_GetY(objBoss_), ID_INVALID);
+		
+		// Passes the now-set aura off to its animation
+		if(effBoss && i % 5 == 0) _AnimateAura(bossAura);
+
+		yield;
+	}
+	
+	// Sprite shrinking animation
+	float iMax = 60;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetScaleXYZ(bossSprite, Interpolate_Smooth(1.25, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(bossSprite);
+}
+
+// Background
+task _RenderBackgroundF(int objBoss_, int objScene_, string[] background_, int spellID_)
+{
+	bool sdrDist = GetAreaCommonData(AREA_SETTINGS, SDR_DIST, 1);
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	int rp0 = (sdrDist) ? RP_UI_BG : RP_UI_DISTORT;
+	int rp1 = rp0 + 1;
+	int rpA = (spellID_ == 64) ? RP_UI_DISTORT : RP_UI_BG;
+	
+	if(GetAreaCommonData(AREA_SETTINGS, BG_STAGE, 1))
+	{
+		// Camera parallax
+		async
+		{
+			float cameraFocusX = 0;
+			float cameraFocusY = 0;
+			float cameraFocusZ = 0;
+
+			float cameraPitch = 0;
+			float cameraYaw = 0;
+			float cameraRoll = 0;
+
+			float cameraShiftX = GetPlayerX();
+			float cameraShiftY = GetPlayerY();
+
+			float cameraDeltaX;
+			float cameraDeltaY;
+			
+			loop
+			{
+				cameraShiftX = Interpolate_Linear(cameraShiftX, GetPlayerX(), 0.0175);
+				cameraShiftY = Interpolate_Linear(cameraShiftY, GetPlayerY(), 0.0175);
+
+				cameraDeltaX = cameraShiftX - CENTER_X;
+				cameraDeltaY = cameraShiftY - CENTER_Y;
+
+				SetCameraFocusXYZ
+				(
+				  cameraFocusX + cameraDeltaX / 15,
+				  cameraFocusY,
+				  cameraFocusZ - cameraDeltaY / 15
+				);
+
+				SetCameraPitch(cameraPitch + cameraDeltaY / 60);
+				SetCameraYaw(cameraYaw - cameraDeltaX / 150);
+				SetCameraRoll(cameraRoll - cameraDeltaX / 80);
+				
+				yield;
+			}
+		}
+	  
+		// First grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rpA, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, -50);
+			ObjRender_SetColorHSV(objBack, 0, 255, 60);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			async
+			{
+				wait(6042 - 60);
+				Obj_SetRenderPriorityI(objBack, rp0);
+			}
+			
+			for(float i = 0; ; i += 0.65)
+			{
+				scroll += 1.1 * _scroll;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				ObjRender_SetColorHSV(objBack, i, 255, 60);
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+		
+		// Second grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rpA, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, 0);
+			ObjRender_SetColorHSV(objBack, 10, 255, 60);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			async
+			{
+				wait(6042 - 60);
+				Obj_SetRenderPriorityI(objBack, rp0);
+			}
+			
+			for(float i = 0; ; i += 0.65)
+			{
+				scroll += 1.2 * _scroll;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				ObjRender_SetColorHSV(objBack, 10 + i, 255, 100);
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+		
+		// Third grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rpA, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, 50);
+			ObjRender_SetColorHSV(objBack, 20, 255, 100);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			async
+			{
+				wait(6042 - 60);
+				Obj_SetRenderPriorityI(objBack, rp0);
+			}
+			
+			for(float i = 0; ; i += 0.65)
+			{
+				scroll += 1.3 * _scroll;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				ObjRender_SetColorHSV(objBack, 20 + i, 255, 60);
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+	}
+	
+	if(GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1))
+	{		
+		// Wait for the spell to start
+		while(!ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_SPELL)) yield;
+		
+		// Spell background (apologies to sapphire panlogism)
+		async
+		{
+			// Cool kid version
+			if(sdrMisc)
+			{					
+				let ID = [ObjPrim_Create(OBJ_PRIMITIVE_2D), ObjPrim_Create(OBJ_PRIMITIVE_2D)];
+
+				ascent(i in 0..2) 
+				{
+					Obj_SetRenderPriorityI(ID[i], rp1);
+					ObjPrim_SetTexture(ID[i],[background_[0], background_[1]][i]);
+					ObjRender_SetBlendType(ID[i], [BLEND_ALPHA, BLEND_MULTIPLY][i]);
+					ObjPrim_SetPrimitiveType(ID[i], PRIMITIVE_TRIANGLESTRIP);
+					ObjPrim_SetVertexCount(ID[i], 1026);
+					ObjRender_SetPosition(ID[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 0);
+					ObjRender_SetVertexShaderRenderingMode(ID[i], true);
+					ObjShader_SetShaderF(ID[i], DIR_SDR_BACK);
+					ObjShader_SetTechnique(ID[i], TEC_SWIRL);
+				}
+
+				int rad = 0;
+		
+				ascent(i in 0..513)
+				{
+					ascent(j in 0..2)
+					{
+						ObjPrim_SetVertexUVT(ID[0], i * 2 + j, 1024 / 256 * i,  512 * j);
+						ObjPrim_SetVertexUVT(ID[1], i * 2 + j, 960 / 256 * i,  320 * j);
+						ObjPrim_SetVertexPosition(ID[0], i * 2 + j, cos(360 / 512 * i) * rad * j, sin(360 / 512 * i) * rad * j, 0);
+						ObjPrim_SetVertexPosition(ID[1], i * 2 + j, cos(360 / 512 * i) * rad * (0.5 + j / 2), sin(360 / 512 * i) * rad * j, 0);
+					}
+				}
+				
+				async
+				{
+					float iMax = 200;
+					for(int i = 0; i <= iMax; i++)
+					{
+						rad = Interpolate_Smooth(0, 800, i / iMax);
+						
+						ascent(i in 0..513)
+				{
+					ascent(j in 0..2)
+					{
+						//ObjPrim_SetVertexUVT(ID[0], i * 2 + j, 1024 / 256 * i,  512 * j);
+						//ObjPrim_SetVertexUVT(ID[1], i * 2 + j, 960 / 256 * i,  320 * j);
+						ObjPrim_SetVertexPosition(ID[0], i * 2 + j, cos(360 / 512 * i) * rad * j, sin(360 / 512 * i) * rad * j, 0);
+						ObjPrim_SetVertexPosition(ID[1], i * 2 + j, cos(360 / 512 * i) * rad * (0.5 + j / 2), sin(360 / 512 * i) * rad * j, 0);
+					}
+				}
+				
+						yield;
+					}
+				}
+				
+				float[] col;
+				for(int i = 0; Obj_IsExists(objBoss_); i++)
+				{		
+					ObjShader_SetFloat(ID[0], FLOAT_FRAME_MAG, -(i / 10) / 75);
+					ObjShader_SetFloat(ID[1], FLOAT_FRAME_MAG, (i / 10) / 75);
+					
+					col = ColorHSVtoRGB(i, 255, 255) / 255;
+					ObjShader_SetVector(ID[0], FLOAT_FILTER, col[0], col[1], col[2], 0.95);
+					
+					yield;
+				}
+				
+				Obj_SetRenderPriorityI(ID[0], RP_UI_VIS + 1);
+				Obj_SetRenderPriorityI(ID[1], RP_UI_VIS + 1);
+				
+				float iMax = 100;
+					for(int i = 0; i <= iMax; i++)
+					{
+						rad = Interpolate_Smooth(800, 0, i / iMax);
+						
+						ascent(i in 0..513)
+				{
+					ascent(j in 0..2)
+					{
+						//ObjPrim_SetVertexUVT(ID[0], i * 2 + j, 1024 / 256 * i,  512 * j);
+						//ObjPrim_SetVertexUVT(ID[1], i * 2 + j, 960 / 256 * i,  320 * j);
+						ObjPrim_SetVertexPosition(ID[0], i * 2 + j, cos(360 / 512 * i) * rad * j, sin(360 / 512 * i) * rad * j, 0);
+						ObjPrim_SetVertexPosition(ID[1], i * 2 + j, cos(360 / 512 * i) * rad * (0.5 + j / 2), sin(360 / 512 * i) * rad * j, 0);
+					}
+				}
+				
+						yield;
+					}
+				
+				Obj_Delete(ID[0]);
+				Obj_Delete(ID[1]);
+			}
+			
+			// :kevinstie_completely_exploded:
+			else
+			{
+				int objBackA = CreateSprite2D_Dest
+				(
+					background_[0], rp1, BLEND_ALPHA,
+					0, 0, 960, 720,
+					0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+				);
+				
+				int objBackB = CreateSprite2D_Dest
+				(
+					background_[1], rp1, BLEND_MULTIPLY,
+					0, 0, 960, 720,
+					0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+				);
+
+				for(int i = 0; Obj_IsExists(objBoss_); i++)
+				{		
+					ObjRender_SetColorHSV(objBackA, i, 255, 255);
+					
+					ObjSprite2D_SetSourceRect(objBackA, i, i, 960 + i, 720 + i);
+					ObjSprite2D_SetSourceRect(objBackB, -i, i, 960 - i, 720 + i);
+					
+					yield;
+				}
+				
+				Obj_Delete(objBackA);
+				Obj_Delete(objBackB);
+			}
+		}
+	}
+}
+
+// Renders the bomb and power counters
+task _RenderSpecial()
+{
+	// Power
+	int line = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 0, 0, 0,
+		COLOR_WHITE
+	);
+	
+	int base = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(base, COLOR_DRED);
+	
+	int glowA = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_UI_MISC, BLEND_ADD_ARGB,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(glowA, COLOR_DRED);
+	
+	int glowB = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_FIRE, RP_UI_MISC, BLEND_ADD_ARGB,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	ObjRender_SetColor(glowB, COLOR_DRED);
+	
+	int numb = CreateTextObject
+	(
+		"Something went wrong!", FONT_RECORDEDHISTORY, RP_UI_MISC,
+		788, 0,
+		11 * RES, 50, ALIGNMENT_CENTER,
+		BORDER_FULL, 2,
+		COLOR_RED, COLOR_RED, COLOR_WHITE
+	);
+	ObjText_SetFontBold(numb, true);
+	
+	int textPower = CreateTextObject
+	(
+		TEXT_POWER, FONT_RECORDEDHISTORY, RP_UI_MISC,
+		792, 653,
+		14 * RES, 100, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2,
+		COLOR_RED, COLOR_RED, COLOR_WHITE
+	);
+	ObjText_SetFontBold(textPower, true);
+	ObjRender_SetAngleZ(textPower, 90);
+	
+	// Bombs
+	int spell = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_SPELL, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	);
+	
+	int textSpell = CreateTextObject
+	(
+		TEXT_SPELL, FONT_RECORDEDHISTORY, RP_UI_MISC,
+		53, 659,
+		14 * RES, 100, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2,
+		COLOR_PURPLE, COLOR_PURPLE, COLOR_WHITE
+	);
+	ObjText_SetFontBold(textSpell, true);
+	ObjRender_SetAngleZ(textSpell, 270);
+	
+	for(int i = 0; ; i++)
+	{
+		// Power
+		int l = GetPlayerPower() * 0.2;
+		
+		ObjText_SetText(numb, itoa(floor(GetPlayerPower() / 10)));
+		ObjRender_SetY(numb, 690 - l);
+		
+		ObjSprite2D_SetSourceRect(base, 0, 0 + i, 20, l + i);
+		ObjSprite2D_SetSourceRect(glowA, 0 + i, 0 + i, 20 + i, l + i);
+		ObjSprite2D_SetSourceRect(glowB, 0 - i, 0 + i, 20 - i, l + i);
+		
+		ObjSprite2D_SetDestRect(line, 803, 709 - l, 803 + 20, 709 + 3);
+		ObjSprite2D_SetDestRect(base, 803 + 3, min(709, 709 - l + 3), 803 + 20 - 3, 709);
+		ObjSprite2D_SetDestRect(glowA, 803 + 3, min(709, 709 - l + 3), 803 + 20 - 3, 709);
+		ObjSprite2D_SetDestRect(glowB, 803 + 3, min(709, 709 - l + 3), 803 + 20 - 3, 709);
+		
+		// Bombs
+		int s = GetPlayerSpell();
+		
+		ObjSprite2D_SetSourceRect(spell, 0, 0, 42, 42 * s);
+		ObjSprite2D_SetDestRect(spell, 167 - 42, 714 - (s * 42), 167, 714);
+		
+		yield;
+	}
+}
+
+task _HandleExtends()
+{
+	if(GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false)) return;
+	
+	int next = CreateTextObject
+	(
+		"Something went wrong!", FONT_RECORDEDHISTORY, RP_UI_MISC,
+		FRAME_RIGHT, 31,
+		15, SCREEN_WIDTH - FRAME_RIGHT + 20, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(next, true);
+	ObjText_SetSidePitch(next, -0.3);
+	
+	int b = 1000000000;
+	int[] target = [10 * b, 25 * b, 50 * b, 85 * b, 130 * b, 999999999999];
+	
+	for each(int iTarget in ref target)
+	{
+		ObjText_SetText(next, NEXT_EXTEND ~ "[r][f sz=13]" ~ DigitToCommaArray(iTarget));
+		
+		while(GetScore() < iTarget) yield;
+		
+		SetPlayerSpell(GetPlayerSpell() + 1);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_EXTEND);
+		NotifyEventOwn(EV_CREATE_TOAST_MINOR, TOAST_MINOR_SPELL, 200);
+	}
+}
+
+function<int> CreateFairy
+(
+	int enemyLife_, bool autoDelete_, int sprite_, float drop_, int invin_,
+	float enemyInitX_, float enemyInitY_, float enemyDestX_, float enemyDestY_, int enemyMoveTime_
+)
+{
+	int objEnemy = CreateEnemy
+	(
+		enemyLife_, STANDARD_ENEMYHITBOX, true, autoDelete_,
+		COLOR_RED, ID_INVALID, false, false,
+		enemyInitX_, enemyInitY_, enemyDestX_, enemyDestY_, enemyMoveTime_
+	);
+	
+	_RenderFairy(objEnemy, sprite_, drop_);
+	
+	if(invin_ > 0)
+	{
+		async
+		{
+			ObjEnemy_SetDamageRate(objEnemy, 20, 20);
+			wait(invin_);
+			ObjEnemy_SetDamageRate(objEnemy, 100, 100);
+			
+		}
+	}
+	
+	return objEnemy;
+}
+
+task _RenderToast_Warning()
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	// Scrolling lines
+	int iMax = 30;
+	for(int i = -2; i <= iMax; i += 2)
+	{
+		_RenderWarningLine(i, 1, sdrMisc);
+		_RenderWarningLine(i + 1, -1, sdrMisc);
+	}
+	
+	if(sdrMisc)
+	{
+		// Shader spawn effect on the scrolling lines
+		async
+		{
+			// Shader
+			int objDist = CreateSprite2D_Dest
+			(
+				RT4, RP_FX_LOW, BLEND_ALPHA,
+				0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+				0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+			);
+			ObjRender_SetAlpha(objDist, 0);
+			ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+			ObjShader_SetTechnique(objDist, TEC_DISTORT);
+			
+			// Counter variables
+			int  frame   = 0;
+			float intn    = ID_INVALID;
+			float jMax    = 40;
+			
+			// Spawning animation
+			
+			_FadeIn(objDist, 30);
+			
+			for(int j = 0; j <= jMax; j++)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				
+				frame++;
+				ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+				
+				intn = Interpolate_Smooth(1, 0, j / jMax);
+				ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+				yield;
+			}
+			
+			loop(100)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				yield;
+			}
+			
+			// Despawning animation
+			
+			_FadeOut(objDist, 40);
+			
+			for(int j = 0; j <= jMax; j++)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				
+				frame++;
+				ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+				
+				intn = Interpolate_Smooth(0, 1, j / jMax);
+				ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+				yield;
+			}
+			
+			// Cleanup
+			Obj_Delete(objDist);
+		}
+	}
+}
+
+// Renders the scrolling lines that read "WARNING" or "ENEMY APPROACHING"
+task _RenderWarningLine(int index_, int dir_, bool sdrMisc_)
+{
+	int objLine = CreateSprite2D_Dest
+	(
+		(dir_ == 1) ? DIR_IMG_EFF_WARN_A : DIR_IMG_EFF_WARN_B, (sdrMisc_) ? RP_UI_TOAST : RP_FX_LOW,
+		BLEND_ALPHA,
+		0, 0, (dir_ == 1) ? 158 : 331, 55,
+		0, index_ * 30, SCREEN_WIDTH, 55 + (index_ * 30)
+	);
+	
+	if(!sdrMisc_)
+	{
+		async
+		{
+			_FadeIn(objLine, 30);
+		
+			wait(140);
+		
+			_FadeOut(objLine, 40);
+		}
+	}
+	
+	// Scrolling animation
+	int iMax = 180;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjSprite2D_SetSourceRect(objLine, i * dir_, 0, SCREEN_WIDTH + (i * dir_), 55);
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objLine);
+}

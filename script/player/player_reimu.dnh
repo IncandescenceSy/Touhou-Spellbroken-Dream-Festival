@@ -1,0 +1,577 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Player Reimu ///////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+
+#TouhouDanmakufu[Player]
+#ID["reimu"]
+#Title["Reimu"]
+#ReplayName["Reimu"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions that will return various values
+#include "./../lib/lib_logic.dnh"
+
+// This library contains all general variables and functions that are shared between player scripts
+#include "./../lib/lib_player.dnh"
+
+// This library contains constant names for bullets used by Reimu and loads her shotdata
+#include "./shotconst_reimu.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Script ID
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+const int _ID_SYSTEM  = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_SYSTEM, ID_INVALID);
+
+// Particle list for shot deletion effects
+int _objPartDeletion = CreateParticleList2D
+(
+	DIR_IMG_PL_SHOT_PLAYER_REIMU,
+	0, 0, 17, 17,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+ObjShader_SetShaderF(_objPartDeletion, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartDeletion, TEC_RENDER);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_X, 17 / 99);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_Y, 17 / 55);
+
+// Particle list for graze particle effects
+int _objPartGraze = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+
+// Option scale and color
+float _optScale = 1;
+int[] _optCol = [255, 255, 255];
+int _optPri = RP_STG_PLR + 3;
+
+// Option color interpolation time
+float _time = 0.15;
+
+// Effect cut settings
+bool _effGrz = GetAreaCommonData(AREA_SETTINGS, EFF_GRZ, 1);
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Amulet trail color and scale
+int _trailCol    = COLOR_BLUE;
+float _trailScale = 1;
+
+// Is the player bombing
+bool _spell = false;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_PLAYER, GetOwnScriptID());
+	
+	// Setup basics
+	_RenderPlayerSprite(DIR_IMG_PL_SPRITE_PLAYER_REIMU);
+	_RenderPlayerPortrait();
+	ObjPlayer_AddIntersectionCircleA1(_objPlayer, 0, 0, 0.5, 18);
+	SetPlayerSpeed(4.3, 2);
+	
+	// Setup options
+	_Options();
+	
+}
+
+@Event
+{
+	alternative(GetEventType())
+	
+		case(EV_HIT)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_HIT);
+			
+			if(GetPlayerSpell() == 0)
+			{
+				for each(int i in ref GetAllEnemyID()) ObjEnemy_SetDamageRate(i, 0, 0);
+				_RenderPlayerExplosion(GetPlayerX(), GetPlayerY(), COLOR_RED, COLOR_DRED);
+				SetPlayerRebirthPosition(GetPlayerX(), GetPlayerY());
+				NotifyEvent(_ID_SYSTEM, EV_SAVE_DATA, 1, 0, 1, false);
+				SetForbidPlayerShot(true);
+				ObjMove_SetProcessMovement(_objPlayer, false);
+				SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, true);
+				async
+				{
+					loop(30)
+					{
+						StopSlow(TARGET_ALL);
+						yield;
+					}
+				}
+			}
+			else
+			{
+				NotifyEventOwn(EV_REQUEST_SPELL, ID_INVALID);
+			}
+		}
+		
+		case(EV_PLAYER_REBIRTH)
+		{
+			SetPlayerInvincibilityFrame(200);
+		}
+		
+		case(EV_GRAZE)
+		{	
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_GRAZE);
+			
+			if(_effGrz)
+			{
+				int[] grazedShots = GetEventArgument(1);
+				
+				for each(int i in ref grazedShots)
+				{
+					int[] grazedBulletColor = GetShotDataInfoA1(ObjShot_GetImageID(i), TARGET_ENEMY, INFO_DELAY_COLOR);
+					if(Obj_GetValueDI(i, VAL_GRZCOL, true)) _ColorGrazedShot(i, ObjRender_GetColor(i), grazedBulletColor);
+					_CreateParticle_Graze(grazedBulletColor);
+				}
+			}
+		}
+		
+		case(EV_REQUEST_SPELL)
+		{
+			if(_spell || GetPlayerSpell() == 0)
+			{
+				SetScriptResult(false);
+			}
+			else
+			{
+				SetScriptResult(true);
+				SetPlayerSpell(GetPlayerSpell() - 1); 
+				_Bomb(COLOR_RED);
+				_spell = true;
+			}
+		}
+		
+		case(EV_DELETE_SHOT_PLAYER)
+		{
+			int objShot  = GetEventArgument(0);
+			int objEnemy = GetEventArgument(3);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) < (Obj_GetValueDI(objEnemy, VAL_MAXLIFE, ID_INVALID) / 6.66666)) ? DIR_SFX_DAMAGE_LOWHEALTH : DIR_SFX_DAMAGE_NORMAL);
+			
+			if(ObjEnemy_GetInfo(objEnemy, INFO_DAMAGE_RATE_SHOT) != 0)
+			{
+				AddScore(max(1, ((1800 - GetObjectDistance(_objPlayer, objEnemy) * 3.5) / 100)) * (ObjShot_GetDamage(objShot) * 20000));
+			}
+			
+			if(_prtSht)
+			{
+				int[] shotPos   = GetEventArgument(1);
+				int   shotType  = GetEventArgument(2);
+					
+				alternative(shotType)
+					case(AMULET_TRAILED_RED)
+					{
+						async
+						{
+							// Animation
+							for(int i = 0; i <= 3; i++)
+							{
+								for(int j = 0; j <= 4; j++)
+								{	
+									// Position
+									ObjParticleList_SetPosition(_objPartDeletion, shotPos[0] + 2.2, shotPos[1] - (j + (i * 8)), ID_INVALID);
+									
+									// Size
+									ObjParticleList_SetScale(_objPartDeletion, 1.3, 1.3, 1);	
+									
+									// Fade
+									ObjParticleList_SetAlpha(_objPartDeletion, 96 - ((j * 4) * i));
+									
+									// Angle
+									ObjParticleList_SetAngleZ(_objPartDeletion, 0);
+									
+									// Color
+									ObjParticleList_SetColor(_objPartDeletion, 255, 220, 220);
+									
+									// Source rect
+									ObjParticleList_SetExtraData(_objPartDeletion, i, 0, 1);
+									
+									ObjParticleList_AddInstance(_objPartDeletion);
+									
+									yield;
+								}
+							}
+						}
+					}
+					
+					case(AMULET_SQUARE_BLUE)
+					{
+						float ang = ObjMove_GetAngle(objShot);
+						async
+						{
+							// Animation
+							for(int i = 0; i <= 3; i++)
+							{
+								for(int j = 0; j <= 4; j++)
+								{	
+									// Position
+									ObjParticleList_SetPosition(_objPartDeletion, shotPos[0] + (cos(ang) * (j + (i * 8))), shotPos[1] + (sin(ang) * (j + (i * 8))), ID_INVALID);
+									
+									// Size
+									ObjParticleList_SetScale(_objPartDeletion, 1, 1, 1);
+									
+									// Fade
+									ObjParticleList_SetAlpha(_objPartDeletion, 96 - ((j * 4) * i));
+									
+									// Angle
+									ObjParticleList_SetAngleZ(_objPartDeletion, ang);
+									
+									// Color
+									ObjParticleList_SetColor(_objPartDeletion, COLOR_WHITE);
+									
+									// Source rect
+									ObjParticleList_SetExtraData(_objPartDeletion, i, 1, 1);
+									
+									ObjParticleList_AddInstance(_objPartDeletion);
+									
+									yield;
+								}
+							}
+						}
+					}
+					
+					case(PERSUASION_NEEDLE)
+					{
+						async
+						{
+							// Movement
+							int offX = 0;    // cos(270) * 1.5
+							int offY = -1.5; // sin(270) * 1.5
+							
+							// Angle
+							float ang = prand(-22, 22);
+							
+							// Fade
+							int alpha = 146;
+							
+							// Counter variable
+							int frame = 0;
+							
+							while(alpha > 0)
+							{
+
+								// Position
+								shotPos[0] += offX;
+								shotPos[1] += offY;
+								ObjParticleList_SetPosition(_objPartDeletion, shotPos[0], shotPos[1], ID_INVALID);
+								
+								// Size
+								ObjParticleList_SetScale(_objPartDeletion, 1, 1, 1);
+									
+								// Fade
+								if(frame >= 10)
+								{
+									alpha -= 13;
+									ObjParticleList_SetAlpha(_objPartDeletion, alpha);
+								}
+								
+								// Angle
+								ObjParticleList_SetAngleZ(_objPartDeletion, ang);
+								
+								// Color
+								ObjParticleList_SetColor(_objPartDeletion, 255, 220, 220);
+								
+								// Source rect
+								ObjParticleList_SetExtraData(_objPartDeletion, 4, 0, 3.235294118);
+								
+								ObjParticleList_AddInstance(_objPartDeletion);
+								
+								frame++;
+								
+								yield;
+							}
+						}
+					}
+				}
+		}
+		
+		case(EV_KILL_PLAYER)
+		{
+			KillPlayer();
+		}
+		
+		case(EV_CONTROL_OPTIONS)
+		{
+			float scale = GetEventArgument(0);
+			int  pri   = GetEventArgument(2);
+			int  col   = GetEventArgument(3);
+			
+			_optScale = scale;
+			_optCol   = GetEventArgument(1);
+			_optPri   = pri;
+			
+			_shotScale = scale;
+			_shotCol   = col;
+			_shotPri   = pri;
+			
+			_trailScale = scale;
+			_trailCol   = col;
+		}
+		
+		case(EV_RECOLOR_WHILE_BOSS_LIVES)
+		{
+			int[] col     = GetEventArgument(0);
+			int   objBoss = GetEventArgument(1);
+			
+			_time = 1;
+			
+			_optCol = col;
+			ObjRender_SetColor(_objPlayer, col[0], col[1], col[2]);
+			
+			async
+			{
+				yield;
+				_time = 0.15;
+				
+				while(Obj_IsExists(objBoss)) yield;
+				_time = 1;
+				_optCol = [255, 255, 255];
+				ObjRender_SetColor(_objPlayer, 255, 255, 255);
+				ObjRender_SetScaleXYZ(_objPlayer, 1);
+			}
+		}
+		
+		case(EV_CHANGE_DEL_RP)
+		{
+			Obj_SetRenderPriorityI(_objPartDeletion, GetEventArgument(0));
+		}
+}
+
+@MainLoop
+{
+	if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+	{
+		// Main shot
+		if(_shotTimer % 5 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_SHOOT);
+			CreateShot_Player(GetPlayerX() + 4.1, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, AMULET_TRAILED_RED);
+			CreateShot_Player(GetPlayerX() - 7.9, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, AMULET_TRAILED_RED);
+		}
+	}
+		
+	_shotTimer++;
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _CreateOption(float posX_, float posY_, int mve_)
+{
+	// Setup option
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_OPT_PLAYER_REIMU, RP_STG_PLR + 3, BLEND_ALPHA,
+		0, 0, 16, 16,
+		1, 1,
+		0, 0
+	);
+	
+	// Initialize position
+	if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + (posX_ * mve_), GetPlayerY() + posY_, ID_INVALID);
+	}
+	else
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + ((posX_ / 1.5) * -mve_), GetPlayerY() - posY_, ID_INVALID);
+	}
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Move option
+		if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH) // Unfocused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), GetPlayerX() + (posX_ * mve_), 0.35), Interpolate_Linear(ObjRender_GetY(objOption), GetPlayerY() + posY_, 0.35), ID_INVALID); 
+		}
+		else // Focused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), GetPlayerX() + ((posX_ / 1.5) * -mve_), 0.35), Interpolate_Linear(ObjRender_GetY(objOption), GetPlayerY() - posY_, 0.35), ID_INVALID); 
+		}
+		
+		// Scale
+		float scale = Interpolate_Smooth(ObjRender_GetScaleX(objOption), _optScale, 0.15);
+		ObjRender_SetScaleXYZ(objOption, scale, scale, ID_INVALID);
+		
+		// Color
+		int[] col = ObjRender_GetColor(objOption);
+		ObjRender_SetColor(objOption, Interpolate_Smooth(col[0], _optCol[0], _time), Interpolate_Smooth(col[1], _optCol[1], _time), Interpolate_Smooth(col[2], _optCol[2], _time));
+		
+		// Priority
+		Obj_SetRenderPriorityI(objOption, _optPri);
+		
+		// Player shot
+		if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+		{
+			// Option shot
+			
+			// Homing amulets
+			if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH && _shotTimer % 13 == 0) // Unfocused
+			{
+				_HomeAmulet(CreateShot_Player(ObjRender_GetX(objOption) - (posX_ == 0 ? 1 : 0), ObjRender_GetY(objOption) - 8, 7, 270 + (posX_ * mve_), 0.05, 10, 39, 1, AMULET_SQUARE_BLUE));
+			}
+			
+			// Persuasion needles
+			else if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_HOLD || GetVirtualKeyState(VK_SLOWMOVE) == KEY_PUSH && _shotTimer % 3 == 0) // Focused
+			{
+				CreateShot_Player(ObjRender_GetX(objOption), ObjRender_GetY(objOption) - 8, 25, 270, 0, 25, 10, 1, PERSUASION_NEEDLE);
+			}
+		}
+		ObjRender_SetAngleZ(objOption, z);
+		z += 1 * mve_;
+		
+		if(_delOpt)
+		{
+			Obj_Delete(objOption);
+			return;
+		}
+		
+		yield;
+	}
+}
+
+// Aims the homing amulets and creates trails for them
+task _HomeAmulet(int objShot_)
+{
+	int targetEnemy = GetNearestEnemy(objShot_); // Closest enemy
+	int lastTargetEnemy = targetEnemy; // Previously closest enemy
+	
+	while(Obj_IsExists(objShot_))
+	{
+		// Homing
+		targetEnemy = GetNearestEnemy(objShot_); // Closest enemy
+		
+		if(targetEnemy == lastTargetEnemy && lastTargetEnemy != ID_INVALID) // If the target is the same as last frame and not invalid
+		{
+			ObjMove_SetAngle(objShot_, Interpolate_Angle(ObjMove_GetAngle(objShot_), GetObjectDeltaAngle(objShot_, targetEnemy), 0.15)); // Aim at the enemy
+			lastTargetEnemy = targetEnemy; // Reset the target
+		}
+			
+		else if(targetEnemy != ID_INVALID) // If the target is not the same as last frame and not invalid
+		{
+			float ang = GetObjectDeltaAngle(objShot_, lastTargetEnemy);
+			if(ang != 0) ObjMove_SetAngle(objShot_, ang); // Aim at the enemy
+		}
+		
+		// Trails
+		if(_prtSht)
+		{
+			async
+			{
+				float posX = ObjMove_GetX(objShot_);
+				float posY = ObjMove_GetY(objShot_);
+				
+				float scale = _trailScale;
+				
+				float alpha = 255;
+				
+				float ang = ObjMove_GetAngle(objShot_);
+				
+				float iMax = 10;
+				for(int i = 0; i <= iMax; i++)
+				{
+					// Position
+					ObjParticleList_SetPosition(_objPartDeletion, posX - 1, posY, ID_INVALID);
+				
+					// Size
+					scale = Interpolate_Smooth(_trailScale, _trailScale * 1.3, i / iMax);
+					ObjParticleList_SetScale(_objPartDeletion, scale, scale, 1);
+					
+					// Fade
+					ObjParticleList_SetAlpha(_objPartDeletion, Interpolate_Smooth(alpha, 0, i / iMax));
+					
+					// Angle
+					ObjParticleList_SetAngleZ(_objPartDeletion, ang);
+					
+					// Color
+					ObjParticleList_SetColor(_objPartDeletion, _trailCol);
+						
+					// Source rect
+					ObjParticleList_SetExtraData(_objPartDeletion, 0, 1, 1);
+					
+					ObjParticleList_AddInstance(_objPartDeletion);
+					
+					yield;
+				}
+			}
+		}
+			
+		yield;
+	}
+}
+
+// Creates the player portrait and title on the side of the screen
+task _RenderPlayerPortrait()
+{	
+	bool frame = GetAreaCommonData(AREA_SETTINGS, FRAME, 40) > 0;
+	
+	// Portrait
+	int objPortrait;
+	
+	if(frame)
+	{
+		objPortrait = CreateSprite2D_Pos
+		(
+			DIR_IMG_CHAR_PORTRAIT_REIMU, RP_UI_FRAME + 1, BLEND_ALPHA,
+			0, 0, 350, 609,
+			1, 1,
+			-160 * RES, SCREEN_HEIGHT / 2
+		);
+	}
+	
+	// Title back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_SYS_TITLE_BACK, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 148, 400,
+		1, 1,
+		FRAME_LEFT / 2, SCREEN_HEIGHT + (110 * RES)
+	);
+	ObjRender_SetColor(objBack, COLOR_RED);
+		
+	// Title
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_TITLE_PLAYER_REIMU, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 178, 107,
+		1, 1,
+		FRAME_LEFT / 2, -50 * RES
+	);
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		if(frame) ObjRender_SetX(objPortrait, Interpolate_Smooth(-160 * RES, (FRAME_LEFT / 2) + 10, i / iMax));
+		ObjRender_SetY(objBack, Interpolate_Smooth(SCREEN_HEIGHT + (110 * RES), SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		ObjRender_SetY(objTitle, Interpolate_Smooth(-50 * RES, SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		
+		yield;
+	}
+}

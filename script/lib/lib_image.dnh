@@ -1,0 +1,93 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Image Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains various image and primitive object manipulation functions
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Effectively ObjSprite2D_SetSourceRect(), but for primitive objects; u1 = left, v1 = top, u2 = right, v2 = bottom
+function<void> ObjPrim_SetSourceRect(int obj_, int u1_, int v1_, int u2_, int v2_) 
+{
+	ObjPrim_SetVertexUVT(obj_, 0, u1_, v1_);
+	ObjPrim_SetVertexUVT(obj_, 1, u2_, v1_);
+	ObjPrim_SetVertexUVT(obj_, 2, u1_, v2_);
+	ObjPrim_SetVertexUVT(obj_, 3, u2_, v2_);
+	
+	int dU = (u2_ - u1_) / 2;
+	int dV = (v2_ - v1_) / 2;
+	
+	ObjPrim_SetVertexPosition(obj_, 0, -dU, -dV, 0);
+	ObjPrim_SetVertexPosition(obj_, 1, dU, -dV, 0);
+	ObjPrim_SetVertexPosition(obj_, 2, -dU, dV, 0); 
+	ObjPrim_SetVertexPosition(obj_, 3, dU, dV, 0);
+}
+
+// Smoothly fades in an object over time
+task _FadeIn(int objRender_, float iMax_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		ObjRender_SetAlpha(objRender_, Interpolate_Linear(0, 255, i / iMax_));
+		yield;
+	}
+}
+
+// Smoothly fades in an object over time to a specific alpha
+task _FadeIn(int objRender_, float iMax_, int dest_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		ObjRender_SetAlpha(objRender_, Interpolate_Linear(0, dest_, i / iMax_));
+		yield;
+	}
+}
+
+// Smoothly fades out an object over time
+task _FadeOut(int objRender_, float iMax_)
+{
+	for(int i = iMax_; i >= 0; i--)
+	{
+		ObjRender_SetAlpha(objRender_, Interpolate_Linear(0, 255, i / iMax_));
+		yield;
+	}
+}
+
+// Smoothly fades out an object over time from a specific alpha
+task _FadeOut(int objRender_, float iMax_, int init_)
+{
+	for(int i = iMax_; i >= 0; i--)
+	{
+		ObjRender_SetAlpha(objRender_, Interpolate_Linear(0, init_, i / iMax_));
+		yield;
+	}
+}
+
+// Smoothly grows in an object over time to a specific scale
+task _GrowIn(int objRender_, float iMax_, float scale_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		ObjRender_SetScaleXYZ(objRender_, Interpolate_Linear(0, scale_, i / iMax_));
+		yield;
+	}
+}
+
+// Smoothly grows out an object over time from a specific scale
+task _GrowOut(int objRender_, float iMax_, float scale_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		ObjRender_SetScaleXYZ(objRender_, Interpolate_Linear(scale_, 0, i / iMax_));
+		yield;
+	}
+}
+
+// ObjSprite2D_SetSourceRect, but you can get it later
+function<int> ObjSprite2D_SetSource(int objSprite2D_, int x1_, int y1_, int x2_, int y2_)
+{
+	ObjSprite2D_SetSourceRect(objSprite2D_, x1_, y1_, x2_, y2_);
+	Obj_SetValueI(objSprite2D_, VAL_SOURCE, [x1_, y1_, x2_, y2_]);
+	return objSprite2D_;
+}

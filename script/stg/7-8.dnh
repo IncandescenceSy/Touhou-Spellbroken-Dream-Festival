@@ -1,0 +1,199 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Momoyo 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Momoyo 3rd"]
+#Text["Momoyo 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DYELLOW;
+
+// Enemy colors
+const int[] _COLORS = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_AZURE, COLOR_PURPLE, COLOR_PINK];
+
+// Enemy shot colors
+const int[] _SHOTS = [SHOT_SCALE_RED, SHOT_SCALE_ORANGE, SHOT_SCALE_YELLOW, SHOT_SCALE_GREEN, SHOT_SCALE_AQUA, SHOT_SCALE_AZURE, SHOT_SCALE_PURPLE, SHOT_SCALE_PINK];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 62);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MOMOYO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 344, 630, 193, 107, 60, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Invincin();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(10000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Invincin()
+{
+	wait(120);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+	
+	wait(300);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 100, 0);
+}
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	for(int i = 0; ; i++)
+	{
+		_Claw(i);
+		
+		wait(100 - ((min(i, 10)) * 7));
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+	}
+}
+
+task _Claw(int l_)
+{
+	int spread = 2;
+	for(int i = -spread; i <= spread; i++)
+	{
+		_ManageEnemy(i, l_);
+	}
+}
+
+task _ManageEnemy(int index_, int l_)
+{
+	int ind = l_ % 8;
+	int shot = _SHOTS[ind];
+	
+	int objEnemy = CreateEnemy
+	(
+		1, 0, false, true,
+		_COLORS[ind], STANDARD_ENEMYSCALE, true, true,
+		_enmX, _enmY, _enmX, _enmY, 0
+	);
+	
+	ObjMove_SetSpeed(objEnemy, 6);
+	ObjMove_SetAcceleration(objEnemy, -0.12);
+	ObjMove_SetMaxSpeed(objEnemy, 0);
+	
+	ObjMove_SetAngle(objEnemy, GetAngleToPlayer(_objBoss) + 180 + (index_ * 30));
+	
+	for(int i = 0; Obj_IsExists(objEnemy); i++)
+	{
+		if(i == 50)
+		{
+			ObjMove_SetSpeed(objEnemy, 0);
+			ObjMove_SetAcceleration(objEnemy, 0.1);
+			ObjMove_SetMaxSpeed(objEnemy, 8);
+			
+			ObjMove_SetAngle(objEnemy, GetAngleToPlayer(objEnemy));
+		}
+		
+		if(i < 120 && i % 2 == 0)
+		{
+			float enmX = ObjMove_GetX(objEnemy);
+			float enmY = ObjMove_GetY(objEnemy);
+			
+			float ang = ObjMove_GetAngle(objEnemy);
+			
+			int m = i / 10;
+			
+			ObjMove_AddPatternA2(CreateShot_Enemy(enmX + rand(-m, m), enmY + rand(-m, m), 0, ang, 0, 0, shot, 25), 95, 0, NO_CHANGE, 0.05, 5, 0);
+		}
+		else if(i >= 120)
+		{
+			float enmX = ObjMove_GetX(objEnemy);
+			float enmY = ObjMove_GetY(objEnemy);
+			
+			float ang = rand(0, 360);
+			
+			int m = i / 10;
+			
+			ObjMove_AddPatternA2(CreateShot_Enemy(enmX + rand(-m, m), enmY + rand(-m, m), 0, ang, 0, 0, shot, 25), 95, 0, NO_CHANGE, 0.05, 5, 0);
+		}
+		
+		yield;
+	}
+}
+
+/*task _InterpolateYourGoddamnAnglesBitchass(int objEnemy_)
+{
+	int initAng = ObjMove_GetAngle(objEnemy_);
+	int destAng = GetAngleToPlayer(objEnemy_);
+	
+	int iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjMove_SetAngle(objEnemy_, Interpolate_Angle(initAng, destAng, i / iMax));
+		
+		yield;
+	}
+}*/

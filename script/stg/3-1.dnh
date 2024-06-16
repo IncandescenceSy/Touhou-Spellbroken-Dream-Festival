@@ -1,0 +1,222 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Alice 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Alice 1st"]
+#Text["Alice 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DYELLOW;
+
+// Enemy colors
+const int[] _COLORS = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_AZURE, COLOR_PURPLE, COLOR_PINK];
+
+// Enemy shot colors
+const int[][] _SHOTS = 
+[
+	[SHOT_SCALE_RED, SHOT_BALL_RED],
+	[SHOT_SCALE_ORANGE, SHOT_BALL_ORANGE],
+	[SHOT_SCALE_YELLOW, SHOT_BALL_YELLOW],
+	[SHOT_SCALE_GREEN, SHOT_BALL_GREEN],
+	[SHOT_SCALE_AQUA, SHOT_BALL_AQUA],
+	[SHOT_SCALE_AZURE, SHOT_BALL_AZURE],
+	[SHOT_SCALE_PURPLE, SHOT_BALL_PURPLE],
+	[SHOT_SCALE_PINK, SHOT_BALL_PINK],
+];
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 19);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_ALICE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 352, 640, 192, 102, 40, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	int iMax = length(_COLORS) / 2;
+	
+	loop
+	{
+		for(int i = 0; i < iMax; i++)
+		{
+			_ManageEnemy(CreateEnemy
+			(
+				1, 0, false, true,
+				_COLORS[i * 2], STANDARD_ENEMYSCALE, true, true,
+				-30, -30, FRAME_WIDTH - 50, CENTER_Y - 80, 90
+			), i * 2);
+			
+			wait(120);
+			
+			_ManageEnemy(CreateEnemy
+			(
+				1, 0, false, true,
+				_COLORS[(i * 2) + 1], STANDARD_ENEMYSCALE, true, true,
+				FRAME_WIDTH + 30, -30, 50, CENTER_Y - 80, 90
+			), (i * 2) + 1);
+			
+			wait(120);
+		}
+	}
+}
+
+task _ManageEnemy(int objEnemy_, int index_)
+{
+	_Deltarune(objEnemy_, _COLORS[index_]);
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	int pause = rand_int(3, 10);
+	
+	wait(pause);
+	
+	int iMax = 90 - pause;
+	int stack = 4;
+	
+	for(int i = 0; i <= iMax && Obj_IsExists(objEnemy_); i++)
+	{
+		if(i % 9 == 0)
+		{
+			enmX = ObjMove_GetX(objEnemy_);
+			enmY = ObjMove_GetY(objEnemy_);
+		
+			for(int j = 0; j <= stack; j++)
+			{
+				for(int k = -1; k <= 1; k += 2) CreateShot_Enemy(enmX, enmY, 0.5 + (j / 4), ObjMove_GetAngle(objEnemy_) + (k * 90), 0.01, 1 + (j / 3), _SHOTS[index_][0], 5);
+			}
+		}
+		
+		yield;
+	}
+	
+	enmX = ObjMove_GetX(objEnemy_);
+	enmY = ObjMove_GetY(objEnemy_);
+			
+	_RenderCharge(enmX, enmY, 1, _COLORS[index_], _COLORS[index_]);
+	
+	wait(65);
+	
+	float off = rand(0, 360);
+	int way = 36;
+	for(int i = 0; i <= way; i++)
+	{
+		bool isEven = i % 2 == 0;
+		CreateShot_Enemy(enmX, enmY, 0.5, (i * (360 / way)) + off, 0.015 + (0.02 * isEven), 2 + (1.5 * isEven), _SHOTS[index_][1], 25);
+	}
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+	
+	ObjMove_SetDestAtFrame(objEnemy_, (index_ % 2 == 0) ? -33 : FRAME_WIDTH + 33, FRAME_HEIGHT + 33, 150, LERP_SMOOTH);
+	
+	wait(rand_int(0, 5));
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		if(i % 15 == 0)
+		{
+			enmX = ObjMove_GetX(objEnemy_);
+			enmY = ObjMove_GetY(objEnemy_);
+		
+			for(int j = 0; j <= stack; j++)
+			{
+				for(int k = -1; k <= 1; k += 2) CreateShot_Enemy(enmX, enmY, 0.5 + (j / 4), ObjMove_GetAngle(objEnemy_) + (k * 90), 0.01, 1 + (j / 3), _SHOTS[index_][0], 25);
+			}
+		}
+		
+		yield;
+	}
+}
+
+// Renders the funni spamton neo strings
+task _Deltarune(int objEnemy_, int color_)
+{
+	const int COUNT_LINE = 6;
+	
+	int objString = CreatePrimObject(RP_STG_LINE, PRIMITIVE_LINELIST, COUNT_LINE * 2);
+	
+	ObjRender_SetColor(objString, color_);
+	
+	for(float i = 0; Obj_IsExists(objEnemy_); i += M_PI / 10)
+	{
+		float enmX = ObjMove_GetX(objEnemy_);
+		float enmY = ObjMove_GetY(objEnemy_);
+		
+		for(int j = 0; j < COUNT_LINE; j++)
+		{
+			int mult = (j % 2 == 0) ? 1 : -1;
+			ObjPrim_SetVertexPosition(objString, j * 2, enmX + ((15 * sin(j * i)) * mult), -1, ID_INVALID);
+			ObjPrim_SetVertexPosition(objString, (j * 2) + 1, enmX + ((15 * sin((j * 1.5) * i)) * mult), enmY, ID_INVALID);
+		}
+		
+		yield;
+	}
+	
+	Obj_Delete(objString);
+}

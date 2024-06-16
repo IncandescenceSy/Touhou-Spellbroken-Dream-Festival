@@ -1,0 +1,176 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Yuuma 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yuuma 3rd"]
+#Text["Yuuma 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DRED;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 54);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUUMA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 477, 600, 190, 105, 45, _colorA, _colorB, CENTER_X, 110, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+		
+		
+	const int[] COLORS = [COLOR_ORANGE, COLOR_DRED];
+	const int[] LASERS = [SHOT_CURVY_LASER_RED, SHOT_CURVY_LASER_ORANGE];
+	const int[] SHOTS  = [SHOT_FIREBALL_ORANGE, SHOT_FIREBALL_RED];
+	
+	for(int i = 0; ; i++)
+	{
+		int way = 3;
+		int spread = 3 + (min(i, 2) * 2);
+		int height = 50;
+		int skip = 4;
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		for(int j = -way; j <= way; j++)
+		{
+			if(j != 0)
+			{
+				CreateLaser_Inferno(CENTER_X + (j * 70), 50, 200, 40, COLORS[i % 2]);
+							
+				for(int k = -spread; k <= spread; k++)
+				{
+					float ang = 270 + (k * 15);
+					ObjMove_AddPatternB2(CreateLaser_Curvy(CENTER_X + (j * 70), FRAME_HEIGHT + 20, 0, 0, 0, 0, LASERS[i % 2], 70, 10, 0, 0), 0, 0, -4.5, 0.01 * cos(ang), 0.025, 2 * cos(ang), 7);
+				}
+				
+				_SpawnFire(i, j, height, way, SHOTS, skip);
+			}
+		}
+		
+		way = 60 + (min(i, 2) * 9);
+		int stack = 10 + (min(i, 2) * 2);
+		float off = rand(0, 360);
+		
+		for(int j = 0; j < way; j++) for(int k = 0; k < stack; k++) CreateShot_Enemy(_enmX, _enmY, k * 0.25, j * (360 / way) + off, 0.01 + (k * 0.005), 2 + (k * 0.35), SHOTS[(i + 1) % 2], 25);
+		
+		wait(45);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+		
+		wait(155);
+		
+		int count = 120;
+		way = 11 + (min(i, 2) * 4);
+		spread = 3 + (min(i, 2) * 2);
+		
+		for(int j = 0; j <= count; j++)
+		{
+			if(j % 5 == 0)
+			{
+				float ang = j * 5;
+				float rad = sin(j) * 80;
+				
+				float posX = _enmX + rad * cos(ang);
+				float posY = _enmY + rad * sin(ang);
+				float angT = dottheta(posX, posY, GetPlayerX(), GetPlayerY());
+				
+				for(int k = -spread; k <= spread; k++) CreateShot_Enemy(posX, posY, 0, angT + (k * 14), 0.02, 3, SHOTS[(i + 1) % 2], 25);
+				
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			}
+			
+			if(j % 40 == 0)
+			{
+				off = rand(0, 360);
+				for(int k = 0; k < way; k++) for(int l = -1; l <= 1; l += 2) CreateLaser_Curvy(_enmX, _enmY, 0, k * (360 / way) + off, 0.0075, 3, LASERS[(i + 1) % 2], 50, 15, 0.2 * l, 0);
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			}
+			
+			yield;
+		}
+		
+		wait(40);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+		
+		wait(155);
+	}
+}
+
+task _SpawnFire(int i, int index_, int height, int way, int[] SHOTS, int skip)
+{
+	wait(40);
+	for(int k = 0; k <= height; k++) for(int l = -1; l <= 1; l += 2) if(k % skip == 0) ObjMove_AddPatternA2(CreateShot_Enemy(CENTER_X + (index_ * 70) + ((sin(k * 12) * 10) * l), k * ((FRAME_HEIGHT + 50) / height), 0, (l * 180), 0, 0, SHOTS[i % 2], 30), 150, 0, 90 + (l * 90) + (l * 14), 0.02, 3, 0);
+}

@@ -1,0 +1,452 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Orange 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Orange 2nd"]
+#Text["Orange 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DGREEN;
+
+// Amount of orbs
+int _enemyCount = 0;
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 27);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_ORANGE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 354, 650, 176, 77, 50, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_PLAYER, EV_RECOLOR_WHILE_BOSS_LIVES, [0, 255, 0], _objBoss);
+	
+	// Pattern
+	_Pattern();
+	_Filter();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(2000 * 11);
+		case(EV_REQUEST_TIMER) SetScriptResult(120);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(60);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+	
+	wait(5);
+	
+	int objEnemy = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX, _enmY - 60, _enmX, _enmY - 60, 0
+	);
+	_Hitbox(objEnemy);
+	_OrbA1(objEnemy);
+	
+	while(Obj_IsExists(objEnemy)) yield;
+	
+	objEnemy = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX - 50, _enmY - 60, _enmX - 50, _enmY - 60, 0
+	);
+	_Hitbox(objEnemy);
+	_OrbB1(objEnemy);
+	
+	int objEnemyA = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX + 50, _enmY - 60, _enmX + 50, _enmY - 60, 0
+	);
+	_Hitbox(objEnemyA);
+	_OrbB2(objEnemyA);
+	
+	while(Obj_IsExists(objEnemy) || Obj_IsExists(objEnemyA)) yield;
+	
+	objEnemy = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX - 100, _enmY - 60, _enmX - 100, _enmY - 60, 0
+	);
+	_Hitbox(objEnemy);
+	_OrbC1(objEnemy);
+	
+	objEnemyA = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX, _enmY - 60, _enmX, _enmY - 60, 0
+	);
+	_Hitbox(objEnemyA);
+	_OrbC1(objEnemyA);
+	
+	int objEnemyB = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX + 100, _enmY - 60, _enmX + 100, _enmY - 60, 0
+	);
+	_Hitbox(objEnemyB);
+	_OrbC1(objEnemyB);
+	
+	while(Obj_IsExists(objEnemy) || Obj_IsExists(objEnemyA) || Obj_IsExists(objEnemyB)) yield;
+	
+	objEnemy = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX, _enmY - 180, _enmX, _enmY - 180, 0
+	);
+	_Hitbox(objEnemy);
+	_OrbA1(objEnemy);
+	
+	objEnemyA = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX - 80, _enmY - 120, _enmX - 80, _enmY - 120, 0
+	);
+	_Hitbox(objEnemyA);
+	_OrbB1(objEnemyA);
+	
+	objEnemyB = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX + 80, _enmY - 120, _enmX + 80, _enmY - 120, 0
+	);
+	_Hitbox(objEnemyB);
+	_OrbB2(objEnemyB);
+	
+	int objEnemyC = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX + 40, _enmY - 60, _enmX + 40, _enmY - 60, 0
+	);
+	_Hitbox(objEnemyC);
+	_OrbC1(objEnemyC);
+	
+	int objEnemyD = CreateEnemy
+	(
+		2000, STANDARD_ENEMYHITBOX, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX - 40, _enmY - 60, _enmX - 40, _enmY - 60, 0
+	);
+	_Hitbox(objEnemyD);
+	_OrbC1(objEnemyD);
+	
+	while(Obj_IsExists(objEnemy) || Obj_IsExists(objEnemyA) || Obj_IsExists(objEnemyB) || Obj_IsExists(objEnemyC) || Obj_IsExists(objEnemyD)) yield;
+	
+	ObjEnemy_SetLife(_objBoss, 0);
+}
+
+// Aimed balls
+task _OrbA1(int objEnemy_)
+{
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(objEnemy_, 100, 0);
+	
+	int time = 30 + (_enemyCount * 5);
+	int spread = (_enemyCount > 3) ? 0 : 1;
+		
+	while(Obj_IsExists(objEnemy_))
+	{
+		ObjMove_SetDestAtFrame(objEnemy_, GetPlayerX(), FRAME_HEIGHT - 140, 30, LERP_SMOOTH);
+		
+		wait(time);
+		
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		time = 30 + (_enemyCount * 5);
+		spread = (_enemyCount > 3) ? 0 : 1;
+	
+		int iMax = 3;
+		for(int i = 0; i <= iMax; i++)
+		{
+			if(Obj_IsDeleted(objEnemy_)) return;
+			
+			for(int j = -spread; j <= spread; j++)
+			{
+				CreateShot_Enemy(enmX, enmY, 2, GetAngleToPlayer(objEnemy_) + (j * 20), 0.05, 5, SHOT_BALL_ORANGE, 12);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(4);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	}
+}
+
+// Aimed knives
+task _OrbB1(int objEnemy_)
+{
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	_RenderCharge(enmX, enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjMove_SetSpeed(objEnemy_, 2);
+	ObjMove_SetAngle(objEnemy_, rand(0, 360));
+	
+	int cooldown = 0;
+	
+	int time = 50 + (_enemyCount * 12);
+	int spread = (_enemyCount > 2) ? 0 : 1;
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		if(cooldown <= 0 && !Obj_IsInArea(objEnemy_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+		{
+			ObjMove_SetAngle(objEnemy_, ObjMove_GetAngle(objEnemy_) + rand(130, 230));
+			cooldown = 20;
+		}
+		
+		if(Obj_IsDeleted(objEnemy_)) return;
+		
+		time = 50 + (_enemyCount * 12);
+		spread = (_enemyCount > 2) ? 0 : 1;
+	
+		if(i % time == 0)
+		{
+			enmX = ObjMove_GetX(objEnemy_);
+			enmY = ObjMove_GetY(objEnemy_);
+		
+		
+			int stack = 3;		
+			for(int j = 0; j <= stack; j++)
+			{
+				for(int k = -spread; k <= spread; k++) CreateShot_Enemy(enmX, enmY, 1 + (0.25 * j), GetAngleToPlayer(objEnemy_) + (k * 3), 0.05 + (0.02 * j), 5 + (0.5 * j), SHOT_KNIFE_ORANGE, 12);
+			}
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		cooldown--;
+		
+		yield;
+	}
+}
+
+// Spinny lasers
+task _OrbB2(int objEnemy_)
+{
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	_RenderCharge(enmX, enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int[] lasers = [];
+	
+	int laserLength = 180 - (_enemyCount * 23);
+	
+	for(int i = 0; i < 3; i++) lasers ~= [CreateLaser_Straight(enmX, enmY, i * (360 / 3), laserLength, 18, INT_MAX, SHOT_LIGHTNING, 30, COLOR_ORANGE)];
+	
+	ObjMove_SetSpeed(objEnemy_, 2);
+	ObjMove_SetAngle(objEnemy_, rand(0, 360));
+	
+	int cooldown = 0;
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		if(cooldown <= 0 && !Obj_IsInArea(objEnemy_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+		{
+			//ObjMove_SetAngle(objEnemy_, ObjMove_GetAngle(objEnemy_) + rand(130, 230));
+			ObjMove_SetAngle(objEnemy_, (rand_int(0, 3) == 0) ? ObjMove_GetAngle(objEnemy_) + rand(130, 230) : GetAngleToPlayer(objEnemy_));
+			cooldown = 20;
+		}
+		
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		laserLength = 180 - (_enemyCount * 23);
+		
+		for each(int j, int jLasers in ref lasers)
+		{
+			ObjMove_SetPosition(jLasers, enmX, enmY);
+			ObjStLaser_SetAngle(jLasers, (j * (360 / 3)) + (i * 2));
+			ObjLaser_SetLength(jLasers, Interpolate_Smooth(ObjLaser_GetLength(jLasers), laserLength, 0.175));
+		}
+		
+		cooldown--;
+		
+		yield;
+	}
+	
+	for each(int iLasers in ref lasers) Obj_Delete(iLasers);
+}
+
+// Shooting down [sic]
+task _OrbC1(int objEnemy_)
+{
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	_RenderCharge(enmX, enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int time = 35 + (_enemyCount * 10);
+	
+	while(Obj_IsExists(objEnemy_))
+	{
+		ObjMove_SetDestAtFrame(objEnemy_, rand(0, FRAME_WIDTH), rand(150, FRAME_HEIGHT - 200), time * 1.125, LERP_DECELERATE);
+		
+		wait(time);
+		
+		if(Obj_IsDeleted(objEnemy_)) return;
+		
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		int stack = 3;		
+		float ang = (GetPlayerY() > (enmY + 40)) ? 90 : GetAngleToPlayer(objEnemy_);
+		float angOff = 3.65;
+		int spread = (GetPlayerY() > (enmY + (40 - (_enemyCount * 10)))) ? max(0, floor(3 - (_enemyCount / 2))) : 6;
+		for(int i = 0; i <= stack; i++)
+		{
+			for(int j = -spread; j <= spread; j++) CreateShot_Enemy(enmX, enmY, 1 + (0.25 * i), ang + (j * angOff), 0.05 + (0.02 * i), 5 + (0.5 * i), SHOT_LARGE_ORANGE, 12);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(3);
+	}
+}
+
+task _Hitbox(int objEnemy_)
+{	
+	_enemyCount++;
+	
+	wait(65);
+	
+	int life = ObjEnemy_GetInfo(objEnemy_, INFO_LIFE);
+	
+	while(Obj_IsExists(objEnemy_))
+	{
+		//ObjEnemy_SetIntersectionCircleToShot(_objBoss, ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), STANDARD_ENEMYHITBOX);
+		ObjEnemy_SetIntersectionCircleToShot(objEnemy_, ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), STANDARD_ENEMYHITBOX);
+		
+		int damage = life - ObjEnemy_GetInfo(objEnemy_, INFO_LIFE);
+		
+		ObjEnemy_SetLife(_objBoss, ObjEnemy_GetInfo(_objBoss, INFO_LIFE) - damage);
+		
+		life = ObjEnemy_GetInfo(objEnemy_, INFO_LIFE);
+		
+		yield;
+	}
+	
+	_enemyCount--;
+}
+
+// Zeroranger shader
+task _Filter()
+{	
+	if(GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1))
+	{
+		SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME - 1);
+		
+		int objZeroranger = CreateSprite2D_Dest
+		(
+			RT6, RP_MAX, BLEND_ALPHA,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		ObjShader_SetShaderF(objZeroranger, DIR_SDR_ZERORANGER);
+		ObjShader_SetTechnique(objZeroranger, TEC_ZERORANGER);
+		
+		loop
+		{
+			SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME + 4);
+			
+			RenderToTextureA1(RT6, RP_UI_VIS, RP_UI_FRAME + 4, true);
+			
+			yield;
+		}
+	}
+	else
+	{
+		int objShader = ObjShader_Create();
+		ObjShader_SetShaderF(objShader, DIR_SDR_ZERORANGER);
+		ObjShader_SetTechnique(objShader, TEC_ZERORANGER);
+		SetShaderI(objShader, RP_MIN, RP_MAX);
+	}
+}

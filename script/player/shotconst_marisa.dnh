@@ -1,0 +1,14 @@
+///////////////////////////////////////////////////////////////
+//////////////////// Marisa Shot Constants ////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains constant names for bullets used by Marisa and loads her shotdata
+
+local
+{
+	// Loads data when this script is included
+	LoadPlayerShotData(DIR ~ "/script/player/shotdata_marisa.dnh");
+}
+
+const int MISSILE_BLUE  = 1; // Basic blue missile
+const int MISSILE_MAGIC = 2; // Animated magic missile

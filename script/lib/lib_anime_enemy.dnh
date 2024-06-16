@@ -1,0 +1,106 @@
+//雑魚敵用アニメライブラリ
+//定数宣言
+// by shijimi nono
+let F_SS_A    = 0; //赤
+
+let F_SS_B    = 5; //赤
+
+let F_S_A    = 10; //赤
+
+let F_S_B    = 15; //赤
+
+let F_N_A    = 20; //赤
+
+let F_N_B    = 25; //赤
+
+let F_L_A    = 30; //赤
+
+let F_L_B    = 35; //赤
+
+const int ID_ITEM = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_ITEM, ID_INVALID);
+
+task _RenderFairy(objID, type, float drop_){
+
+	let img = DIR_IMG_ENM_FAIRY;
+	let E_type = trunc(type/5);
+	let E_RectX;
+	let E_RectY;
+	let E_RectSize;
+	let PosX = ObjMove_GetX(objID);
+	float PosY = ObjMove_GetY(objID);
+	let E_time = 0;
+	let E_Interval = 5;
+	let E_Dir_time = 0;
+	let E_Rect = [0, 0, 0, 0];
+
+	alternative(E_type)
+	case(0){E_RectX = 0;	E_RectY = 0;	E_RectSize = 32;}
+	case(1){E_RectX = 224;	E_RectY = 0;	E_RectSize = 32;}
+	case(2){E_RectX = 0;	E_RectY = 32;	E_RectSize = 48;}
+	case(3){E_RectX = 0;	E_RectY = 80;	E_RectSize = 48;}
+	case(4){E_RectX = 0;	E_RectY = 128;	E_RectSize = 48;}
+	case(5){E_RectX = 0;	E_RectY = 176;	E_RectSize = 48;}
+	case(6){E_RectX = 0;	E_RectY = 224;	E_RectSize = 64;}
+	case(7){E_RectX = 0;	E_RectY = 288;	E_RectSize = 64;}
+	others{	E_RectX = 0;	E_RectY = 0;	E_RectSize = 0;}
+
+	ObjPrim_SetTexture(objID, img);
+	ObjRender_SetBlendType(objID, BLEND_ALPHA);
+	Obj_SetRenderPriority(objID, 0.41);
+	ObjSprite2D_SetDestRect(objID, 0, 0, E_RectSize, E_RectSize);
+	//角度、大きさ、色、透過度
+	E_Rect[1] = E_RectY;
+	E_Rect[3] = E_RectY + E_RectSize;
+	
+	int enmLife = ObjEnemy_GetInfo(objID, INFO_LIFE);
+	
+	for(int i = 0; !Obj_IsDeleted(objID); i++){
+		// The enemy flashes if it's being shot
+		int curLife = ObjEnemy_GetInfo(objID, INFO_LIFE);
+		if(curLife < enmLife)
+		{
+			ObjRender_SetColor(objID, Interpolate_Smooth(255, 255, absolute(sin(i * 15))), Interpolate_Smooth(255, 100, absolute(sin(i * 15))), Interpolate_Smooth(255, 100, absolute(sin(i * 15))));
+		}
+		else
+		{
+			int[] col = ObjRender_GetColor(objID);
+			ObjRender_SetColor(objID, Interpolate_Smooth(col[0], 255, 0.3), Interpolate_Smooth(col[1], 255, 0.3), Interpolate_Smooth(col[2], 255, 0.3));
+		}
+		
+		if(absolute(ObjMove_GetX(objID)-PosX) > 0.2){
+			if(E_Dir_time < E_Interval){
+				E_Rect[0] = E_RectX + E_RectSize*3;
+				E_Rect[2] = E_Rect[0] + E_RectSize;
+				if(ObjMove_GetX(objID)-PosX > 0){
+					ObjRender_SetAngleY(objID, 0);
+				}else{
+					ObjRender_SetAngleY(objID, 180);
+				}
+			}else{
+				E_Rect[0] = E_RectX + E_RectSize*((truncate(E_time/E_Interval))%3 + 4);
+				E_Rect[2] = E_Rect[0] + E_RectSize;
+				if(ObjMove_GetX(objID)-PosX > 0){
+					ObjRender_SetAngleY(objID, 0);
+				}else{
+					ObjRender_SetAngleY(objID, 180);
+				}
+			}
+			E_Dir_time++;
+		}
+		else{
+			ObjRender_SetAngleY(objID, 0);
+			E_Rect[0] = E_RectX + E_RectSize*((truncate(E_time/E_Interval))%3);
+			E_Rect[2] = E_Rect[0] + E_RectSize;
+			E_Dir_time = 0;
+		}
+		ObjSprite2D_SetSourceRect(objID, E_Rect[0], E_Rect[1], E_Rect[2], E_Rect[3]);
+		ObjSprite2D_SetDestCenter(objID);
+
+		PosX = ObjMove_GetX(objID);
+		PosY = ObjMove_GetY(objID);
+		E_time++;
+		yield;
+	}
+	
+	if(Pos_IsInArea(PosX, PosY, -32, -32, FRAME_WIDTH + 32, FRAME_HEIGHT + 32)) NotifyEvent(ID_ITEM, EV_FAIRY_DROP, PosX, PosY, drop_);
+}

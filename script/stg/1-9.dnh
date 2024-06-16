@@ -1,0 +1,213 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Seiran 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Seiran 3rd"]
+#Text["Seiran 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Starting boss life
+int _lifeMax = 28000;
+
+// Boss colors
+int _colorA = COLOR_ORANGE;
+int _colorB = COLOR_AZURE;
+
+// Currently active key
+int _active = 0;
+
+int[] _shots = [SHOT_SCALE_RED, SHOT_SCALE_GREEN, SHOT_SCALE_AZURE, SHOT_SCALE_PINK];
+
+// Hey, kids! Don't do this. Don't. It's very bad. I'm just too lazy for math
+int[][] _pos = 
+[
+	// First key - angle 0
+	[
+		-30, -30, // X positions
+		-30, FRAME_HEIGHT + 30 // Y positions
+	],
+	
+	// Second key - angle 90
+	[
+		-30, FRAME_WIDTH + 30, // X positions
+		-30, -30 // Y positions
+	],
+	
+	// Third key - angle 180
+	[
+		FRAME_WIDTH + 30, FRAME_WIDTH + 30, // X positions
+		-30, FRAME_HEIGHT + 30 // Y positions
+		
+	],
+	
+	// Fourth key - angle 270
+	[
+		-30, FRAME_WIDTH + 30, // X positions
+		FRAME_HEIGHT + 30, FRAME_HEIGHT + 30 // Y positions
+	]
+];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 9);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SEIRAN);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 379, 660, 143, 107, 50, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Keys();
+	_Triangles();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(25000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+
+task _Keys()
+{
+	int[] shots = [SHOT_CURVY_LASER_RED, SHOT_CURVY_LASER_GREEN, SHOT_CURVY_LASER_AZURE, SHOT_CURVY_LASER_PINK];
+	int[] keys = [];
+	wait(60);
+	_RenderCharge(_enmX, _enmY, 2, _colorA, _colorB);
+	wait(120);
+	for each((int i, int j) in ref shots)
+	{
+		keys ~= [CreateLaser_Loose(_enmX, _enmY, 2.5, (360 / length(shots)) * i, -0.035, 0, j, 96, 12, 0)];
+		_ControlKey(keys[i], i);
+	}
+	
+	while(_isAlive)
+	{
+		for each((int i, int j) in ref keys)
+		{
+			int target = (i == _active) ? 255 : 60;
+			ObjRender_SetColor(j, target, target, target);
+		}
+		
+		wait(100 + (100 * (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / _lifeMax)));
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(70);
+		
+		_active--;
+		if(_active < 0) _active = 3;
+		
+		for each(int i in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			ObjMove_SetAngle(i, _active * 90);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	}
+}
+
+task _ControlKey(int objKey_, int index_)
+{
+	ObjRender_SetBlendType(objKey_, BLEND_ALPHA);
+	Obj_SetRenderPriorityI(objKey_, RP_STG_SHOT_N);
+	Obj_SetValueI(objKey_, VAL_GRZCOL, false);
+	
+	wait(60);
+
+	float ang = ObjMove_GetAngle(objKey_);
+	
+	// Counter variable
+	float frame = 0;
+	
+	loop
+	{
+		
+		if(_active == index_ && frame % 5 == 0)
+		{
+			CreateShot_Enemy(rand(_pos[index_][0], _pos[index_][1]), rand(_pos[index_][2], _pos[index_][3]), 0.5, ang, 0.015, 1.75, _shots[index_], 0);
+		}
+		
+		frame++;
+		
+		yield;
+	}
+}
+
+task _Triangles()
+{
+	int[] shots = [SHOT_BULLET_RED, SHOT_BULLET_GREEN, SHOT_BULLET_AZURE, SHOT_BULLET_PINK];
+	wait(220);
+	loop
+	{
+		float ang = GetAngleToPlayer(_objBoss);
+		for(int i = 0; i <= 3; i++)
+		{
+			for(int j = 0; j <= 3 - i; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 2 + j * 0.2, ang - i * 2, 0, 0, shots[_active], 15);
+			}
+		}
+		for(int i = 0; i <= 3; i++)
+		{
+			for(int j = 0; j <= 3 - i; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 2 + j * 0.2, ang + i * 2, 0, 0, shots[_active], 15);
+			}
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		wait(90);
+	}
+}

@@ -1,0 +1,3 @@
+koruri.ttf
+kouzan_brush.ttf
+recorded_history.ttf

@@ -1,0 +1,9 @@
+#UserShotData
+
+shot_image = "./../assets/img/sys/shot_5.png"
+
+// SHOT_ROSE
+ShotData{id = 1079; rect = (0, 0, 153, 153); delay_color = (255, 0, 0); collision = 50; angular_velocity = 1.5; fixed_angle = true;}
+
+// SHOT_CURVY_LASER_BLACK
+ShotData{id = 1080; rect = (154, 0, 170, 256); delay_color = (0, 0, 0);}

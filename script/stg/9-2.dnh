@@ -1,0 +1,609 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Youmu ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Youmu"]
+#Text["Youmu"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DGREEN;
+
+// Rou or Haku laser text
+const int TEXT_ROU  = 0;
+const int TEXT_HAKU = 1;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 68);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YOUMU);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_EFF_ROU]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -150);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 424, 600, 186, 110, 60, _colorA, _colorB, CENTER_X, -100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(99000);
+		case(EV_REQUEST_TIMER) SetScriptResult(180);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(20);
+	
+	// Pillar of lasers in the middle
+	CreateLaser_Rou(CENTER_X, -10, 90, 512, 60, 50, SHOT_LASER_RED, 35, COLOR_WHITE, TEXT_ROU);
+	
+	wait(8);
+	
+	for(int i = 1; i < 4; i++)
+	{
+		CreateLaser_Rou(CENTER_X + (i * 30), -10, 90, 512, 60, 50, SHOT_LASER_RED, 20, COLOR_WHITE, TEXT_ROU);
+		CreateLaser_Rou(CENTER_X - (i * 30), -10, 90, 512, 60, 50, SHOT_LASER_RED, 20, COLOR_WHITE, TEXT_ROU);
+
+		wait(8);
+	}
+	
+	wait(45);
+	
+	// Lasers from each side
+	for(int i = 0; i <= 5; i++)
+	{
+		CreateLaser_Rou(i * 30, FRAME_HEIGHT + 10, 270, 512, 60, 50, SHOT_LASER_AZURE, 20, COLOR_WHITE, TEXT_HAKU);
+		CreateLaser_Rou(FRAME_WIDTH - (i * 30), FRAME_HEIGHT + 10, 270, 512, 60, 50, SHOT_LASER_YELLOW, 20, COLOR_WHITE, TEXT_HAKU);
+
+		wait(8);
+	}
+	
+	// Boss comes onscreen to the center and the spell starts
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 15, LERP_SMOOTH);
+	
+	wait(15);
+	
+	//ObjEnemyBossScene_StartSpell(_objScene); // Why does calling this lag
+	
+	// Endless portion
+	loop
+	{
+		// Fire waves
+		loop(3)
+		{
+			FireSpray();
+			wait(45);
+		}
+		
+		wait(30);
+		
+		// Fire lasers
+		loop(2)
+		{
+			FireLasers();
+			wait(120);
+		}
+		
+		wait(45);
+		
+		// Ice waves
+		loop(3)
+		{
+			IceSpray();
+			wait(60);
+		}
+		
+		wait(30);
+		
+		// Ice lasers
+		loop(2)
+		{
+			IceLasers();
+			wait(120);
+		}
+		
+		wait(45);
+		
+		// Lightning waves
+		loop(3)
+		{
+			LightSpray();
+			wait(60);
+		}
+		
+		wait(30);
+		
+		// Lightning lasers
+		LightLasers();
+
+		wait(120);
+	}
+
+}
+
+function<void> FireSpray()
+{
+	int[] shots = [];
+	
+	ObjMove_SetDestAtFrame(_objBoss, -90, 100, 20, LERP_LINEAR);
+	
+	int way = 5;
+	int wave = 25;
+	
+	float off = rand(0, 360);
+	
+	for(int i = 0; i < 15; i++)
+	{
+		float sine = sin(i * 10);
+		
+		for(int j = 0; j < way; j++) // This code is horrible I know I'm just too lazy to change this to a loop so try not to look at it too hard
+		{
+			shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave), 0, (j * (360 / way)) + (i * 40) + off, 0, 2, SHOT_FIREBALL_GREY, 10)];
+			shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave) + 25, 0, (j * (360 / way)) + (i * 40) + off, 0, 2, SHOT_FIREBALL_GREY, 10)];
+			shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave) - 25, 0, (j * (360 / way)) + (i * 40) + off, 0, 2, SHOT_FIREBALL_GREY, 10)];
+		}
+		
+		yield;
+	}
+	
+	wait(25);
+	
+	ObjMove_SetPosition(_objBoss, FRAME_WIDTH + 90, 100);
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 20, LERP_LINEAR);
+	
+	for(int i = 20; i > 0; i--)
+	{
+		float sine = sin(i * 10);
+		
+		if(i <= 15)
+		{
+			for(int j = 0; j < way; j++)
+			{
+				shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave), 0, (j * (360 / way)) + (i * 40) + off, 0, 4, SHOT_FIREBALL_GREY, 10)];
+				shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave) + 25, 0, (j * (360 / way)) + (i * 40) + off, 0, 4, SHOT_FIREBALL_GREY, 10)];
+				shots ~= [CreateShot_Enemy(_enmX, _enmY + (sine * wave) - 25, 0, (j * (360 / way)) + (i * 40) + off, 0, 4, SHOT_FIREBALL_GREY, 10)];
+			}
+		}
+		
+		yield;
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	for each(int iShots in ref shots)
+	{
+		ObjMove_SetAcceleration(iShots, 0.02);
+		ObjShot_SetGraphic(iShots, SHOT_FIREBALL_RED);
+	}
+	
+	shots = [];
+}
+
+function<void> FireLasers()
+{
+	int way   = 12;
+	int stack = 80;
+	int rad   = 900;
+	int off   = rand(0, 360);
+	for(int i = 0; i < way; i++)
+	{
+		float ang  = (i * 360 / way) + off;
+		float posX = _enmX + (cos(ang) * rad);
+		float posY = _enmY + (sin(ang) * rad);
+		float angA = dottheta(posX, posY, _enmX, _enmY) + 5;
+		
+		// Warning laser
+		int objWarning = CreateLaser_Straight(posX, posY, angA, 2048, 60, 150, SHOT_LASER_GREY, 70, COLOR_WHITE);
+		ObjShot_SetAutoDelete(objWarning, false);
+		ObjShot_SetIntersectionEnable(objWarning, false);
+		ObjRender_SetAlpha(objWarning, 180);
+		Obj_SetRenderPriorityI(objWarning, RP_STG_SHOT - 1);
+	
+		_RealLaser(objWarning, ang, posX, posY, angA, stack, i);
+		
+		wait(20);
+	}
+}
+
+task _RealLaser(objWarning, ang, posX, posY, angA, stack, i)
+{
+	wait(40);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+
+			// Actual laser
+			ObjShot_SetAutoDelete(CreateLaser_Rou(posX, posY, angA, 2048, 60, 150, SHOT_LASER_RED, 70, COLOR_WHITE, i % 2), false);
+			
+			// Bullets hidden underneath
+			for(int j = 0; j < stack; j++)
+			{
+				_ManageSpiralShot(CreateShot_Enemy(posX, posY, j * 0.2, angA, 0, 0, SHOT_FIREBALL_RED, 80), j * 15);
+			}
+}
+
+task _ManageSpiralShot(int objShot_, int ang_)
+{
+	ObjShot_SetAutoDelete(objShot_, false);
+	Obj_SetVisible(objShot_, false);
+	
+	wait(70);
+	
+	if(!Obj_IsInArea(objShot_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+	{
+		Obj_Delete(objShot_);
+		return;
+	}
+	
+	ObjShot_SetAutoDelete(objShot_, true);
+	Obj_SetVisible(objShot_, true);
+	ObjMove_SetAngle(objShot_, ang_);
+	ObjMove_SetSpeed(objShot_, 0);
+	_FadeIn(objShot_, 20);
+	ObjMove_AddPatternA2(objShot_, 20, 0, ang_, 0.015, 2.5, 0);
+}
+
+function<void> IceSpray()
+{
+	int[] shots = [];
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, FRAME_HEIGHT + 100, 30, LERP_ACCELERATE);
+	
+	int way = 3;
+	int wave = 25;
+	
+	float off = rand(0, 360);
+	
+	for(int i = 0; i < 23; i++)
+	{
+		float sine = sin(i * 10);
+		
+		for(int j = 0; j < way; j++) // This code is horrible I know I'm just too lazy to change this to a loop so try not to look at it too hard
+		{
+			shots ~= [CreateShot_Enemy(_enmX + (sine * wave), _enmY, 0, rand(0, 360), 0, 2, SHOT_ICE_GREY, 10)];
+			shots ~= [CreateShot_Enemy(_enmX + (sine * wave) + 25, _enmY, 0, rand(0, 360), 0, 2, SHOT_ICE_GREY, 10)];
+			shots ~= [CreateShot_Enemy(_enmX + (sine * wave) - 25, _enmY, 0, rand(0, 360), 0, 2, SHOT_ICE_GREY, 10)];
+		}
+		
+		yield;
+	}
+	
+	wait(7);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -100);
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 20, LERP_LINEAR);
+	
+	for(int i = 20; i > 0; i--)
+	{
+		float sine = sin(i * 10);
+		
+		if(i <= 15)
+		{
+			for(int j = 0; j < way; j++)
+			{
+				shots ~= [CreateShot_Enemy(_enmX + (sine * wave), _enmY, 0, rand(0, 360), 0, 4, SHOT_ICE_GREY, 10)];
+				shots ~= [CreateShot_Enemy(_enmX + (sine * wave) + 25, _enmY, 0, rand(0, 360), 0, 4, SHOT_ICE_GREY, 10)];
+				shots ~= [CreateShot_Enemy(_enmX + (sine * wave) - 25, _enmY, 0, rand(0, 360), 0, 4, SHOT_ICE_GREY, 10)];
+			}
+		}
+		
+		yield;
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	for each(int iShots in ref shots)
+	{
+		ObjMove_SetAcceleration(iShots, 0.02);
+		ObjShot_SetGraphic(iShots, SHOT_ICE_BLUE);
+	}
+	
+	shots = [];
+}
+
+function<void> IceLasers()
+{
+	int way   = 10;
+	int stack = 80;
+	int rad   = 900;
+	for(int i = 0; i < way; i++)
+	{
+		float ang  = (rand_int(0, 1)) ? rand(-45, 45) : rand(180 - 45, 180 + 45);
+		float plX  = GetPlayerX();
+		float plY  = GetPlayerY();
+		float posX = plX + (cos(ang) * rad);
+		float posY = plY + (sin(ang) * rad);
+		float angA = dottheta(posX, posY, plX, plY);
+		
+		// Warning laser
+		int objWarning = CreateLaser_Straight(posX, posY, angA, 2048, 60, 170, SHOT_LASER_GREY, 70, COLOR_WHITE);
+		ObjShot_SetAutoDelete(objWarning, false);
+		ObjShot_SetIntersectionEnable(objWarning, false);
+		ObjRender_SetAlpha(objWarning, 180);
+		Obj_SetRenderPriorityI(objWarning, RP_STG_SHOT - 1);
+	
+		_RealLaserA(objWarning, ang, posX, posY, angA, stack, i);
+		
+		wait(40);
+	}
+}
+
+task _RealLaserA(objWarning, ang, posX, posY, angA, stack, i)
+{
+	wait(60);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+
+			// Actual laser
+			ObjShot_SetAutoDelete(CreateLaser_Rou(posX, posY, angA, 2048, 60, 150, SHOT_LASER_BLUE, 70, COLOR_WHITE, i % 2), false);
+			
+			// Bullets hidden underneath
+			for(int j = 0; j < stack; j++)
+			{
+				_ManageSpiralShot(CreateShot_Enemy(posX, posY, j * 0.2, angA, 0, 0, SHOT_ICE_BLUE, 80), rand(0, 360));
+			}
+}
+
+function<void> LightSpray()
+{
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 180, 20, LERP_SMOOTH);
+		
+	int[] shots = [];
+
+	int stack = 3;
+	int way = 35;
+	
+	wait(20);
+	
+	float off = GetAngleToPlayer(_objBoss);
+	for(int i = 0; i <= stack; i++)
+	{
+		for(int j = 0; j <= way; j++)
+		{
+			ObjMove_AddPatternA3(CreateShot_Enemy(_enmX, _enmY, 0, ((j * (360 / way)) + off) + (i * ((360 / way) / 2)), 0.02 + (0.01 * i), 2.5 + i, SHOT_DROP_GREY, 25), 120, 0, ((j * (360 / way)) + off) + (i * ((360 / way) / 2)) + 180, 0.015, 3, (i % 2 == 0) ? 0.35 : -0.35, SHOT_DROP_YELLOW);
+		}
+	}
+		
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+	wait(120);
+		
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	shots = [];
+}
+
+function<void> LightLasers()
+{
+	int way   = 16;
+	int stack = 80;
+	loop(2)
+	{
+		for(int i = 4; i < way; i++)
+		{
+			float posX = ((i % 2) ? ((i * 13) + 40) : FRAME_WIDTH - (i * 13) - 40);
+			float posY = -10;
+			float angA = 90 + (((i % 2) ? 1 : -1) * rand(10, 20));
+			
+			// Warning laser
+			int objWarning = CreateLaser_Straight(posX, posY, angA, 2048, 60, 170, SHOT_LASER_GREY, 70, COLOR_WHITE);
+			ObjShot_SetAutoDelete(objWarning, false);
+			ObjShot_SetIntersectionEnable(objWarning, false);
+			ObjRender_SetAlpha(objWarning, 180);
+			Obj_SetRenderPriorityI(objWarning, RP_STG_SHOT - 1);
+		
+			_RealLaserB(objWarning, angA, posX, posY, angA, stack, i);
+			
+			wait(32);
+		}
+	}
+}
+
+task _RealLaserB(objWarning, ang, posX, posY, angA, stack, i)
+{
+	wait(60);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+
+			// Actual laser
+			ObjShot_SetAutoDelete(CreateLaser_Rou(posX, posY, angA, 2048, 60, 150, SHOT_LASER_YELLOW, 70, COLOR_WHITE, i % 2), false);
+			
+			// Bullets hidden underneath
+			for(int j = 0; j < stack; j++)
+			{
+				_ManageSpiralShotA(CreateShot_Enemy(posX, posY, j * rand(0.265, 0.275), angA, 0, 0, SHOT_DROP_YELLOW, 80), (j % 2) ? angA - 90 : angA + 90);
+			}
+}
+
+task _ManageSpiralShotA(int objShot_, int ang_)
+{
+	ObjShot_SetAutoDelete(objShot_, false);
+	Obj_SetVisible(objShot_, false);
+	
+	wait(70);
+	
+	if(!Obj_IsInArea(objShot_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+	{
+		Obj_Delete(objShot_);
+		return;
+	}
+	
+	ObjShot_SetAutoDelete(objShot_, true);
+	Obj_SetVisible(objShot_, true);
+	ObjMove_SetAngle(objShot_, ang_);
+	ObjMove_SetSpeed(objShot_, 0);
+	_FadeIn(objShot_, 20);
+	ObjMove_AddPatternA2(objShot_, 20, 1, ang_, rand(0.0215, 0.0315), 4, 0);
+}
+
+function<int> CreateLaser_Rou(float posX_, float posY_, float ang_, float length_, float width_, int deleteFrame_, int graphic_, float delay_, int color_, int text_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetIntersectionWidth(objStLaser, width_ * 0.75);
+	ObjLaser_SetRenderWidth(objStLaser, width_);
+	ObjShot_SetDeleteFrame(objStLaser, deleteFrame_);
+	ObjShot_SetGraphic(objStLaser, graphic_);
+	ObjRender_SetColor(objStLaser, color_);
+	ObjShot_SetGrazeInvalidFrame(objStLaser, 63);
+	ObjLaser_SetItemDistance(objStLaser, 10);
+	Obj_SetRenderPriorityI(objStLaser, RP_STG_SHOT - 1);
+	
+	// Text
+	//int objText = CreatePrimObject(DIR_IMG_EFF_ROU, RP_STG_SHOT, PRIMITIVE_TRIANGLELIST, 4);
+	int objText = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_ROU, RP_STG_SHOT - 1, BLEND_ALPHA,
+		49 * text_, 0, 49 + 49 * text_, 134,
+		1, 1,
+		0, 0
+	);
+	ObjRender_SetAlpha(objText, 200);
+	
+	async
+	{
+		for(int i = 0; i <= delay_; i++)
+		{
+			float curLength = Interpolate_Smooth(0, length_, i / delay_);
+			
+			ObjLaser_SetLength(objStLaser, curLength);
+			
+			objText = _RenderText(objText, objStLaser, i, curLength, width_, text_);
+			
+			yield;
+		}
+		
+		for(int i = delay_; i < (deleteFrame_ - 5); i++)
+		{
+			objText = _RenderText(objText, objStLaser, i, length_, width_, text_);
+			
+			yield;
+		}
+		
+		_FadeOut(objText, 20, 200);
+		
+		for(int i = deleteFrame_ - 5; i < (deleteFrame_ - 5) + 20; i++)
+		{
+			objText = _RenderText(objText, objStLaser, i, length_, width_, text_);
+			
+			yield;
+		}
+		
+		Obj_Delete(objText);
+	}
+
+	return objStLaser;
+}
+
+function<int> _RenderText(int objText_, int objStLaser_, int frame_, int length_, int width_, int text_)
+{
+	ObjSprite2D_SetSourceRect(objText_, 49 * text_, frame_, 49 + 49 * text_, length_ + frame_);
+	
+	// Laser angle
+	float ang = ObjStLaser_GetAngle(objStLaser_);
+	
+	// Laser position
+	float lX = ObjMove_GetX(objStLaser_);
+	float lY = ObjMove_GetY(objStLaser_);
+	
+	// Laser end
+	float eX = lX + (length_ * cos(ang));
+	float eY = lY + (length_ * sin(ang));
+	
+	ObjRender_SetPosition(objText_, Interpolate_Linear(lX, eX, 0.5), Interpolate_Linear(lY, eY, 0.5), ID_INVALID);
+	ObjRender_SetAngleZ(objText_, ang - 90);
+	
+	ObjRender_SetScaleY(objText_, length_ / 134);
+/*
+	// Laser angle
+	float ang = ObjStLaser_GetAngle(objStLaser_);
+	
+	// Laser position
+	float lX = ObjMove_GetX(objStLaser_);
+	float lY = ObjMove_GetY(objStLaser_);
+	
+	// Laser end
+	float eX = lX + (length_ * cos(ang));
+	float eY = lY + (length_ * sin(ang));
+	
+	// Width offset
+	float oX = (width_ / 2) * cos(ang + 90);
+	float oY = (width_ / 2) * sin(ang + 90);
+	
+	// Top left
+	ObjPrim_SetVertexPosition(objText_, 0, lX - oX, lY - oY, ID_INVALID);
+	ObjPrim_SetVertexUVT(objText_, 0, 0, frame_);
+	
+	// Top right
+	ObjPrim_SetVertexPosition(objText_, 1, lX + oX, lY + oY, ID_INVALID);
+	ObjPrim_SetVertexUVT(objText_, 1, 49, frame_);
+	
+	// Bottom left
+	ObjPrim_SetVertexPosition(objText_, 2, eX - oX, lY - oY, ID_INVALID);
+	ObjPrim_SetVertexUVT(objText_, 2, 0, length_ + frame_);
+	
+	// Bottom right
+	ObjPrim_SetVertexPosition(objText_, 3, eX + oX, lY + oY, ID_INVALID);
+	ObjPrim_SetVertexUVT(objText_, 3, 49, length_ + frame_);
+*/
+
+	return objText_;
+}

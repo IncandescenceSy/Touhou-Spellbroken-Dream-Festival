@@ -1,0 +1,469 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Replay Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains functions specifically for replay-related menus
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Menu option flashing
+int _flash = 0;
+
+// Currently selected menu option and menu page
+int _select = 0;
+int _page = 0;
+
+// Amount of frames the movement key has been held down for
+int _held = 0;
+
+// Current menu type
+int _menu = MENU_SELECTSLOT;
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Renders background image
+task _RenderBackground()
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	int objBack = CreateSprite2D_Dest
+	(
+		RT0, RP_UI_VIS, BLEND_ALPHA,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	if(sdrMisc)
+	{
+		ObjShader_SetShaderF(objBack, DIR_SDR_PAUSE);
+		ObjShader_SetTechnique(objBack, TEC_PAUSE);
+	
+		ObjShader_SetFloat(objBack, FLOAT_LIGHTNESS, 0.33);
+		
+		// Counter variables
+		int intn = 0;
+		
+		float intnRender = 0;
+		
+		int frame = 0;
+		
+		// Causes the blur effect to pulse, with a fade-in at the start
+		loop
+		{
+			ObjShader_SetFloat(objBack, FLOAT_INTN, min(sin(frame) / 25, intnRender));
+			
+			intnRender += 0.0025;
+			
+			frame++;
+			
+			// Global variable update
+			_flash += 2;
+			
+			yield;
+		}
+	}
+	
+	else
+	{
+		ObjRender_SetColorHSV(objBack, 0, 0, 85);
+		
+		loop
+		{
+			// Global variable update
+			_flash++;
+			
+			yield;
+		}
+	}
+}
+
+// Handles menu selection
+function<int[]> HandleSelection()
+{	
+	int pageMax     = 14;
+	int pageCount   = 9;
+	
+	for(int i = 0; i <= pageMax; i++)
+	{
+		for(int j = 0; j <= pageCount; j++)
+		{
+			_RenderMenuOption(i, j);
+		}
+	}
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	while(_menu == MENU_SELECTSLOT)
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			loop(30)
+			{
+				_flash += 16;
+				yield;
+			}
+			
+			_menu = MENU_NAMEENTRY;
+			
+			return [_select, _page];
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			_select = 0;
+			_page = 0;
+			
+			return [RESULT_CANCEL, ID_INVALID];
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE && GetVirtualKeyState(VK_UP) == KEY_FREE && GetVirtualKeyState(VK_DOWN) == KEY_FREE)
+		{
+			_held = 0;
+		}
+		if(_page < 0) _page = pageCount;
+		else if(_page > pageCount) _page = 0;
+		if(_select < 0) _select = pageMax;
+		else if(_select > pageMax) _select = 0;
+		
+		yield;
+	}
+}
+
+// Handles name entry
+function<int[]> HandleNameEntry()
+{
+	int rpyNum = ((_page * 15) + _select) + 1;
+	
+	int spellID = GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID);
+	
+	int objFile = ObjFile_Create(OBJ_FILE_TEXT);
+	ObjFile_Open(objFile, DIR_TXT_SPELLNAME);
+	string scene = SplitString(ObjFileT_GetLineText(objFile, spellID + 1), '\\')[3];
+	
+	string text = "";
+	string text2 = "";
+	
+	int[] keys = [KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z, KEY_MINUS, KEY_EQUALS, KEY_SLASH, KEY_SPACE, KEY_LBRACKET, KEY_RBRACKET, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_GRAVE, KEY_BACKSLASH, KEY_COMMA, KEY_PERIOD, KEY_YEN];
+	
+	string[][] chars = 
+	[
+		// Lowercase
+		["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "-", "=", "/", " ", "[", "]", ";", "\'", "`", "\\", ",", ".", "¥"], 
+		
+		// Uppercase
+		[")", "!", "@", "#", "$", "%", "^", "&", "*", "(", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "_", "+", "?", " ", "{", "}", ":", "\"", "~", "|", "<", ">", "¥"]
+	];
+	
+	int objText = CreateTextObject
+	(
+		text, FONT_KOUZANBRUSH, RP_UI_VIS + 3,
+		0 * RES, 120 * RES,
+		25 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objText, true);
+	ObjText_SetSidePitch(objText, -2);
+	ObjText_SetSyntacticAnalysis(objText, false);
+	
+	int objDesc = CreateTextObject
+	(
+		REPLAY_SAVE, FONT_KORURI, RP_UI_VIS + 3,
+		0 * RES, -50 * RES,
+		17 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objDesc, true);
+	ObjText_SetSidePitch(objDesc, -2);
+	
+	int hue = 0;
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	while(_menu == MENU_NAMEENTRY)
+	{
+		// Are you holding shift
+		bool isShift = (GetKeyState(KEY_LSHIFT) == KEY_PUSH || GetKeyState(KEY_LSHIFT) == KEY_HOLD || GetKeyState(KEY_RSHIFT) == KEY_PUSH || GetKeyState(KEY_RSHIFT) == KEY_HOLD);
+		
+		// Add to the text
+		for(int i = 0; i < length(keys); i++)
+		{
+			if(GetKeyState(keys[i]) == KEY_PUSH)
+			{
+				if(length(text) < 20)
+				{
+					text ~= chars[isShift][i];
+					text2 ~= chars[1][i];
+					
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+					
+					if(IsBanned(text2))
+					{
+						text = ":(";
+						text2 = ":(";
+					}
+				}
+				else
+				{
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+				}
+			}
+		}
+		
+		// Deletion
+		if(GetKeyState(KEY_BACK) == KEY_PUSH && length(text) > 0)
+		{
+			text = erase(text, length(text) - 1);
+			text2 = erase(text2, length(text2) - 1);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+		}
+		else if(GetKeyState(KEY_BACK) == KEY_HOLD && length(text) > 0)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				text = erase(text, length(text) - 1);
+				text2 = erase(text2, length(text2) - 1);
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			}
+		}
+		
+		// Normal menu stuff
+		if((GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_EXTEND);
+			
+			_menu = MENU_OVER;
+			
+			Obj_Delete(objText);
+			Obj_Delete(objDesc);
+			
+			SetReplayInfo(REPLAY_COMMENT, scene ~ "\\" ~ GAME_VERSION ~ "\\" ~ GetAreaCommonData(AREA_GAME, GAME_TIME, ID_INVALID) ~ "\\" ~ itoa(GetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, false)));
+			SaveReplay(rpyNum, text);
+			SetScriptResult(RESULT_END);
+			CloseScript(GetOwnScriptID());
+			return [RESULT_END, ID_INVALID];
+		}
+		if(GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			
+			_menu = MENU_SELECTSLOT;
+			
+			Obj_Delete(objText);
+			Obj_Delete(objDesc);
+			
+			return [RESULT_CANCEL, ID_INVALID];
+		}
+		
+		ObjText_SetText(objText, text);
+		
+		// Description position
+		ObjRender_SetY(objDesc, Interpolate_Smooth(ObjRender_GetY(objDesc), 30 * RES, 0.2));
+		
+		// Text color
+		float intn = sin(_flash);
+		intn *= (intn > 0) ? 1 : -1;
+		
+		ObjRender_SetColorHSV(objText, hue, intn * 255, 255);
+		
+		hue++;
+		
+		yield;
+	}
+}
+
+// Renders page menu options
+task _RenderMenuOption(int index_, int page_)
+{	
+	int rpyNum = ((page_ * 15) + index_) + 1;
+	
+	string text = rtos("000", rpyNum) ~ " ";
+	string text2 = "";
+	
+	if(IsValidReplayIndex(rpyNum))
+	{
+		string[] comm = SplitString(GetReplayInfo(rpyNum, REPLAY_COMMENT), '\\');
+		
+		text 
+		~= resize(GetReplayInfo(rpyNum, REPLAY_USER_NAME), 22, ' ')
+		~ resize(comm[0], 16, ' ')
+		~ resize(GetReplayInfo(rpyNum, REPLAY_PLAYER_NAME), 8, ' ')
+		~ resize(GetReplayInfo(rpyNum, REPLAY_DATE_TIME), 18, ' ')
+		~ resize(DigitToCommaArray(GetReplayInfo(rpyNum, REPLAY_TOTAL_SCORE)), 17, ' ');
+		
+		text2
+		~= "    "
+		~ resize(vtos("02d", GetReplayInfo(rpyNum, REPLAY_FPS_AVERAGE)), 2, ' ') ~ FPS
+		~ "  "
+		~ resize(comm[1], 8, ' ')
+		~ resize(FrameToMS(atoi(comm[2])), 7, ' ')
+		~ resize(atoi(comm[3]) ? DEFEAT : VICTORY, 9, ' ');
+	}
+	else
+	{
+		text ~= NO_DATA;
+		text2 = "";
+	}
+	
+	int off = 35;
+	int posY = (65 * RES) + (index_ * off);
+	
+	int objOption = CreateTextObject
+	(
+		text, FONT_KOUZANBRUSH, RP_UI_VIS + 3,
+		-900 * RES, posY,
+		16 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -4.8);
+	ObjText_SetSyntacticAnalysis(objOption, false);
+	
+	int objOptionA = CreateTextObject
+	(
+		text2, FONT_KOUZANBRUSH, RP_UI_VIS + 3,
+		-900 * RES, posY + (off / 1.2),
+		16 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOptionA, true);
+	ObjText_SetSidePitch(objOptionA, -4.8);
+	ObjText_SetSyntacticAnalysis(objOptionA, false);
+	
+	while(_menu == MENU_SELECTSLOT)
+	{
+		bool isSelection = _select == index_;
+		bool samePage    = _page == page_; 
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		ObjRender_SetColorHSV(objOptionA, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (13 * RES) : (3 * RES), 0.2));
+		ObjRender_SetX(objOptionA, Interpolate_Smooth(ObjRender_GetX(objOptionA), (isSelection) ? (13 * RES) : (3 * RES), 0.2));
+		
+		ObjRender_SetY(objOption, Interpolate_Smooth(ObjRender_GetY(objOption), (index_ <= _select) ? posY : posY + off, 0.2));
+		
+		Obj_SetVisible(objOption, samePage);
+		Obj_SetVisible(objOptionA, samePage && isSelection);
+		
+		yield;
+	}
+	
+	float initX = ObjRender_GetX(objOption);
+	float initXA = ObjRender_GetX(objOptionA);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initX, -900 * RES, i / iMax));
+		ObjRender_SetX(objOptionA, Interpolate_Smooth(initXA, -900 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objOptionA);
+}
+
+function<string> DigitToCommaArray(int num_)
+{
+    string res = itoa(num_);
+    for(int i = length(res), n = 0; i > 0; i--)
+	{
+        if (n > 0 && n % 3 == 0)
+            res = insert(res, i, ',');
+        n++;
+    }
+    return res;
+}
+
+function<bool> IsBanned(string text_)
+{
+	string[] banned = ["GNTR@L@" + 1, "MHFFDQ" + 1, "SQ@MMX" + 1, "QDS@QC" + 1, "@QJDMH@" + 1];
+	
+	for each(string iBan in ref banned)
+	{
+		if(length(SplitString2(text_, iBan)) > 1) return true;
+	}
+	return false;
+}
+
+function<string> FrameToMS(int frame_)
+{
+	int m, s;
+	int sec = frame_ ~/ 60;
+	s = sec % 60;
+	m = (sec ~/ 60);
+	return StringFormat("%02d:%02d", "dd", m, s);
+}

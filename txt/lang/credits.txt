@@ -1,0 +1,25 @@
+Touhou Spellbroken Dream Festival\東方弾夢記[r]February 25th, 2022
+Incandescence System[r]インカンデセンス・システム (ISY)\Comprehensive Developer[r](concept, programming, game design,[r]graphic design, asset creation, etc)
+M-Poly (my man)\♫ Composer ♫[r]Playtesting
+ZUN\Touhou Project
+Naudiz\Japanese help[r]Shader help[r]Engine work[r]Naming things[r]Playtesting
+Greendinobot\Playtesting
+Horrible Tales\Playtesting
+Kevinmonitor\Playtesting
+Mugenri\Playtesting
+Pickled Cow\Playtesting
+Vierni\Playtesting
+mkm, Natashi\Engine
+Ryannlib Asset Package\Some assets
+Weavesilk.com\Art creation program
+Terraformer9x\Enemy bullet sprites
+Felis-Licht\Some Sanae bullet sprites
+Dairi\Character portraits
+Didiev (DD)\Player sprites and bullets
+Fuzzbearplush\Sanae player sprite[r](made from Didiev's sprites)
+www.sda.nagoya-cu.ac.jp\Pattern images[r](eg for spell backgrounds)
+NYAGAKIYA (KMAP), Kirbio,[r]Len, unknown authors\Boss sprites
+Kevin Macleod\A sound effect
+And You\The player[r][r][r]Now try [f tc=(255, 255, 0) bc=(164, 164, 0)]Afterparty[f tc=(255, 255, 255) bc=(128, 128, 128)]!
+Next [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)]...
+(Hold Left Control to skip)

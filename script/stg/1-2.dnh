@@ -1,0 +1,155 @@
+///////////////////////////////////////////////////////////////
+////////////////////// Wakasagahime 1st ///////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Wakasagahime 1st"]
+#Text["Wakasagahime 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_MINT;
+int _colorB = COLOR_AZURE;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 2);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_WAKASAGAHIME);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 372, 600, 170, 99, 90, _colorA, _colorB, CENTER_X, 190, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(22000);
+		case(EV_REQUEST_TIMER)  SetScriptResult(60);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	loop
+	{
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		_ManageEnemy(CreateEnemy
+		(
+			1, 1, false, true,
+			_colorA, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, 50, 50, 60
+		), 0, SHOT_SCALE_AZURE, SHOT_BALL_MINT);
+		
+		wait(120);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		_ManageEnemy(CreateEnemy
+		(
+			1, 1, false, true,
+			_colorB, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, FRAME_WIDTH - 50, 50, 60
+		), 180, SHOT_SCALE_MINT, SHOT_BALL_AZURE);
+		
+		wait(120);
+	}
+}
+
+task _ManageEnemy(int objEnemy_, int start_, int shotA_, int shotB_)
+{
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+		
+	int rad = 20;
+	
+	for(int i = start_; i <= 90 + start_; i += 2)
+	{
+		float ang = sin(i) + 90; 
+		
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		CreateShot_Enemy(enmX + rad * cos(ang), enmY + rad * sin(ang), 0.05, ang + (i * 4), 0.01, 1.5, shotA_, 20);
+		CreateShot_Enemy(enmX + rad * cos(ang + 180), enmY + rad * sin(ang + 180), 0.05, ang + (i * 4) + 180, 0.01, 1.5, shotA_, 20);
+		
+		wait(2);
+	}
+	
+	enmX = ObjMove_GetX(objEnemy_);
+	enmY = ObjMove_GetY(objEnemy_);
+		
+	_RenderCharge(enmX, enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	float ang = rand(0, 360);
+	
+	int way = 15;
+	for(int i = 0; i <= way; i++)
+	{
+		int stack = 3;
+		for(int j = 0; j <= stack; j++) CreateShot_Enemy(enmX, enmY, 0.05, ang + (i * (360 / way)), 0.01 + j, 2 + (j / 2), shotB_, 20);
+	}
+	
+	for(int i = 0; i <= way; i++)
+	{
+		int stack = 2;
+		for(int j = 0; j <= stack; j++) CreateShot_Enemy(enmX, enmY, 0.05, (ang + (i * (360 / way))) + 180, 0.01 + (j * 2), 2.5 + j, shotB_, 20);
+	}
+	
+	ObjEnemy_SetLife(objEnemy_, 0);
+}

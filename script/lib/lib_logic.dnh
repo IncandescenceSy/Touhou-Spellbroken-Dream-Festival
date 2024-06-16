@@ -1,0 +1,141 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Logic Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains various logical functions
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Some functions for checking the deletion status of all objects in an array
+
+// If any array element exists, it will return true
+function<bool> Objs_AreExists(int[] objs_)
+{
+	for each(int iObjs in ref objs_)
+	{
+		if(Obj_IsExists(iObjs)) return true;
+	}
+	return false;
+}
+
+// If any array element exists, it will return false
+function<bool> Objs_AreDeleted(int[] objs_)
+{
+	for each(int iObjs in ref objs_)
+	{
+		if(Obj_IsExists(iObjs)) return false;
+	}
+	return true;
+}
+
+// Returns the nearest enemy to an object
+// "Please use GetEnemyIntersectionPosition() instead; it comes automatically sorted from closest to furthest" - Neck
+function<int> GetNearestEnemy(int obj_)
+{
+	// Variables
+	int distA = 1024;
+	int closestEnemy = ID_INVALID;
+	
+	int[] enemArray = GetIntersectionRegistedEnemyID();
+	
+	if(length(enemArray) > 0) // If there are enemies onscreen
+	{
+		for each(int i in ref enemArray)
+		{
+			float distB = GetObjectDistance(obj_, i); // Distance to this specific enemy
+			if(distB < distA) // If this specific enmY is closer than all others checked so far
+			{
+				distA = distB;    // Set this as the new closeness standard
+				closestEnemy = i; // Set this as the new closest enemy
+			}
+		}
+		return closestEnemy;
+	}
+	else return ID_INVALID; // Error condition
+}
+
+// The difference between two angles
+function<float> AngleDifference(float from_, float to_)
+{
+    float delta = NormalizeAngle(to_ - from_);
+    return (delta > 180 ? delta - 360 : delta);
+}
+
+// Interpolation of an angle
+function<float> Interpolate_Angle(float a_, float b_, float x_)
+{
+    float delta = AngleDifference(a_, b_);
+    return a_ + delta * x_;
+}
+
+// Check if an object is inside of a rectangle
+function<bool> Obj_IsInArea(int obj_, float left_, float top_, float right_, float bottom_)
+{
+	return !(ObjMove_GetX(obj_) < left_ || ObjMove_GetX(obj_) > right_ || ObjMove_GetY(obj_) < top_ || ObjMove_GetY(obj_) > bottom_);
+}
+
+// Check if a position is inside of a rectangle
+function<bool> Pos_IsInArea(float posX_, float posY_, float left_, float top_, float right_, float bottom_)
+{
+	return !(posX_ < left_ || posX_ > right_ || posY_ < top_ || posY_ > bottom_);
+}
+
+function<string> DigitToCommaArray(int num_)
+{
+    string res = itoa(num_);
+    for(int i = length(res), n = 0; i > 0; i--)
+	{
+        if (n > 0 && n % 3 == 0)
+            res = insert(res, i, ',');
+        n++;
+    }
+    return res;
+}
+
+// Please only use one-dimensional arrays of ints, reals, or chars
+function<var> sort(var arr_, bool reverse_)
+{
+	for(int i = 1; i < length(arr_); i++)
+	{
+		var key = arr_[i];
+        int b = i - 1;
+
+        for (; b >= 0 && key < arr_[b]; b--)
+		{
+			arr_[b + 1] = arr_[b];
+        }
+            
+    arr_[b + 1] = key;
+    }
+        
+    if (reverse_) arr_ = arr_[length(arr_)..0];
+
+    return arr_;
+}
+
+// sigma(1, 5) == (1 + 2 + 3 + 4 + 5)
+function<int> sigma(int m_, int n_)
+{
+    int a = 0;
+    for (int i = m_; i <= n_; i++) a += i;
+    return a;
+}
+
+// Moves a render object over time
+function<void> ObjRender_SetDestAtFrame(int objRender_, float destX_, float destY_, int frames_)
+{
+	float initX = ObjRender_GetX(objRender_);
+	float initY = ObjRender_GetY(objRender_);
+	
+	async
+	{
+		float iMax = frames_;
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjRender_SetPosition(objRender_, Interpolate_Decelerate(initX, destX_, i / iMax), Interpolate_Decelerate(initY, destY_, i / iMax), ID_INVALID);
+			
+			yield;
+		}
+	}
+}

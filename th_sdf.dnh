@@ -1,0 +1,21 @@
+///////////////////////////////////////////////////////////////
+////// Do not modify. If you do, the game will not work. //////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Package]
+#Title["th_sdf"]
+#Player["./script/player/player_flandre.dnh", "./script/player/player_marisa.dnh", "./script/player/player_reimu.dnh", "./script/player/player_sanae.dnh"]
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	const string DIR = GetModuleDirectory();
+	AddArchiveFile(DIR ~ "/script.dat");
+	StartScript(LoadScript(DIR ~ "/script/package/package.dnh"));
+	CloseScript(GetOwnScriptID());
+}

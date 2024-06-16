@@ -1,0 +1,89 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Stage Script /////////////////////////
+///////////////////////////////////////////////////////////////
+
+// Opens and runs the singles
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Stage]
+#Title["Stage"]
+#Text["Stage"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	_Stage();
+}
+
+@MainLoop
+{
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Stage()
+{
+	string stageID = SplitString(GetAreaCommonData(AREA_REPLAY, PATH_SINGLE, ID_INVALID), "-")[0];
+	
+	if(IsReplay())
+	{
+		string pathBGM = DIR_BGM ~ "/s" ~ stageID ~ ".ogg";
+	
+		const int ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+		
+		bool isPrac = GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+		
+		if(GetAreaCommonData(AREA_GAME, PLAYING_BGM, ID_INVALID) != pathBGM && !isPrac && atoi(stageID) != 9)
+		{
+			NotifyEvent(ID_PACKAGE, EV_BGM_CHANGE, pathBGM, atoi(stageID));
+		}
+		else if(isPrac && atoi(stageID) != 9)
+		{
+			NotifyEvent(ID_PACKAGE, EV_BGM_CHANGE, DIR_BGM_FINAL, BGM_FINAL);
+		}
+		else if(atoi(stageID) == 9)
+		{
+			NotifyEvent(ID_PACKAGE, EV_BGM_CHANGE, DIR_BGM_S9, BGM_S9);
+		}
+	}
+	else
+	{
+		NotifyEvent(GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID), EV_GRANT_ACHIEVE, PLAY_SCENE);
+		
+		if(GetAreaCommonData(AREA_GAME, MUSIC_ROOM, false))
+		{
+			SetAreaCommonData(AREA_ACHIEVE, HEARD ~ itoa(stageID), true);
+			SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+		}
+	}
+	
+	string single = DIR_STG ~ GetAreaCommonData(AREA_REPLAY, PATH_SINGLE, ID_INVALID) ~ ".dnh";
+	
+	int objScene = ObjEnemyBossScene_Create();
+	ObjEnemyBossScene_Add(objScene, 0, single);
+	ObjEnemyBossScene_LoadInThread(objScene);
+	ObjEnemyBossScene_Regist(objScene);
+	
+	while(Obj_IsExists(objScene) && GetPlayerState() != STATE_END) yield;
+	
+	wait(300);
+	
+	RenderToTextureA1(RT0, RP_UI_VIS, RP_MAX, true);
+	
+	CloseStgScene();
+}

@@ -1,0 +1,2471 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Final ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+// How to get current phase: ceil(life / 10000) (returns inverse; phase 1 is 8, 2 is 7, etc)
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Final"]
+#Text["Final"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains all variables and functions unique to the final boss
+#include "./../lib/lib_final.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DRED;
+
+const int _ID_ITEM = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_ITEM, ID_INVALID);
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Bubble trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_1,
+		333, 780, 399, 846,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+bool _prac;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	_prac = GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+	
+	if(!_prac)
+	{
+		NotifyEvent(_ID_PACKAGE, EV_BGM_CHANGE, "", ID_INVALID);
+		NotifyEvent(_ID_PACKAGE, EV_BGM_CHANGE, DIR_BGM_S8, ID_INVALID);
+	}
+	
+	SetAutoDeleteObject(true);
+
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, _prac ? 65 : 64);
+
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_FLANDRE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_a.png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_b.png", DIR_IMG_SYS_SPELL, DIR_IMG_EFF_CIRCLE_B, DIR_IMG_EFF_WARN_A, DIR_IMG_EFF_WARN_B, DIR_IMG_ENM_FAIRY]);
+	
+	ObjMove_SetPosition(_objBoss, INT_MIN, INT_MIN);
+	
+	NotifyEvent(_ID_SYSTEM, EV_FINAL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 500, 632, 192, 113, 77, _colorA, _colorB, CENTER_X, -200, FINAL_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(80000);
+		case(EV_REQUEST_TIMER) SetScriptResult(999);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	if(!_prac)
+	{
+		// 0 / 0
+		
+		wait(90); 
+		// 90 / 1.50
+		
+		Opener(); 
+		// 639 / 10.65
+		
+		wait(45);
+		// 699 / 11.40
+		
+		NotifyEvent(_ID_SYSTEM, EV_ADJUST_SCROLL, 0);
+		
+		_StageIntro();
+		
+		wait(325); 
+		// 1039 / 17.31
+		
+		W1(); 
+		// 1579 / 26.31
+		
+		W2(); 
+		// 2427 / 40.45
+		
+		W3();
+		// 3487 / 58.11
+		
+		wait(75); // ???
+		
+		W4();
+		// 3727 / 62.62
+		
+		W5();
+		// 4897 / 81.61
+		
+		W6();
+		// 5257 / 87.61
+		
+		wait(530);
+
+		NotifyEvent(_ID_SYSTEM, EV_ADJUST_SCROLL, 1);
+		
+		wait(30);
+		
+		NotifyEvent(_ID_SYSTEM, EV_ADJUST_SCROLL, 2);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_WARNING);
+		_RenderToast_Warning();
+		
+		wait(180);
+
+		// temp
+		//SetPlayerSpell(6);
+		//SetPlayerPower(1000);
+	}
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -150);
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 130, 90, LERP_DECELERATE);
+	
+	wait(90);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemyBossScene_StartSpell(_objScene);
+	ObjEnemyBossScene_SetSpellTimer(_objScene, 999 * 60);
+	if(!_prac) NotifyEvent(_ID_PACKAGE, EV_BGM_CHANGE, DIR_BGM_FINAL, BGM_FINAL);
+	NotifyEvent(_ID_SYSTEM, EV_ADJUST_SCROLL, 3);
+	//ObjEnemy_SetLife(_objBoss, 1000);
+	
+	SetAreaCommonData(AREA_ACHIEVE, FINAL_BOSS, true);
+	SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+	
+	S1();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S2();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S3();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S4();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S5();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S6();
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60) S7();
+	
+	S8();
+}
+
+function<void> Opener() // 549 frames
+{
+	loop(61)
+	{
+		_ManageOpener(CreateFairy
+		(
+			20, true, F_SS_A, 0.675, 10,
+			rand(100, FRAME_WIDTH - 100), -30, ID_INVALID, ID_INVALID, 0
+		));
+		
+		wait(9);
+	}
+}
+
+task _ManageOpener(int objEnemy_)
+{
+	ObjMove_SetSpeed(objEnemy_, 3.5);
+	ObjMove_SetAcceleration(objEnemy_, 0.09);
+	ObjMove_SetMaxSpeed(objEnemy_, 11);
+	ObjMove_SetAngle(objEnemy_, GetAngleToPlayer(objEnemy_));
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	int[] lasers = [];
+	
+	for(int i = 0; i < 3; i++) lasers ~= [CreateLaser_Straight(enmX, enmY, i * (360 / 3), 120, 12, INT_MAX, SHOT_LIGHTNING, 30, COLOR_WHITE)];
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		for each(int j, int jLasers in ref lasers)
+		{
+			ObjMove_SetPosition(jLasers, enmX, enmY);
+			ObjStLaser_SetAngle(jLasers, (j * (360 / 3)) + (i * 2));
+		}
+		
+		yield;
+	}
+	
+	if(Pos_IsInArea(enmX, enmY, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+	{
+		int way = 50;
+		float off = dottheta(enmX, enmY, GetPlayerX(), GetPlayerY());
+		for(int i = 1; i < way; i++)
+		{
+			CreateShot_Enemy(enmX, enmY, 3, i * (360 / way) + off, 0.076, 8, SHOT_SCALE_RED, 8);
+		}
+	}
+	
+	for each(int iLasers in ref lasers) Obj_Delete(iLasers);
+}
+
+function<void> W1() // 540 frames
+{
+	_ManageW1(CreateFairy
+	(
+		650, true, F_L_A, 2, 0,
+		-30, -30, CENTER_X, 150, 0
+	), CENTER_X, 150, FRAME_WIDTH + 40, -40);
+		
+	wait(120);
+		
+	_ManageW1(CreateFairy
+	(
+		650, true, F_L_A, 2, 0,
+		-30, FRAME_HEIGHT + 30, CENTER_X, FRAME_HEIGHT - 150, 0
+	), CENTER_X, FRAME_HEIGHT - 150, FRAME_WIDTH + 40, FRAME_HEIGHT + 40);
+		
+	wait(120);
+	
+	_ManageW1(CreateFairy
+	(
+		650, true, F_L_A, 2, 0,
+		-30, -30, 150, CENTER_Y, 0
+	), 150, CENTER_Y, -40, FRAME_HEIGHT + 40);
+		
+	wait(120);
+	
+	_ManageW1(CreateFairy
+	(
+		650, true, F_L_A, 2, 0,
+		FRAME_WIDTH + 30, -30, FRAME_WIDTH - 150, CENTER_Y, 0
+	), FRAME_WIDTH - 150, CENTER_Y, FRAME_WIDTH + 40, FRAME_HEIGHT + 40);
+		
+	wait(180);
+}
+
+task _ManageW1(int objEnemy_, float dX1_, float dY1_, float dX2_, float dY2_)
+{
+	ObjMove_SetDestAtFrame(objEnemy_, dX1_, dY1_, 90, LERP_DECELERATE);
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	int iMax = 90;
+	int stack = 10;
+	for(int i = 0; i <= iMax && Obj_IsExists(objEnemy_); i++)
+	{
+		if(i % 7 == 0)
+		{
+			enmX = ObjMove_GetX(objEnemy_);
+			enmY = ObjMove_GetY(objEnemy_);
+		
+			for(int j = 0; j <= stack; j++)
+			{
+				for(int k = -1; k <= 1; k += 2) CreateShot_Enemy(enmX, enmY, 0.5 + (j / 4), ObjMove_GetAngle(objEnemy_) + (k * 90), 0.01, 1 + (j / 3), SHOT_SCALE_ORANGE, 5);
+			}
+		}
+		
+		yield;
+	}
+	
+	wait(35);
+	
+	if(Obj_IsDeleted(objEnemy_)) return;
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+	
+	enmX = ObjMove_GetX(objEnemy_);
+	enmY = ObjMove_GetY(objEnemy_);
+	
+	// Aimed claws of lines
+	float ang = GetAngleToPlayer(objEnemy_);
+	stack = 10;
+	for(int i = 0; i <= stack; i++)
+	{
+		int way = 5;
+		for(int j = -way; j <= way; j++)
+		{
+			CreateShot_Enemy(enmX, enmY, 0.5 + (i / 8), ang + (j * 7), 0.025 + (i / 400), 2 + (i / 4), SHOT_KATANA_ORANGE, 15);
+		}
+	}
+	
+	// Rings
+	stack = 5;
+	for(int i = 0; i <= stack; i++)
+	{
+		int way = 25;
+		for(int j = 0; j <= way; j++)
+		{
+			CreateShot_Enemy(enmX, enmY, 0.35 + (i / 6), (j * (360 / way)) + ang, 0.01 + (i / 350) , 1.5 + (i / 2.5), SHOT_LARGE_ORANGE, 20);
+		}
+	}
+	
+	wait(75);
+	
+	ObjMove_SetDestAtFrame(objEnemy_, dX2_, dY2_, 120, LERP_SMOOTH);
+}
+
+function<void> W2() // 848 frames
+{
+	loop(7)
+	{
+		_ManageW2(CreateFairy
+		(
+			90, true, F_S_B, 3.5, 0,
+			-30, rand(20, 40), ID_INVALID, ID_INVALID, 0
+		), FRAME_WIDTH + 40, rand(20, 40), 1);
+		
+		wait(22);
+		
+		_ManageW2(CreateFairy
+		(
+			90, true, F_S_B, 3.5, 0,
+			FRAME_WIDTH + 30, rand(20, 40), ID_INVALID, ID_INVALID, 0
+		), -40, rand(20, 40), 1);
+		
+		wait(22);
+	}
+	
+	wait(100);
+	
+	loop(5)
+	{
+		_ManageW2(CreateFairy
+		(
+			180, true, F_S_B, 0.4, 0,
+			-30, FRAME_HEIGHT - rand(10, 20), ID_INVALID, ID_INVALID, 0
+		), FRAME_WIDTH + 40, FRAME_HEIGHT - rand(10, 20), -1);
+		
+		wait(26);
+		
+		_ManageW2(CreateFairy
+		(
+			180, true, F_S_B, 0.4, 0,
+			FRAME_WIDTH + 30, FRAME_HEIGHT - rand(10, 20), ID_INVALID, ID_INVALID, 0
+		), -40, FRAME_HEIGHT - rand(10, 20), -1);
+		
+		wait(26);
+	}
+	
+	wait(180);
+}
+
+task _ManageW2(int objEnemy_, float dX_, float dY_, int dir_)
+{
+	ObjMove_SetDestAtFrame(objEnemy_, dX_, dY_, 150, LERP_SMOOTH);
+	
+	wait(rand(0, 35));
+	
+	while(Obj_IsExists(objEnemy_))
+	{
+		float enmX = ObjMove_GetX(objEnemy_);
+		float enmY = ObjMove_GetY(objEnemy_);
+	
+		// Gravity rings
+		int way = 6;
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			float ang = (i * (360 / way)) + off;
+			ObjMove_AddPatternB2(CreateShot_Enemy(enmX, enmY, 0, 0, 0, 0, SHOT_RICE_YELLOW, 15), 0, 1.5 * cos(ang), dir_ * (1.5 * sin(ang)), -0.001 * cos(ang), dir_ * 0.045, -0.7 * cos(ang), dir_ * 3.5);
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		wait(40);
+	}
+}
+
+function<void> W3() // 1060 frames
+{
+	loop(2)
+	{
+		_ManageW3(CreateFairy
+		(
+			1300, true, F_L_B, 1, 0,
+			-30, -30, CENTER_X, 180, 120
+		), FRAME_WIDTH + 40);
+		
+		wait(250);
+		
+		_ManageW3(CreateFairy
+		(
+			1300, true, F_L_B, 1, 0,
+			FRAME_WIDTH + 30, -30, CENTER_X, 180, 120
+		), -40);
+		
+		wait(250);
+	}
+	
+	//wait(125);
+	//wait(60);
+}
+
+task _ManageW3(int objEnemy_, float dX_)
+{
+	async
+	{
+		wait(120);
+		ObjMove_SetDestAtFrame(objEnemy_, dX_, CENTER_Y, 120, LERP_SMOOTH);
+	}
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	int famA = CreateEnemy
+	(
+		400, STANDARD_ENEMYHITBOX, true, false,
+		COLOR_GREEN, STANDARD_ENEMYSCALE, true, true,
+		0, 0, 0, 0, 0
+	);
+	
+	int famB = CreateEnemy
+	(
+		400, STANDARD_ENEMYHITBOX, true, false,
+		COLOR_GREEN, STANDARD_ENEMYSCALE, true, true,
+		0, 0, 0, 0, 0
+	);
+
+	int rad = 40;
+	int stack = 3;
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		rad = 40 + (6 * sin(i));
+		
+		if(Obj_IsExists(famA))
+		{
+			ObjMove_SetPosition(famA, enmX + (rad * cos(i * 0.8)), enmY + (rad * sin(i * 0.8)));
+			
+			float famX = ObjMove_GetX(famA);
+			float famY = ObjMove_GetY(famA);
+			
+			for(int j = 0; j < stack; j++)
+			{
+				CreateShot_Enemy(famX, famY, j * 0.15, GetObjectDeltaAngle(famA, objEnemy_) + 180, 0.03 + (j * 0.02), 4 + (j * 0.75), SHOT_DIAMOND_GREEN, 25);
+			}
+		}
+		
+		if(Obj_IsExists(famB))
+		{
+			ObjMove_SetPosition(famB, enmX + (rad * cos((i * 0.8) + 180)), enmY + (rad * sin((i * 0.8) + 180)));
+			
+			float famX = ObjMove_GetX(famB);
+			float famY = ObjMove_GetY(famB);
+			
+			for(int j = 0; j < stack; j++)
+			{
+				CreateShot_Enemy(famX, famY, j * 0.15, GetObjectDeltaAngle(famB, objEnemy_) + 180, 0.03 + (j * 0.02), 4 + (j * 0.75), SHOT_DIAMOND_GREEN, 25);
+			}
+		}
+		
+		if(i % 50 == 0 && (Obj_IsDeleted(famA) || Obj_IsDeleted(famB)))
+		{
+			// Rings
+			float ang = rand(0, 360);
+			stack = 4;
+			for(int i = 0; i <= stack; i++)
+			{
+				int way = 22;
+				for(int j = 0; j <= way; j++)
+				{
+					CreateShot_Enemy(enmX, enmY, 0.35 + (i / 6), (j * (360 / way)) + ang, 0.01 + (i / 350) , 1.5 + (i / 2.5), SHOT_RICE_OLIVE, 20);
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		if(Obj_IsDeleted(objEnemy_)) 
+		{
+			ObjMove_SetPosition(famA, INT_MIN, INT_MIN);
+			ObjMove_SetPosition(famB, INT_MIN, INT_MIN);
+			break;
+		}
+		
+		yield;
+	}
+	
+	ObjMove_SetPosition(famA, INT_MIN, INT_MIN);
+	ObjMove_SetPosition(famB, INT_MIN, INT_MIN);
+}
+
+function<void> W4() // 270 frames
+{
+	loop(60)
+	{
+		_ManageW4(CreateFairy
+		(
+			20, true, F_SS_A, 0.8, 10,
+			rand(100, FRAME_WIDTH - 100), -30, ID_INVALID, ID_INVALID, 0
+		));
+		
+		wait(4);
+	}
+	
+	wait(30);
+}
+
+task _ManageW4(int objEnemy_)
+{
+	ObjMove_SetSpeed(objEnemy_, 3.5);
+	ObjMove_SetAcceleration(objEnemy_, 0.09);
+	ObjMove_SetMaxSpeed(objEnemy_, 11);
+	ObjMove_SetAngle(objEnemy_, GetAngleToPlayer(objEnemy_));
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	int[] lasers = [];
+	
+	for(int i = 0; i < 4; i++) lasers ~= [CreateLaser_Straight(enmX, enmY, i * (360 / 3), 70, 12, INT_MAX, SHOT_LIGHTNING, 30, COLOR_WHITE)];
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+		
+		for each(int j, int jLasers in ref lasers)
+		{
+			ObjMove_SetPosition(jLasers, enmX, enmY);
+			ObjStLaser_SetAngle(jLasers, (j * (360 / 3)) + (i * 2));
+		}
+		
+		yield;
+	}
+	
+	if(Pos_IsInArea(enmX, enmY, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+	{
+		int stack = 5;
+		for(int i = 1; i <= stack; i++)
+		{
+			CreateShot_Enemy(enmX, enmY, 2 + (i * 0.2), dottheta(enmX, enmY, GetPlayerX(), GetPlayerY()), 0.03 + (i * 0.008), 5 + i, SHOT_SCALE_AQUA, 8);
+		}
+	}
+	
+	for each(int iLasers in ref lasers) Obj_Delete(iLasers);
+}
+
+function<void> W5() // 1140 frames
+{
+		for(int i = 0; i <= 11; i++)
+		{
+			_ManageW5(CreateFairy
+			(
+				290, true, F_N_A, 1.65, 0,
+				i * 40, -30, ID_INVALID, ID_INVALID, 0
+			), i * 5);
+		
+			wait(20);
+			
+			_ManageW5(CreateFairy
+			(
+				290, true, F_N_B, 1.65, 0,
+				FRAME_WIDTH - (i * 40), -30, ID_INVALID, ID_INVALID, 0
+			), i * 5);
+			
+			wait(20);
+		}
+		
+		for(int i = 0; i <= 9; i++)
+		{
+			_ManageW5(CreateFairy
+			(
+				290, true, F_N_A, 1.5, 0,
+				i * 40, -30, ID_INVALID, ID_INVALID, 0
+			), i * 5);
+		
+			wait(20);
+			
+			_ManageW5(CreateFairy
+			(
+				290, true, F_N_B, 1.5, 0,
+				FRAME_WIDTH - (i * 40), -30, ID_INVALID, ID_INVALID, 0
+			), i * 5);
+			
+			wait(20);
+		}
+	
+	wait(260);
+}
+
+task _ManageW5(int objEnemy_, int del_)
+{
+	ObjMove_SetSpeed(objEnemy_, 1);
+	ObjMove_SetAcceleration(objEnemy_, 0.03);
+	ObjMove_SetMaxSpeed(objEnemy_, 4);
+	ObjMove_SetAngle(objEnemy_, 90);
+	
+	wait(del_);
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{	
+		loop(5)
+		{
+			if(Obj_IsDeleted(objEnemy_)) return;
+			
+			enmX = ObjMove_GetX(objEnemy_);
+			enmY = ObjMove_GetY(objEnemy_);
+		
+			for(int k = -1; k <= 1; k += 2) CreateShot_Enemy(enmX, enmY, 0, 90 + (k * 90), 0.02, 3.5, SHOT_BILL_BLUE, 25);
+			
+			wait(3);
+		}
+		
+		wait(12);
+	}
+}
+
+function<void> W6() // 360 frames
+{
+	//loop(2)
+	//{
+		_ManageW6(CreateFairy
+		(
+			1700, true, F_L_A, 15, 0,
+			CENTER_X, -30, ID_INVALID, ID_INVALID, 0
+		), 140);
+		
+		wait(120);
+		
+		_ManageW6(CreateFairy
+		(
+			1700, true, F_L_B, 15, 0,
+			80, -30, ID_INVALID, ID_INVALID, 0
+		), 90);
+		
+		wait(120);
+		
+		_ManageW6(CreateFairy
+		(
+			1700, true, F_L_B, 15, 0,
+			FRAME_WIDTH - 80, -30, ID_INVALID, ID_INVALID, 0
+		), 90);
+		
+		wait(120);
+	//}
+}
+
+task _ManageW6(int objEnemy_, float dY_)
+{
+	ObjMove_SetDestAtFrame(objEnemy_, ObjMove_GetX(objEnemy_), dY_, 45, LERP_DECELERATE);
+	
+	wait(45);
+	
+	float enmX = ObjMove_GetX(objEnemy_);
+	float enmY = ObjMove_GetY(objEnemy_);
+	
+	loop(2)
+	{
+		if(Obj_IsDeleted(objEnemy_)) return;
+		
+		int way = 50;
+		int stack = 4;
+		
+		float off = GetAngleToPlayer(_objBoss);
+		for(int i = 0; i < stack; i++)
+		{
+			for(int j = 0; j < way; j++)
+			{
+				CreateShot_Enemy(enmX, enmY, 0, ((j * (360 / way)) + off) + (i * ((360 / way) / 2)), 0.01 + (0.015 * i), 2 + (1.5 * i), (i % 2 == 0) ? SHOT_RICE_PURPLE : SHOT_BALL_PURPLE, 25);
+			}
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(100);
+	}
+	
+	ObjMove_SetDestAtFrame(objEnemy_, ObjMove_GetX(objEnemy_), -40, 90, LERP_SMOOTH);
+}
+
+task _StageIntro() // 355 frames
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	int rp = (sdrMisc) ? RP_UI_TOAST : RP_UI_MISC + 2;
+	
+	int stage = CreateTextObject
+	(
+		STAGE_IDK, FONT_RECORDEDHISTORY, rp,
+		0, (SCREEN_HEIGHT / 2) - 100 - 15, 
+		15, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_DGRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(stage, true);
+	
+	int sdf = CreateTextObject
+	(
+		SDF, FONT_KOUZANBRUSH, rp,
+		0, SCREEN_HEIGHT / 2 - 100, 
+		35, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_DGRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(sdf, true);
+	ObjText_SetSidePitch(sdf, -5.5);
+	
+	string[] dreams = SplitString(DREAM, '\\');
+	
+	int dream1 = CreateTextObject
+	(
+		dreams[0], FONT_KORURI, rp,
+		0, (SCREEN_HEIGHT / 2) - 100 + 40, 
+		22, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(dream1, true);
+	
+	int dream2 = CreateTextObject
+	(
+		dreams[1], FONT_KORURI, rp,
+		0, (SCREEN_HEIGHT / 2) - 100 + 60, 
+		22, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(dream2, true);
+	
+	int dream3 = CreateTextObject
+	(
+		dreams[2], FONT_KORURI, rp,
+		0, (SCREEN_HEIGHT / 2) - 100 + 80, 
+		22, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(dream3, true);
+	
+	if(sdrMisc)
+	{
+		// Shader spawn effect
+		async
+		{
+			// Shader
+			int objDist = CreateSprite2D_Dest
+			(
+				RT4, RP_FX_LOW, BLEND_ALPHA,
+				0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+				0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+			);
+			ObjRender_SetAlpha(objDist, 0);
+			ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+			ObjShader_SetTechnique(objDist, TEC_DISTORT);
+			
+			// Counter variables
+			int  frame   = 0;
+			float intn    = ID_INVALID;
+			float jMax    = 55;
+			
+			// Spawning animation
+			
+			_FadeIn(objDist, 45);
+			
+			for(int j = 0; j <= jMax; j++)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				
+				frame++;
+				ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+				
+				intn = Interpolate_Smooth(1, 0, j / jMax);
+				ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+				yield;
+			}
+			
+			loop(235)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				yield;
+			}
+			
+			// Despawning animation
+			jMax = 25;
+			
+			_FadeOut(objDist, 25);
+			
+			for(int j = 0; j <= jMax; j++)
+			{
+				RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+				
+				frame++;
+				ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+				
+				intn = Interpolate_Smooth(0, 1, j / jMax);
+				ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+				yield;
+			}
+			
+			// Cleanup
+			Obj_Delete(objDist);
+		}
+	}
+	else
+	{
+		_FadeIn(stage, 45);
+		_FadeIn(sdf, 45);
+		_FadeIn(dream1, 45);
+		_FadeIn(dream2, 45);
+		_FadeIn(dream3, 45);
+	}
+	
+	float iMax = 180;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(stage, Interpolate_Smooth(250, 350, i / iMax));
+		ObjRender_SetX(sdf, Interpolate_Smooth(400, 300, i / iMax));
+		ObjRender_SetX(dream1, Interpolate_Smooth(200, 320, i / iMax));
+		ObjRender_SetX(dream2, Interpolate_Smooth(420, 350, i / iMax));
+		ObjRender_SetX(dream3, Interpolate_Smooth(180, 280, i / iMax));
+		
+		yield;
+	}
+	
+	wait(110);
+	
+	if(!sdrMisc)
+	{
+		_FadeOut(stage, 25);
+		_FadeOut(sdf, 25);
+		_FadeOut(dream1, 25);
+		_FadeOut(dream2, 25);
+		_FadeOut(dream3, 25);
+	}
+			
+	wait(25);
+	
+	Obj_Delete(stage);
+	Obj_Delete(sdf);
+	Obj_Delete(dream1);
+	Obj_Delete(dream2);
+	Obj_Delete(dream3);
+}
+
+function<void> S1()
+{
+	ObjEnemy_SetDamageRate(_objBoss, 90, 0);
+	
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 69850 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	//int[] shots = [SHOT_SCALE_RED, SHOT_SCALE_ORANGE, SHOT_SCALE_YELLOW, SHOT_SCALE_GREEN, SHOT_SCALE_AQUA, SHOT_SCALE_AZURE, SHOT_SCALE_PURPLE, SHOT_SCALE_PINK];
+	
+	for(int i = 0; life; i++)
+	{
+		// Oscillating walls
+		for(int j = -1; j <= 1; j += 2) CreateShot_Enemy(_enmX, _enmY, 0.65, GetAngleToPlayer(_objBoss) + (j * 60) + (sin(i * 12) * 60), 0.025, 3.5, SHOT_RICE_RED, 8);
+		
+		// Aimed lines
+		if(i % 65 == 0)
+		{
+			_Line();
+		}
+		
+		yield;
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 69850 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	}
+	
+	Trans();
+}
+
+task _Line()
+{
+	for(int j = 0; j < 8; j++)
+	{
+		if(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) < 69850 || ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) < 60 * 60) return;
+		
+		for(int k = -1; k <= 1; k += 2)
+		{
+			_Aim(CreateShot_Enemy(_enmX, _enmY, 3, GetAngleToPlayer(_objBoss) + (k * 90), 0.05, 6, SHOT_SCALE_AZURE, 20));
+		}
+					
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		wait(3);
+	}
+}
+
+task _Aim(int objShot_)
+{
+	wait(40);
+	ObjMove_SetAngle(objShot_, GetAngleToPlayer(objShot_));
+}
+
+function<void> S2()
+{	
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, CENTER_Y, 35, LERP_DECELERATE);
+	
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 70, 0);
+	
+	int famA = CreateEnemy
+	(
+		1, 0, false, false,
+		COLOR_PURPLE, STANDARD_ENEMYSCALE, true, true,
+		0, 0, 0, 0, 0
+	);
+	
+	int famB = CreateEnemy
+	(
+		1, 0, false, false,
+		COLOR_PURPLE, STANDARD_ENEMYSCALE, true, true,
+		0, 0, 0, 0, 0
+	);
+	
+	for(int i = 0; life; i++)
+	{
+		int targetRad = rand(75, 110);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		float jMax = 90;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float rad = Interpolate_Smooth(0, targetRad, j / jMax);
+			
+			float famAX = _enmX + (rad * cos(j * 3));
+			float famAY = _enmY + (rad * sin(j * 3));
+			
+			float famBX = _enmX + (rad * cos((j * 3) + 180));
+			float famBY = _enmY + (rad * sin((j * 3) + 180));
+			
+			ObjMove_SetPosition(famA, famAX, famAY);
+			ObjMove_SetPosition(famB, famBX, famBY);
+			
+			if(j % 3 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 0.5, GetObjectDeltaAngle(famA, _objBoss) + 180, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+				CreateShot_Enemy(famBX, famBY, 0.5, GetObjectDeltaAngle(famB, _objBoss) + 180, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+			}
+			if(j % 4 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 1, GetObjectDeltaAngle(famA, _objBoss) + 180, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+				CreateShot_Enemy(famBX, famBY, 1, GetObjectDeltaAngle(famB, _objBoss) + 180, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+			}
+			
+			yield;
+		}
+		
+		ObjMove_SetDestAtFrame(famA, 0, 0, 60, LERP_ACCELERATE);
+		ObjMove_SetDestAtFrame(famB, FRAME_WIDTH, FRAME_HEIGHT, 60, LERP_ACCELERATE);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		jMax = 60;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float famAX = ObjMove_GetX(famA);
+			float famAY = ObjMove_GetY(famA);
+			
+			float famBX = ObjMove_GetX(famB);
+			float famBY = ObjMove_GetY(famB);
+			
+			if(j % 6 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 0.5, 0, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+				CreateShot_Enemy(famBX, famBY, 0.5, 180, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+			}
+			if(j % 7 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 1, 0, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+				CreateShot_Enemy(famBX, famBY, 1, 180, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+			}
+			
+			yield;
+		}
+		
+		ObjMove_SetDestAtFrame(famA, FRAME_WIDTH, 0, 90, LERP_SMOOTH);
+		ObjMove_SetDestAtFrame(famB, 0, FRAME_HEIGHT, 90, LERP_SMOOTH);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		jMax = 90;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float famAX = ObjMove_GetX(famA);
+			float famAY = ObjMove_GetY(famA);
+			
+			float famBX = ObjMove_GetX(famB);
+			float famBY = ObjMove_GetY(famB);
+			
+			if(j % 6 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 0.5, 90, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+				CreateShot_Enemy(famBX, famBY, 0.5, 270, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+			}
+			if(j % 7 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 1, 90, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+				CreateShot_Enemy(famBX, famBY, 1, 270, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+			}
+			
+			yield;
+		}
+		
+		ObjMove_SetDestAtFrame(famA, FRAME_WIDTH, FRAME_HEIGHT, 90, LERP_SMOOTH);
+		ObjMove_SetDestAtFrame(famB, 0, 0, 90, LERP_SMOOTH);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		jMax = 90;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float famAX = ObjMove_GetX(famA);
+			float famAY = ObjMove_GetY(famA);
+			
+			float famBX = ObjMove_GetX(famB);
+			float famBY = ObjMove_GetY(famB);
+			
+			if(j % 6 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 0.5, 180, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+				CreateShot_Enemy(famBX, famBY, 0.5, 0, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+			}
+			if(j % 7 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 1, 180, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+				CreateShot_Enemy(famBX, famBY, 1, 0, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+			}
+			
+			yield;
+		}
+		
+		ObjMove_SetDestAtFrame(famA, _enmX, _enmY, 60, LERP_ACCELERATE);
+		ObjMove_SetDestAtFrame(famB, _enmX, _enmY, 60, LERP_ACCELERATE);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		jMax = 60;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 60000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float famAX = ObjMove_GetX(famA);
+			float famAY = ObjMove_GetY(famA);
+			
+			float famBX = ObjMove_GetX(famB);
+			float famBY = ObjMove_GetY(famB);
+			
+			if(j % 6 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 0.5, 180, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+				CreateShot_Enemy(famBX, famBY, 0.5, 0, 0.02, 3.2, SHOT_ICE_PURPLE, 25);
+			}
+			if(j % 7 == 0)
+			{
+				CreateShot_Enemy(famAX, famAY, 1, 180, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+				CreateShot_Enemy(famBX, famBY, 1, 0, 0.035, 4.2, SHOT_ICE_AZURE, 25);
+			}
+			
+			yield;
+		}
+	}
+	
+	ObjEnemy_SetLife(famA, 0);
+	ObjEnemy_SetLife(famB, 0);
+	
+	Trans();
+}
+
+function<void> S3()
+{	
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 150, 35, LERP_DECELERATE);
+	
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 70, 0);
+	
+	int[] bounce = [ID_INVALID, 80, 90, 100, ID_INVALID];
+	
+	for(int i = 0; life; i++)
+	{
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		for(int j = -2; j <= 2; j++)
+		{
+			_CreateBubble(270 + (j * 35), bounce[j + 2]);
+		}
+		
+		loop(210)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		loop(65)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		float jMax = 30;
+		for(int j = 0; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float rad = Interpolate_Smooth(0, 420, j / jMax);
+			
+			for each(int iShots in ref GetShotIdInCircleA2(_enmX, _enmY, rad, TARGET_ENEMY))
+			{
+				ObjShot_SetGraphic(iShots, SHOT_BALL_AURA_GREEN);
+				ObjMove_SetSpeed(iShots, 0);
+				ObjMove_SetAcceleration(iShots, 0);
+				ObjMove_SetMaxSpeed(iShots, 0);
+			}
+			
+			yield;
+		}
+		
+		loop(2)
+		{
+			_CreateBubbleA();
+			
+			loop(80)
+			{
+				life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+				if(!life) break;
+				
+				yield;
+			}
+		}
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		loop(65)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		for each(int iShots in ref GetShotIdInCircleA2(_enmX, _enmY, 420, TARGET_ENEMY))
+		{
+			ObjMove_SetAngle(iShots, GetObjectDeltaAngle(iShots, _objBoss) + 180);
+			ObjMove_SetAcceleration(iShots, 0.025);
+			ObjMove_SetMaxSpeed(iShots, 5);
+		}
+	}
+	
+	Trans();
+}
+
+task _CreateBubble(int ang_, int bounce_)
+{
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 0.8, ang_, 0.045, 5.3, SHOT_BUBBLE_BLUE, 35);
+	ObjShot_SetSpellResist(objShot, true);
+	
+	// Bouncing
+	async
+	{
+		if(bounce_ != ID_INVALID)
+		{
+			while(Obj_IsInArea(objShot, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)) yield;
+			
+			if(Obj_IsDeleted(objShot)) return;
+			
+			bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) return;
+				
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			ObjMove_SetAngle(objShot, bounce_);
+			
+			if(ang_ != 90)
+			{
+				wait(10);
+				
+				while(Obj_IsInArea(objShot, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)) yield;
+				
+				if(Obj_IsDeleted(objShot)) return;
+				
+				bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+				if(!life) return;
+			
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+				ObjMove_SetAngle(objShot, GetAngleToPlayer(objShot));
+			}
+		}
+		else
+		{
+			while(Obj_IsInArea(objShot, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)) yield;
+			
+			if(Obj_IsDeleted(objShot)) return;
+			
+			bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 50000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) return;
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			ObjMove_SetAngle(objShot, GetAngleToPlayer(objShot));
+		}
+	}
+	
+	// Trails
+	for(int i = 0; Obj_IsExists(objShot); i++)
+	{
+		if(i % 3 == 0) CreateShot_Enemy(ObjMove_GetX(objShot), ObjMove_GetY(objShot), 0, rand(0, 360), rand(0.0035, 0.0075), rand(1, 2), SHOT_BALL_AURA_BLUE, 25);
+		
+		if(_prtSht && i > 35 && i % 3 == 0)
+			{
+				async
+				{					
+					float posX = ObjMove_GetX(objShot);
+					float posY = ObjMove_GetY(objShot);
+					
+					float scaleOrg = 1;
+					float scaleCur = scaleOrg;
+					
+					float alphaOrg = 255;
+					float alphaCur = alphaOrg;
+					
+					float jMax = 22;
+					for(int j = 0; j <= jMax; j++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_DBLUE);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 1.45, j / jMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						// Fade
+						alphaCur = Interpolate_Smooth(alphaOrg, 0, j / jMax);
+						ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+		yield;
+	}
+}
+
+task _CreateBubbleA()
+{
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 1, GetAngleToPlayer(_objBoss), 0.03, 7, SHOT_BUBBLE_YELLOW, 45, 1.25);
+	ObjShot_SetSpellResist(objShot, true);
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+	
+	for(int i = 0; Obj_IsExists(objShot); i++)
+	{
+		for each(int iShots in ref GetShotIdInCircleA2(ObjMove_GetX(objShot), ObjMove_GetY(objShot), 70, TARGET_ENEMY))
+		{
+			if(ObjShot_GetImageID(iShots) != SHOT_BUBBLE_YELLOW)
+			{
+				ObjShot_SetGraphic(iShots, SHOT_BALL_OLIVE);
+				ObjMove_SetAngle(iShots, ObjMove_GetAngle(objShot));
+				ObjMove_SetAcceleration(iShots, 0.035);
+				ObjMove_SetMaxSpeed(iShots, 6);
+			}
+		}
+		
+		// Trail
+			if(_prtSht && i > 45 && i % 8 == 0)
+			{
+				async
+				{					
+					float posX = ObjMove_GetX(objShot);
+					float posY = ObjMove_GetY(objShot);
+					
+					float scaleOrg = 1.25;
+					float scaleCur = scaleOrg;
+					
+					float alphaOrg = 255;
+					float alphaCur = alphaOrg;
+					
+					float jMax = 60;
+					for(int j = 0; j <= jMax; j++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_DYELLOW);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 1.65, j / jMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						// Fade
+						alphaCur = Interpolate_Smooth(alphaOrg, 0, j / jMax);
+						ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+		yield;
+	}
+}
+
+function<void> S4()
+{	
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000;
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 95, 35, LERP_DECELERATE);
+	
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 70, 0);
+	
+	int famA = CreateEnemy
+	(
+		1, 0, false, false,
+		COLOR_AQUA, STANDARD_ENEMYSCALE, false, false,
+		INT_MIN, INT_MIN, 0, 0, 0
+	);
+	
+	int famB = CreateEnemy
+	(
+		1, 0, false, false,
+		COLOR_AQUA, STANDARD_ENEMYSCALE, false, false,
+		INT_MIN, INT_MIN, 0, 0, 0
+	);
+	
+	int famC = CreateEnemy
+	(
+		1, 0, false, false,
+		COLOR_AQUA, STANDARD_ENEMYSCALE, false, false,
+		INT_MIN, INT_MIN, 0, 0, 0
+	);
+	
+	_RenderBossSpriteF(famA, CHAR_FLANDRE, 65);
+	_RenderBossSpriteF(famB, CHAR_FLANDRE, 65);
+	_RenderBossSpriteF(famC, CHAR_FLANDRE, 65);
+			
+	for(int i = 0; life; i++)
+	{		
+		// Left
+		_EnemyMoveSwoop(_objBoss, 30, 95, 0.5, 60, 40000, _objScene, 60 * 60);
+		_Arrows(60);
+		loop(60)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		// Right
+		_EnemyMoveSwoop(_objBoss, FRAME_WIDTH - 30, 95, 0.5, 120, 40000, _objScene, 60 * 60);
+		_Arrows(120);
+		loop(120)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		// Center
+		_EnemyMoveSwoop(_objBoss, CENTER_X, 95, 0.5, 60, 40000, _objScene, 60 * 60);
+		_Arrows(60);
+		loop(60)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		float jMax = 60;
+		int j = 0;
+		for(; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float rad = Interpolate_Smooth(450, 60, j / jMax);
+			
+			float famAX = _enmX + (rad * cos(j * 3));
+			float famAY = _enmY + (rad * sin(j * 3));
+			
+			float famBX = _enmX + (rad * cos((j * 3) + 120));
+			float famBY = _enmY + (rad * sin((j * 3) + 120));
+			
+			float famCX = _enmX + (rad * cos((j * 3) + 240));
+			float famCY = _enmY + (rad * sin((j * 3) + 240));
+			
+			ObjMove_SetPosition(famA, famAX, famAY);
+			ObjMove_SetPosition(famB, famBX, famBY);
+			ObjMove_SetPosition(famC, famCX, famCY);
+			
+			yield;
+		}
+		
+		if(life) ObjMove_SetDestAtFrame(_objBoss, CENTER_X, FRAME_HEIGHT + 200, 180, LERP_ACCELERATE);
+		
+		for(int k = 0; Obj_IsInArea(_objBoss, 0, 0, FRAME_WIDTH, FRAME_HEIGHT); j++, k++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float rad = 60 + (sin(k * 3) * 18);
+			
+			float famAX = _enmX + (rad * cos(j * 3));
+			float famAY = _enmY + (rad * sin(j * 3));
+			
+			float famBX = _enmX + (rad * cos((j * 3) + 120));
+			float famBY = _enmY + (rad * sin((j * 3) + 120));
+			
+			float famCX = _enmX + (rad * cos((j * 3) + 240));
+			float famCY = _enmY + (rad * sin((j * 3) + 240));
+			
+			ObjMove_SetPosition(famA, famAX, famAY);
+			ObjMove_SetPosition(famB, famBX, famBY);
+			ObjMove_SetPosition(famC, famCX, famCY);
+			
+			// Aimed spam
+			if(j % 4 == 0)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 1, GetAngleToPlayer(_objBoss), 0.03, 7, prand_int(339, 362), 25);
+				CreateShot_Enemy(famAX, famAY, 1, GetAngleToPlayer(_objBoss), 0.03, 7, prand_int(339, 362), 25);
+				CreateShot_Enemy(famBX, famBY, 1, GetAngleToPlayer(_objBoss), 0.03, 7, prand_int(339, 362), 25);
+				CreateShot_Enemy(famCX, famCY, 1, GetAngleToPlayer(_objBoss), 0.03, 7, prand_int(339, 362), 25);
+			}
+			
+			// Rings
+			if(j % 60 == 0)
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				int way = 12;
+				float off = rand(0, 360);
+				for(int k = 0; k < way; k++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0.5, k * (360 / way) + off, 0.01, 3.25, SHOT_RICE_RED, 25);
+					CreateShot_Enemy(famAX, famAY, 0.5, k * (360 / way) + off, 0.01, 3.25, SHOT_RICE_RED, 25);
+					CreateShot_Enemy(famBX, famBY, 0.5, k * (360 / way) + off, 0.01, 3.25, SHOT_RICE_RED, 25);
+					CreateShot_Enemy(famCX, famCY, 0.5, k * (360 / way) + off, 0.01, 3.25, SHOT_RICE_RED, 25);
+				}
+			}
+			
+			yield;
+		}
+		
+		jMax = j + 45;
+		for(; j <= jMax; j++)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			float rad = 50 + (sin(j * 3) * 12);
+			
+			float famAX = _enmX + (rad * cos(j * 3));
+			float famAY = _enmY + (rad * sin(j * 3));
+			
+			float famBX = _enmX + (rad * cos((j * 3) + 120));
+			float famBY = _enmY + (rad * sin((j * 3) + 120));
+			
+			float famCX = _enmX + (rad * cos((j * 3) + 240));
+			float famCY = _enmY + (rad * sin((j * 3) + 240));
+			
+			ObjMove_SetPosition(famA, famAX, famAY);
+			ObjMove_SetPosition(famB, famBX, famBY);
+			ObjMove_SetPosition(famC, famCX, famCY);
+			
+			yield;
+		}
+		
+		if(life)
+		{
+			ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+			ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 95, 30, LERP_DECELERATE);
+		}
+		
+		ObjMove_SetPosition(famA, INT_MIN, INT_MIN);
+		ObjMove_SetPosition(famB, INT_MIN, INT_MIN);
+		ObjMove_SetPosition(famC, INT_MIN, INT_MIN);
+		
+		loop(30)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+	}
+	
+	ObjEnemy_SetLife(famA, 0);
+	ObjEnemy_SetLife(famB, 0);
+	ObjEnemy_SetLife(famC, 0);
+	
+	if(!Obj_IsInArea(_objBoss, -30, -30, FRAME_WIDTH + 30, FRAME_HEIGHT + 30)) ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+	
+	Trans();
+}
+
+task _Arrows(int frames_)
+{
+	int life;
+	
+	for(int j = 0; j < 75; j++)
+	{
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 40000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+			
+		if(j % 5 == 0)
+		{
+			float ang = rand(240, 300);
+			for(int k = -1; k <= 1; k++)
+			{
+				float angA = ang + (k * 20);
+				ObjMove_AddPatternB2(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, prand_int(950, 961), 20), 0, 2 * cos(angA), 2 * sin(angA), -0.001 * cos(angA), 0.015, -0.7 * cos(angA), 4);
+			}
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+			
+		yield;
+	}
+}
+
+
+function<void> S5()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 30000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 110, 35, LERP_DECELERATE);
+	
+	/*loop(35)
+	{
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 110, 35, LERP_DECELERATE);
+		yield;
+	}*/
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	async
+	{
+		wait(250);
+		ObjEnemy_SetDamageRate(_objBoss, 70, 0);
+	}
+	
+	_Warn();
+	
+	for(int i = 0; life; i++)
+	{
+		if(i % 90 == 0)
+		{
+			// Counter Cock
+			/*for(int j = 1; j >= 4; j++)
+			{
+				_Clock(j * (FRAME_WIDTH / 4), -90 + ((j % 2) * (FRAME_HEIGHT + 180)), 90 + ((j % 2) * 180), -1 + 2 * (j % 2));
+			}*/
+			
+			_Clock(60, -100, 90, 1, 45); 
+			_Clock(160, FRAME_HEIGHT + 100, 270, 1, 0); 
+			_Clock(260, -100, 90, 1, 0); 
+			_Clock(360, FRAME_HEIGHT + 100, 270, 1, 45); 
+		}
+		
+		if(i % 60 == 0)
+		{			
+			// Ring
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			int way = 22;
+			float off = rand(0, 360);
+			for(int j = 0; j < way; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way) + off, 0.01, 2, SHOT_LARGE_RED, 25);
+			}
+		}
+		
+		if(i % 180 == 0)
+		{
+			_ClockA();
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 30000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+			
+		yield;
+	}
+	
+	Trans();
+}
+
+task _Warn()
+{
+	loop(4)
+	{
+		async
+		{
+			int objWarn = CreateSprite2D_NoTexture_Dest_RGB
+			(
+				RP_FX_MED, BLEND_ALPHA,
+				0, 0, 1, 1,
+				0, 0, 0, 0,
+				COLOR_RED
+			);
+			
+			int objWarnA = CreateSprite2D_NoTexture_Dest_RGB
+			(
+				RP_FX_MED, BLEND_ALPHA,
+				0, 0, 1, 1,
+				0, 0, 0, 0,
+				COLOR_RED
+			);
+			
+			ObjRender_SetAlpha(objWarn, 90);
+			ObjRender_SetAlpha(objWarnA, 90);
+			
+			float iMax = 20;
+			for(int i = 0; i <= iMax; i++)
+			{
+				ObjSprite2D_SetDestRect(objWarn, 0, Interpolate_Smooth(FRAME_HEIGHT, FRAME_HEIGHT - 60, i / iMax), FRAME_WIDTH, FRAME_HEIGHT);
+				ObjSprite2D_SetDestRect(objWarnA, 0, Interpolate_Smooth(0, 60, i / iMax), FRAME_WIDTH, 0);
+				
+				yield;
+			}
+			
+			wait(15);
+			
+			iMax = 10;
+			for(int i = 0; i <= iMax; i++)
+			{
+				float alpha = Interpolate_Smooth(90, 0, i / iMax);
+				ObjRender_SetAlpha(objWarn, alpha);
+				ObjRender_SetAlpha(objWarnA, alpha);
+				
+				yield;
+			}
+			
+			Obj_Delete(objWarn);
+			Obj_Delete(objWarnA);
+		}
+		
+		wait(20);
+	}
+}
+
+task _Clock(float posX_, float posY_, float ang_, int dir_, float off_)
+{
+	int objShot = CreateShot_Enemy(posX_, posY_, 0, ang_, 0.01, 1.4, SHOT_BUBBLE_RED, 10, 0.6);
+	ObjShot_SetSpellResist(objShot, true);
+	ObjShot_SetAutoDelete(objShot, false);
+	ObjShot_SetDeleteFrame(objShot, 500);
+	
+	float shotX = ObjMove_GetX(objShot);
+	float shotY = ObjMove_GetY(objShot);
+	
+	int[] lasers = [];
+	
+	for(int i = 0; i < 4; i++) lasers ~= [CreateLaser_Straight(shotX, shotY, i * (360 / 4), 41, 20, INT_MAX, SHOT_CURVY_LASER_RED, 30, COLOR_WHITE)];
+	
+	for each(int i, int iLasers in ref lasers)
+	{
+		ObjMove_SetPosition(iLasers, shotX, shotY);
+		ObjStLaser_SetAngle(iLasers, (i * (360 / 4)));
+		ObjShot_SetSpellResist(iLasers, true);
+		ObjShot_SetAutoDelete(iLasers, false);
+		ObjShot_SetDeleteFrame(iLasers, 500);
+	}
+	
+	for(int i = 0; Obj_IsExists(objShot); i++)
+	{
+		/*alternative(i)
+			case(0)   ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 60, 60, 150, LERP_LINEAR);
+			case(150) ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 60, FRAME_HEIGHT - 60, 150, LERP_LINEAR);
+			case(300) ObjMove_SetDestAtFrame(objShot, 60, FRAME_HEIGHT - 60, 150, LERP_LINEAR);
+			case(450) ObjMove_SetDestAtFrame(objShot, 60, 120, 150, LERP_LINEAR);
+			case(600) ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 120, 120, 150, LERP_LINEAR);
+			case(750) ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 120, FRAME_HEIGHT - 120, 150, LERP_LINEAR);
+			case(900) ObjMove_SetDestAtFrame(objShot, 120, FRAME_HEIGHT - 120, 150, LERP_LINEAR);
+			case(1050) ObjMove_SetDestAtFrame(objShot, 120, 180, 150, LERP_LINEAR);
+			case(1200) ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 180, 180, 150, LERP_LINEAR);
+			case(1350) ObjMove_SetDestAtFrame(objShot, FRAME_WIDTH - 180, FRAME_HEIGHT - 180, 150, LERP_LINEAR);*/
+		
+		
+		shotX = ObjMove_GetX(objShot);
+		shotY = ObjMove_GetY(objShot);
+	
+		// Laser rotation
+		for each(int j, int jLasers in ref lasers)
+		{
+			ObjMove_SetPosition(jLasers, shotX, shotY);
+			ObjStLaser_SetAngle(jLasers, ((j * (360 / 4)) + ((i * 1) * dir_)) + off_);
+		}
+		
+		// Trail
+			if(_prtSht && i % 5 == 0)
+			{
+				async
+				{					
+					float posX = ObjMove_GetX(objShot);
+					float posY = ObjMove_GetY(objShot);
+					
+					float scaleOrg = 0.7;
+					float scaleCur = scaleOrg;
+					
+					float alphaOrg = 255;
+					float alphaCur = alphaOrg;
+					
+					float jMax = 20;
+					for(int j = 0; j <= jMax; j++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_DRED);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 1, j / jMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						// Fade
+						alphaCur = Interpolate_Smooth(alphaOrg, 0, j / jMax);
+						ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+		yield;
+	}
+	
+	for each(int i, int iLasers in ref lasers)
+	{
+		Obj_Delete(iLasers);
+	}
+}
+
+task _ClockA()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 30000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	if(!life) return;
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	loop(65)
+	{
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 30000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) return;
+		yield;
+	}
+	
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 0, GetAngleToPlayer(_objBoss), 0.015, 3, SHOT_BUBBLE_BLUE, 40, 0.7);
+	ObjShot_SetSpellResist(objShot, true);
+	ObjShot_SetAutoDelete(objShot, false);
+	ObjShot_SetDeleteFrame(objShot, 280);
+	
+	float shotX = ObjMove_GetX(objShot);
+	float shotY = ObjMove_GetY(objShot);
+	
+	int dir = -1 + 2 * rand_int(0, 1);
+	
+	int[] lasers = [];
+	
+	for(int i = 0; i < 4; i++) lasers ~= [CreateLaser_Straight(shotX, shotY, i * (360 / 4), 75, 20, INT_MAX, SHOT_CURVY_LASER_BLUE, 30, COLOR_WHITE)];
+	
+	for each(int i, int iLasers in ref lasers)
+	{
+		ObjMove_SetPosition(iLasers, shotX, shotY);
+		ObjStLaser_SetAngle(iLasers, (i * (360 / 4)));
+		ObjShot_SetSpellResist(iLasers, true);
+	}
+	
+	for(int i = 0; Obj_IsExists(objShot); i++)
+	{	
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 30000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life)
+		{
+			Obj_Delete(objShot);
+			break;
+		}
+		
+		shotX = ObjMove_GetX(objShot);
+		shotY = ObjMove_GetY(objShot);
+	
+		// Laser rotation
+		for each(int j, int jLasers in ref lasers)
+		{
+			ObjMove_SetPosition(jLasers, shotX, shotY);
+			ObjStLaser_SetAngle(jLasers, ((j * (360 / 4)) + ((i * 2.2) * dir)));
+		}
+		
+		// Trail
+			if(_prtSht && i > 40 && i % 5 == 0)
+			{
+				async
+				{					
+					float posX = ObjMove_GetX(objShot);
+					float posY = ObjMove_GetY(objShot);
+					
+					float scaleOrg = 0.7;
+					float scaleCur = scaleOrg;
+					
+					float alphaOrg = 255;
+					float alphaCur = alphaOrg;
+					
+					float jMax = 20;
+					for(int j = 0; j <= jMax; j++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_DBLUE);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 1.15, j / jMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						// Fade
+						alphaCur = Interpolate_Smooth(alphaOrg, 0, j / jMax);
+						ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+		yield;
+	}
+	
+	for each(int i, int iLasers in ref lasers)
+	{
+		Obj_Delete(iLasers);
+	}
+}
+
+function<void> S6()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	ObjMove_SetDestAtFrame(_objBoss, 0, 70, 35, LERP_DECELERATE);
+
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 100, 0);
+	
+	for(int i = 0; life; i++)
+	{	
+		int objLaser = CreateLaser_Straight(_enmX, _enmY, 90, 400, 40, 170, SHOT_CURVY_LASER_RED, 30, COLOR_WHITE);
+		int objLaserA = CreateLaser_Straight(_enmX, _enmY, 270, 400, 40, 170, SHOT_CURVY_LASER_RED, 30, COLOR_WHITE);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		loop(30)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		_WarnA(_enmX, _enmY, FRAME_WIDTH - 90, _enmY, 90, 45);
+		_WarnA(_enmX, _enmY, FRAME_WIDTH - 90, _enmY, 270, 45);
+		
+		loop(40)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		if(life) _EnemyMoveSwoop(_objBoss, FRAME_WIDTH - 90, 70, 0.25, 120, 20150, _objScene, 60 * 60);
+		
+		float jMax = 120;
+		for(int j = 0; j <= jMax; j++)
+		{	
+			ObjMove_SetPosition(objLaser, _enmX, _enmY);
+			ObjMove_SetPosition(objLaserA, _enmX, _enmY);
+			
+			if(j % 10 == 0)
+			{
+				for(int k = 1; k <= 5; k++)
+				{
+					for(int l = -1; l <= 1; l += 2) for(int m = 0; m <= 1; m++) CreateShot_Enemy(_enmX, _enmY + ((k * 70) * l), 0, 90 + (m * 180), 0.01, 2, SHOT_RICE_RED, 25);
+				}	
+			}
+			
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+				
+			yield;
+		}
+		
+		if(life) ObjMove_SetDestAtFrame(_objBoss, FRAME_WIDTH, 70, 15, LERP_SMOOTH);
+		
+		loop(15)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		objLaser = CreateLaser_Straight(_enmX, _enmY, 90, 400, 40, 170, SHOT_CURVY_LASER_RED, 30, COLOR_WHITE);
+		objLaserA = CreateLaser_Straight(_enmX, _enmY, 270, 400, 40, 170, SHOT_CURVY_LASER_RED, 30, COLOR_WHITE);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		loop(30)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		_WarnA(_enmX, _enmY, 90, _enmY, 90, 45);
+		_WarnA(_enmX, _enmY, 90, _enmY, 270, 45);
+		
+		loop(40)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		if(life) _EnemyMoveSwoop(_objBoss, 90, 70, 0.25, 120, 20150, _objScene, 60 * 60);
+		
+		jMax = 120;
+		for(int j = 0; j <= jMax; j++)
+		{	
+			ObjMove_SetPosition(objLaser, _enmX, _enmY);
+			ObjMove_SetPosition(objLaserA, _enmX, _enmY);
+			
+			if(j % 10 == 0)
+			{
+				for(int k = 1; k <= 5; k++)
+				{
+					for(int l = -1; l <= 1; l += 2) for(int m = 0; m <= 1; m++) CreateShot_Enemy(_enmX, _enmY + ((k * 70) * l), 0, 90 + (m * 180), 0.01, 2, SHOT_RICE_RED, 25);
+				}	
+			}
+			
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+				
+			yield;
+		}
+		
+		if(life) ObjMove_SetDestAtFrame(_objBoss, CENTER_X, CENTER_Y, 25, LERP_SMOOTH);
+		
+		loop(25)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		objLaser = CreateLaser_Straight(_enmX, _enmY, 90, 330, 40, 390, SHOT_CURVY_LASER_RED, 90, COLOR_WHITE);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		loop(90)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		int dir = (GetPlayerX() > CENTER_X) ? -1 : 1;
+		
+		_WarnB(dir);
+		
+		loop(40)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		for(float j = 0; j <= 360; j += 1.5)
+		{
+			float ang = 90 + (j * dir);
+			
+			ObjStLaser_SetAngle(objLaser, ang);
+			
+			if(j % 9 == 0)
+			{
+				for(int k = 1; k <= 5; k++)
+				{
+					for(int l = 0; l <= 1; l++) CreateShot_Enemy(_enmX + (k * 70) * cos(ang), _enmY + (k * 70) * sin(ang), 0, ang + (l * 180), 0.01, 2, SHOT_RICE_RED, 25);
+				}	
+			}
+			
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+				
+			yield;
+		}
+		
+		loop(40)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+		
+		if(life) ObjMove_SetDestAtFrame(_objBoss, 0, 70, 15, LERP_SMOOTH);
+		
+		loop(15)
+		{
+			life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+			if(!life) break;
+			
+			yield;
+		}
+	}
+	
+	Trans();
+}
+
+task _WarnA(float x1_, float y1_, float x2_, float y2_, float ang_, float iMax_)
+{
+	bool life;
+	
+	for(int i = 0; i <= iMax_; i++)
+	{
+		float x = Interpolate_Linear(x1_, x2_, i / iMax_);
+		float y = Interpolate_Linear(y1_, y2_, i / iMax_);
+		
+		int objLaser = CreateLaser_Straight(x, y, ang_, 400, 40, 35, SHOT_CURVY_LASER_RED, 15, COLOR_RED);
+		Obj_SetValueI(objLaser, VAL_DELEFF, false);
+		Obj_SetRenderPriorityI(objLaser, RP_FX_MED);
+		ObjRender_SetAlpha(objLaser, 90);
+		ObjShot_SetIntersectionEnable(objLaser, false);
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) return;
+		
+		yield;
+	}
+}
+
+task _WarnB(int dir_)
+{
+	bool life;
+	
+	for(int i = 0; i <= 360;)
+	{
+		loop(2)
+		{
+			int objLaser = CreateLaser_Straight(_enmX, _enmY, 90 + (i * dir_), 330, 20, 20, SHOT_CURVY_LASER_RED, 8, COLOR_RED);
+			Obj_SetValueI(objLaser, VAL_DELEFF, false);
+			Obj_SetRenderPriorityI(objLaser, RP_FX_MED);
+			ObjRender_SetAlpha(objLaser, 90);
+			ObjShot_SetIntersectionEnable(objLaser, false);
+			
+			i += 3;
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 20130 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) return;
+		
+		yield;
+	}
+}
+
+function<void> S7()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 140, 35, LERP_DECELERATE);
+
+	wait(35);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, 140);
+	
+	wait(5);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 70, 0);
+	
+	for(int i = 0; life; i++)
+	{
+		if(i == 0 || i % 90 == 0)
+		{
+			_Wave();
+			_WaveA();
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+			
+		yield;
+	}
+	
+	Trans();
+}
+
+task _Wave()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	float iMax = 120;
+	int way = 5;
+	float off = GetAngleToPlayer(_objBoss) + ((360 / way) / 2);
+	for(int i = 0; i <= iMax && life; i++)
+	{
+		if(i % 8 == 0) for(int j = 0; j < way; j++) Obj_SetRenderPriorityI(CreateShot_Enemy(_enmX, _enmY, 1, off + (sin(i * 3) * 20) + (j * (360 / way)), 0.03, 6, SHOT_OVAL_BLUE, 20), RP_STG_SHOT + 2);
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) return;
+		
+		yield;
+	}
+}
+
+task _WaveA()
+{
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	float iMax = 120;
+	int way = 12;
+	for(int i = 0; i <= iMax && life; i++)
+	{
+		if(i < 70 && i % 10 == 0)
+		{
+			float off = rand(0, 360);
+			for(int j = 0; j < way; j++) Obj_SetRenderPriorityI(CreateShot_Enemy(_enmX, _enmY, 1, off + (j * (360 / way)), 0.03, 6, SHOT_LARGE_PURPLE, 20, 0.875), RP_STG_SHOT + 1);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		if(i >= 70 && i % 2 == 0)
+		{
+			CreateShot_Enemy(_enmX + rand(-30, 30), _enmY + rand(-30, 30), 1, GetAngleToPlayer(_objBoss), 0.03, 6, SHOT_LARGE_AZURE, 20, 1.175);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 10000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) return;
+		
+		yield;
+	}
+}
+
+function<void> Trans()
+{
+	SetPlayerInvincibilityFrame(max(GetPlayerInvincibilityFrame(), 130));
+	ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+	DeleteShotAll(TYPE_ALL, TYPE_ITEM); 
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+	
+	if(ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60)
+	{
+		NotifyEvent(_ID_ITEM, EV_DROP_POWER, _enmX, _enmY);
+	}
+}
+
+function<void> S8()
+{
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 130, 35, LERP_DECELERATE);
+
+	wait(40);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 22, 0);
+	
+	bool life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 7500 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	int[] lasers = [SHOT_CURVY_LASER_RED, SHOT_CURVY_LASER_BLUE];
+	int[] shots = [SHOT_FIREBALL_RED, SHOT_FIREBALL_BLUE];
+	
+	for(int i = 0; life; i++)
+	{
+		if(i % 200 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			int way = 30;
+			float off = rand(0, 360);
+			for(int j = 0; j < way; j++)
+			{
+				_Bounce(CreateLaser_Curvy(_enmX, _enmY, 0, j * (360 / way) + off, 0.02, 4, lasers[(i / 200) % 2], 100, 11, 0, 0), 7500, 60 * 60);
+			}
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 7500 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+
+		yield;
+	}
+	
+	life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 5000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	if(life)
+	{
+		DeleteShotAll(TYPE_ALL, TYPE_ITEM); 
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+		ObjEnemy_SetDamageRate(_objBoss, 18, 0);
+		
+		wait(30);
+	}
+	
+	for(int i = 0; life; i++)
+	{
+		if(i % 200 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			int way = 64;
+			float off = rand(0, 360);
+			for(int j = 0; j < way; j++)
+			{
+				if(j % 2 == 0) _Bounce(CreateLaser_Curvy(_enmX, _enmY, 0, j * (360 / way) + off, 0.02, 4, lasers[(i / 200) % 2], 100, 11, 0, 0), 5000, 60 * 60);
+				else _Bounce(CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way) + off, 0.0135, 3, shots[(i / 200) % 2], 25), 5000, 60 * 60);
+			}
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 5000 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+
+		yield;
+	}
+	
+	life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 2500 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	if(life)
+	{
+		DeleteShotAll(TYPE_ALL, TYPE_ITEM); 
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+		ObjEnemy_SetDamageRate(_objBoss, 18, 0);
+	}
+	
+	wait(30);
+	
+	for(int i = 0; life; i++)
+	{
+		if(i % 200 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			int way = 69;
+			float off = rand(0, 360);
+			for(int j = 0; j < way; j++)
+			{
+				if(j % 3 == 0) _Bounce(CreateLaser_Curvy(_enmX, _enmY, 0, j * (360 / way) + off, 0.02, 4, lasers[(i / 200) % 2], 100, 11, 0, 0), 2500, 60 * 60);
+				else _Bounce(CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way) + off, 0.0135, 3, shots[(i / 200) % 2], 25), 2500, 60 * 60);
+			}
+		}
+		
+		life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 2500 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+		if(!life) break;
+
+		yield;
+	}
+	
+	life = ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60;
+	
+	if(life)
+	{
+		DeleteShotAll(TYPE_ALL, TYPE_ITEM); 
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+		ObjEnemy_SetDamageRate(_objBoss, 18, 0);
+	}
+	
+	wait(30);
+	
+	for(int i = 0; ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60; i++)
+	{
+		yield;
+		
+		if(i % 200 == 0 && ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) > 60 * 60)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			for(int k = 0; k <= 1; k++)
+			{
+				int way = 44;
+				float off = rand(0, 360);
+				for(int j = 0; j < way; j++)
+				{
+					if(j % 2 == 0) _Bounce(CreateLaser_Curvy(_enmX + 80 * cos((k * 180) + (i / 2)), _enmY + 80 * sin((k * 180) + (i / 2)), 0, j * (360 / way) + off, 0.02, 4, lasers[(i / 200) % 2], 100, 11, 0, 0), 0, 60 * 60);
+					else _Bounce(CreateShot_Enemy(_enmX + 80 * cos((k * 180) + (i / 2)), _enmY + 80 * sin((k * 180) + (i / 2)), 0, j * (360 / way) + off, 0.0135, 3, shots[(i / 200) % 2], 25), 0, 60 * 60);
+				}
+			}
+		}
+	}
+	
+	Timeout(shots, lasers);
+}
+
+task _Bounce(int obj_, int life_, int time_)
+{	
+	if(Obj_GetType(obj_) == OBJ_CURVE_LASER) Obj_SetValueI(obj_, VAL_GRZCOL, false);
+	
+	while(Obj_IsInArea(obj_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)) yield;
+	
+	if(Obj_IsDeleted(obj_) || ObjEnemy_GetInfo(_objBoss, INFO_LIFE) < life_ ||  ObjEnemyBossScene_GetInfo(_objScene, INFO_TIMERF) < time_) return;
+	
+	float posX = ObjMove_GetX(obj_);
+	float posY = ObjMove_GetY(obj_);
+	float ang = ObjMove_GetAngle(obj_);
+	
+	if(posX < 0 || posX > FRAME_WIDTH)
+	{
+		ObjMove_SetAngle(obj_, ReflectAngle(ang, 90));
+	}
+	
+	if(posY < 0)
+	{
+		ObjMove_SetAngle(obj_, ReflectAngle(ang, 0));
+	}
+}
+
+function<void> Timeout(int[] shots, int[] lasers)
+{
+	DeleteShotAll(TYPE_ALL, TYPE_ITEM); 
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+	ObjEnemy_SetDamageRate(_objBoss, 10, 0);
+	
+	loop(30)
+	{
+		DeleteShotAll(TYPE_ALL, TYPE_IMMEDIATE); 
+		yield;
+	}
+	
+	for(int i = 0; ; i++)
+	{
+		if(i % 120 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			for(int k = 0; k <= 2; k++)
+			{
+				int way = 38;
+				float off = rand(0, 360);
+				for(int j = 0; j < way; j++)
+				{
+					if(j % 2 == 0) _Bounce(CreateLaser_Curvy(_enmX + 80 * cos((k * 120) + (i / 2)), _enmY + 80 * sin((k * 120) + (i / 2)), 0, j * (360 / way) + off, 0.02, 4, lasers[(i / 200) % 2], 100, 11, 0, 0), 0, 0);
+					else _Bounce(CreateShot_Enemy(_enmX + 80 * cos((k * 120) + (i / 2)), _enmY + 80 * sin((k * 120) + (i / 2)), 0, j * (360 / way) + off, 0.0135, 3, shots[(i / 200) % 2], 25), 0, 0);
+				}
+			}
+		}
+
+		yield;
+	}
+}

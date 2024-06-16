@@ -1,0 +1,190 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Kaguya ///////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Kaguya"]
+#Text["Kaguya"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AQUA;
+int _colorB = COLOR_YELLOW;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 69); // nice
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KAGUYA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 423, 600, 192, 89, 50, _colorA, _colorB, CENTER_X, 60, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(55000);
+		case(EV_REQUEST_TIMER) SetScriptResult(180);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	_Walls();
+	_Spirals();
+}
+
+task _Walls()
+{	
+	loop
+	{
+		int off = 30;
+		int offA = 16 + (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 5500);
+		int gapCenter = _enmX + (off * 1.5);
+		
+		for(int l1 = 0; l1 < 2; l1++)
+		{
+			int gL = -5;
+			int gR = gapCenter - (offA * 2);
+			
+			int shot = [SHOT_BILL_RED, SHOT_BILL_DRED, SHOT_BILL_ORANGE, SHOT_BILL_DORANGE, SHOT_BILL_OLIVE, SHOT_BILL_DOLIVE, SHOT_BILL_GREEN, SHOT_BILL_DGREEN, SHOT_BILL_MINT, SHOT_BILL_DMINT, SHOT_BILL_AZURE, SHOT_BILL_BLUE, SHOT_BILL_DBLUE][prand_int(0, 12)];
+			
+			for(int l2 = 0; l2 < 2; l2++)
+			{	
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				
+				int shotCount;
+				if(l1 == 0 && l2 == 0){shotCount = 20;} // Left wall with gap to the right
+				if(l1 == 0 && l2 == 1){shotCount = 14;} // Right wall with gap to the right
+				if(l1 == 1 && l2 == 0){shotCount = 14;} // Left wall with gap to the left
+				if(l1 == 1 && l2 == 1){shotCount = 20;} // Right wall with gap to the left
+				
+				for(int i = 0; i < shotCount; i++)
+				{
+					_ManageShot(i, shotCount, off, gL, gR, shot);
+				}
+				
+				gL = gapCenter + (offA * 2);
+				gR = FRAME_WIDTH + 5;
+			}
+			
+			gapCenter = _enmX - (off * 1.5);
+			
+			wait(20);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			
+			wait(38);
+		}
+	}
+}
+
+task _ManageShot(int id_, float shotCount_, int off_, int gL_, int gR_, int shot_)
+{
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_BILL_GREY, 20);
+	//ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+	Obj_SetRenderPriorityI(objShot, RP_STG_SHOT + 1);
+	ObjMove_SetDestAtFrame(objShot, Interpolate_Linear(gL_, gR_, id_ / shotCount_), _enmY, 20, LERP_SMOOTH);
+	ObjMove_AddPatternA3(objShot, 20, 1.65, 270, 0.01, 2.15, 0, shot_);
+	wait(55);
+	ObjMove_SetY(objShot, FRAME_HEIGHT + 10);
+}
+
+task _Spirals()
+{
+	for(int i = 0; ; i++)
+	{
+		int bossLife = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		
+		int interval = 9 + (bossLife / 5500);
+		
+		if(i % interval == 0)
+		{
+			if(bossLife < 49000)
+			{
+				for(int j = 0; j < 4; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0, i + (j * 90), 0.015, 2, SHOT_SAKURA_PURPLE, 20);
+				}
+			}
+			
+			if(bossLife < 40000)
+			{
+				for(int j = 0; j < 4; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0, -i + (j * 90), 0.022, 2.5, SHOT_SAKURA_AQUA, 20);
+				}
+			}
+		}
+		
+		if(bossLife < 31000 && i % 40 == 0)
+		{
+			int way = 30 - (bossLife / 5000);
+			for(int j = 0; j < way; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way), 0.015, 2, SHOT_SAKURA_PINK, 20);
+			}
+		}
+		
+		yield;
+	}
+}

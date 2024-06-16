@@ -1,0 +1,74 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Replay Save Menu //////////////////////
+///////////////////////////////////////////////////////////////
+
+// For saving a replay after the game is over
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions specifically for replay-related menus
+#include "./../lib/lib_replay.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Package script ID
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	LoadReplayList();
+	
+	_ReplayScene();
+}
+
+@MainLoop
+{
+	yield;
+}
+
+task _ReplayScene()
+{
+	// Renders background image
+	_RenderBackground();
+	
+	Menu_Slot();
+}
+
+function<void> Menu_Slot()
+{
+	_menu = MENU_SELECTSLOT;
+	
+	// Handles selection
+	int[] selection = HandleSelection();
+	
+	if(selection[0] == RESULT_CANCEL) CloseScript(GetOwnScriptID());
+	else Menu_Name();
+}
+
+function<void> Menu_Name()
+{
+	_menu = MENU_NAMEENTRY;
+	
+	// Handles name entry
+	int[] selection = HandleNameEntry();
+	
+	if(selection[0] == RESULT_CANCEL)
+	{
+		Menu_Slot();
+		return;
+	}
+	else CloseScript(GetOwnScriptID());
+}

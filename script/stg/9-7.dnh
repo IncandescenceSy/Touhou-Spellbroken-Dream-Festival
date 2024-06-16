@@ -1,0 +1,343 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Sanae ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Sanae"]
+#Text["Sanae"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DGREEN;
+
+// Orbs
+const int[] _SHOTS = [SHOT_ORB_RED, SHOT_ORB_YELLOW, SHOT_ORB_GREEN, SHOT_ORB_AQUA, SHOT_ORB_PURPLE, SHOT_ORB_PINK];
+
+// Star point offset
+const int[][] _POINTS = 
+[
+	[0, -140],   // First point
+	[120, 110],  // Second point
+	[-130, -40],   // Third point
+	[130, -40],    // Fourth point
+	[-120, 110], // Fifth point
+	[0, -140]    // First point again
+];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 74);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SANAE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 404, 580, 178, 107, 55, _colorA, _colorB, CENTER_X, 80, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(52000);
+		case(EV_REQUEST_TIMER) SetScriptResult(120);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	for(int i = 0; i <= 4; i++) _DrawStar(i);
+	_Glow();
+	_BottomRice();
+	
+	loop
+	{
+		loop(2)
+		{
+			_OrbRing();
+		
+			wait(270);
+		}
+		
+		_FirePillar();
+			
+		wait(270);
+	}
+}
+
+task _OrbRing()
+{
+	int stack = 6;
+	float off = rand(0, 360);
+	float wvel = 0.3;
+	for(int i = 0; i < stack; i++)
+	{
+		int way = 28 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 6000);
+		for(int j = 0; j < way; j++)
+		{
+			ObjMove_SetAngularVelocity(CreateShot_Enemy(_enmX, _enmY, 0.25 + (i / 5), (j * (360 / way)) + off, 0.01 + (i / 380) , 1.25 + (i / 2.2), _SHOTS[i], 20), wvel);
+		}
+		wvel *= -1;
+	}
+			
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+}
+
+task _Glow()
+{
+	int glowC = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 1, 1, 30,
+		0, FRAME_HEIGHT - 45, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowC, COLOR_AQUA);
+	
+	_FadeIn(glowC, 45, 130);
+	
+	for(int i = 0; ; i++)
+	{
+		// Glow pulsation
+		ObjSprite2D_SetDestRect(glowC, 0, FRAME_HEIGHT - (45 + (sin(i) * 25)), FRAME_WIDTH, FRAME_HEIGHT);
+		
+		yield;
+	}
+}
+
+task _BottomRice()
+{
+	float px = 5;
+	
+	for(int l = 0; ; l++)
+	{
+		int life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		
+		float off = rand(0.65, 1.35);
+		
+		float iMax = 8;
+		for(int i = 0; i <= iMax; i++)
+		{
+			float x = Interpolate_Linear(px, FRAME_WIDTH - (px * off), i / iMax);
+			CreateShot_Enemy(x, FRAME_HEIGHT + 10, 0.75, 270, 0.015, 3.5, SHOT_RICE_AQUA, 0);
+			if(life < 35000) CreateShot_Enemy(FRAME_WIDTH - x, FRAME_HEIGHT + 10, 0.75, 270, 0.015, 3.5, SHOT_RICE_PINK, 0);
+			
+			wait(6);
+		}
+		
+		off = rand(0.65, 1.35);
+		
+		for(int i = 0; i <= iMax; i++)
+		{
+			int x = Interpolate_Linear(FRAME_WIDTH - px, px * off, i / iMax);
+			CreateShot_Enemy(x, FRAME_HEIGHT + 10, 0.75, 270, 0.015, 3.5, SHOT_RICE_AQUA, 0);
+			if(life < 35000) CreateShot_Enemy(FRAME_WIDTH - x, FRAME_HEIGHT + 10, 0.75, 270, 0.015, 3.5, SHOT_RICE_PINK, 0);
+			
+			wait(6);
+		}
+		
+		// Lasers
+		if(l % 2 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			float offA = rand(-10, 10);
+			
+			iMax = 6;
+			for(int i = 0; i <= iMax; i++)
+			{
+				int x = Interpolate_Linear(FRAME_WIDTH - px + offA, px * off + offA, i / iMax);
+				_Snake(CreateLaser_Curvy(x, FRAME_HEIGHT + 10, 0, 270, 0.02, 5, SHOT_CURVY_LASER_BLACK, 60, 13, 2.5, 0));
+			}
+		}
+	}
+}
+
+task _Snake(int objLaser_)
+{
+	ObjRender_SetBlendType(objLaser_, BLEND_ALPHA);
+	Obj_SetValueI(objLaser_, VAL_GRZCOL, false);
+	
+	wait(15);
+	
+	async
+	{
+		for(int i = 0; Obj_IsExists(objLaser_); i++)
+		{
+			ObjRender_SetColorHSV(objLaser_, i * 2, 255, 255);
+			yield;
+		}
+	}
+	
+	while(Obj_IsExists(objLaser_))
+	{
+		ObjMove_SetAngularVelocity(objLaser_, -2.5);
+		
+		wait(30);
+		
+		ObjMove_SetAngularVelocity(objLaser_, 2.5);
+		
+		wait(30);
+	}
+}
+
+task _DrawStar(int start_)
+{
+	int objLaser = CreateLaser_Curvy(_POINTS[start_][0] + _enmX, _POINTS[start_][1] + _enmY, 0, 0, 0, 0, SHOT_CURVY_LASER_BLACK, 20, 15, 0, 0);
+	Obj_SetValueI(objLaser, VAL_GRZCOL, false);
+	Obj_SetRenderPriorityI(objLaser, RP_STG_SHOT - 1);
+	ObjRender_SetBlendType(objLaser, BLEND_ALPHA);
+	
+	int[] shots = [];
+	
+	async
+	{
+		for(int i = 0; ; i++)
+		{
+			ObjRender_SetColorHSV(objLaser, i * 2, 255, 255);
+			yield;
+		}
+	}
+	
+	for(int i = start_; ; i++)
+	{		
+		float destX = _POINTS[i % 5][0] + _enmX;
+		float destY = _POINTS[i % 5][1] + _enmY;
+		
+		ObjMove_SetDestAtFrame(objLaser, destX, destY, 30, LERP_SMOOTH);
+		
+		wait(30);
+	}
+}
+
+task _FirePillar()
+{
+	_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+	// Warning
+		float px = GetPlayerX();
+		int verts = 25;
+		int objLine = CreatePrimObject(RP_FX_MED_H, PRIMITIVE_LINELIST, verts * 2);
+		int rad = 80;
+		float ang = 270;
+		for(int i = 0; i < verts; i++)
+		{
+			async
+			{
+				float ang2 = i * (360 / verts);
+				
+				int curVert = i * 2;
+				
+				int len = 0;
+				
+				for(int j = 0; j <= 155; j++)
+				{
+					if(j <= 20) len = Interpolate_Smooth(0, 1024, j / 20);
+					
+					float posX = px + (rad * cos(ang2 + j));
+					float posY = (FRAME_HEIGHT + 30) + ((rad * sin(ang2 + j)) * 0.35);
+					
+					float[] pos = Rotate2D(posX, posY, ang + 90, px, FRAME_HEIGHT + 10);
+					
+					ObjPrim_SetVertexPosition(objLine, curVert, pos[0], pos[1], ID_INVALID);
+					ObjPrim_SetVertexPosition(objLine, curVert + 1, pos[0] + (len * cos(ang)), pos[1] + (len * sin(ang)), ID_INVALID);
+					
+					ObjRender_SetColorHSV(objLine, j * 2.5, 100, 255);
+					
+					yield;
+				}
+			}
+		}
+		
+		wait(155);
+		
+		Obj_Delete(objLine);
+		
+		// Bullets
+		
+		loop(1000)
+		{
+			_FireballShot(px);
+		}
+		
+}
+
+task _FireballShot(float px_)
+{
+	float spd = rand(1, 6);
+	int objShot = CreateShot_Enemy(rand(px_ - 40, px_ + 40), rand(FRAME_HEIGHT + 15, FRAME_HEIGHT + 30), spd, rand(260, 280), spd / 80, spd, SHOT_FIREBALL_AQUA, 0);
+	ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+	ObjRender_SetScaleXYZ(objShot, 1.35); 
+	
+	wait(65);
+	
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Linear(1.35, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objShot, scale, scale);
+		
+		yield;
+	}
+	
+	Obj_Delete(objShot);
+}

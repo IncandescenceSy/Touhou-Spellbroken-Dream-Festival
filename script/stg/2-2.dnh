@@ -1,0 +1,163 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Mystia 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Mystia 1st"]
+#Text["Mystia 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_BROWN;
+int _colorB = COLOR_ORANGE;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 11);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MYSTIA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 497, 600, 175, 135, 70, _colorA, _colorB, CENTER_X, 110, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(21000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	int stack = 8;
+	
+	loop
+	{
+		int way = 4;
+		for(int i = 0; i <= way; i++) _ManageEnemy(i, i * (360 / way));
+		
+		wait(20);
+		
+		int iMax = 180;
+		for(int i = -iMax; i <= iMax; i++)
+		{
+			if(i % 3 == 0)
+			{
+				for(int j = 0; j <= stack; j++)
+				{
+					int objShot = CreateShot_Enemy(_enmX, _enmY, 0.5 + (j / 4), (sin(i) * 100) + 90, 0.03 + (0.005 * j), 4 + (0.35 * j), SHOT_NOTE_ORANGE, 20);
+					ObjMove_AddPatternA2(objShot, 45, NO_CHANGE, NO_CHANGE, -0.2, 0, 0); 
+					ObjMove_AddPatternA2(objShot, 90, NO_CHANGE, NO_CHANGE, 0.1, 40 + (0.35 * j), 0);
+				}
+			}
+			
+			yield;
+			
+			if(i == 0) wait(60);
+		}
+	}
+}
+
+task _ManageEnemy(int index_, float ang_)
+{
+	int objEnemy = CreateEnemy
+	(
+		700, 0, true, false,
+		_colorA, STANDARD_ENEMYSCALE, true, true,
+		0, 0, 0, 0, 0
+	);
+	Obj_SetValueI(objEnemy, VAL_TARGET, false);
+	
+	float cenX = GetPlayerX();
+	float cenY = GetPlayerY();
+	
+	float rad = 512;
+	
+	//int life = ObjEnemy_GetInfo(objEnemy, INFO_LIFE);
+
+	while(rad >= -512 && Obj_IsExists(objEnemy))
+	{
+		ObjMove_SetPosition(objEnemy, cenX + rad * cos(ang_), cenY + rad * sin(ang_));
+		
+		if(rad % 30 == 0)
+		{
+			for(int i = 0; i <= 1; i++) CreateShot_Enemy(ObjMove_GetX(objEnemy), ObjMove_GetY(objEnemy), 0.25, ang_ + (i * 180), 0.02, 2.5, SHOT_SCALE_DORANGE, 25);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		ang_++;
+		rad--;
+		
+		//int damage = life - ObjEnemy_GetInfo(objEnemy, INFO_LIFE);
+		
+		//ObjEnemy_SetLife(_objBoss, ObjEnemy_GetInfo(_objBoss, INFO_LIFE) - damage);
+		
+		//life = ObjEnemy_GetInfo(objEnemy, INFO_LIFE);
+		
+		if(rad == 180) rad = -180;
+		
+		yield;
+	}
+	
+	if(Obj_IsExists(objEnemy)) ObjEnemy_SetLife(objEnemy, 0);
+}

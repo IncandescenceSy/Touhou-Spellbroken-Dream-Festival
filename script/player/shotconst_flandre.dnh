@@ -1,0 +1,13 @@
+///////////////////////////////////////////////////////////////
+//////////////////// Flandre Shot Constants ///////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains constant names for bullets used by Flandre and loads her shotdata
+
+local
+{
+	// Loads data when this script is included
+	LoadPlayerShotData(DIR ~ "/script/player/shotdata_flandre.dnh");
+}
+
+const int MAIN_SHOT = 1; // Red main shot

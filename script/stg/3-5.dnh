@@ -1,0 +1,160 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Doremy 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Doremy 2nd"]
+#Text["Doremy 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PINK;
+int _colorB = COLOR_DINDIGO;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 23);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_DOREMY);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 389, 640, 178, 107, 60, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+	_Walls();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(20000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		int div = FRAME_WIDTH / (rand(4, 6));
+		int iMax = FRAME_WIDTH / div;
+	
+		for(int i = 1; i <= iMax; i++)
+		{
+			_Rice(i, div, 1, SHOT_RICE_INVERT_BLUE);
+			
+			wait(25);
+		}
+	}
+}
+
+task _Walls()
+{
+	wait(125);
+	
+	loop
+	{
+		int div = FRAME_WIDTH / 60;
+		WallSpawn(div);
+		
+		div = FRAME_WIDTH / 40;
+		WallSpawn(div);
+		
+		div = FRAME_WIDTH / 20;
+		WallSpawn(div);
+	}
+}
+
+function<void> WallSpawn(int div_)
+{
+	int iMax = FRAME_WIDTH / div_;
+	
+	int spawn = 1;
+		
+	for(int i = 1; i <= iMax; i++)
+	{
+		if(spawn == 1 && i % 12 == 0) spawn *= -1;
+		else if(spawn == -1 && i % 4 == 0) spawn *= -1;
+		
+		if(spawn == 1) _Rice(i, div_, 2.3, SHOT_RICE_INVERT_PURPLE);
+		
+		wait(5);
+	}
+}
+
+task _Rice(int i_, int div_, float spd_, int shot_)
+{
+	int jMax = 4 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 12000);
+	for(int j = 0; j <= jMax; j++)
+	{
+		float posX = FRAME_WIDTH - (i_ * div_) + (sin(j * 4) * 50);
+		if((!(posX < CENTER_X + 10 && posX > CENTER_X - 10) && ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 16000))
+		{
+			CreateShot_Enemy(posX, -20, 0, 90, 0.01 * spd_, 2 * spd_, shot_, 0);
+			CreateShot_Enemy((i_ * div_) - (sin(j * 4) * 50), -20, 0, 90, 0.01 * spd_, 2 * spd_, shot_, 0);
+		}
+		else if(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) < 16000)
+		{
+			CreateShot_Enemy(posX, -20, 0, 90, 0.01 * spd_, 2 * spd_, shot_, 0);
+			CreateShot_Enemy((i_ * div_) - (sin(j * 4) * 50), -20, 0, 90, 0.01 * spd_, 2 * spd_, shot_, 0);
+		}
+				
+		wait(18);
+	}
+}

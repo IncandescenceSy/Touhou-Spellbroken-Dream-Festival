@@ -1,0 +1,297 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yukari 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yukari 2nd"]
+#Text["Yukari 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DPURPLE;
+
+// Realm
+int _realm = 0;
+int[] _shots = [SHOT_RICE_RED, SHOT_RICE_GREEN, SHOT_RICE_BLUE];
+float[] _scales = [0.8, 1, 1.2];
+int[] _colors = [COLOR_RED, COLOR_GREEN, COLOR_BLUE];
+int[][] _colorsRGB = [ColorHexToARGB(_colors[0], COLOR_PERMUTE_RGB), ColorHexToARGB(_colors[1], COLOR_PERMUTE_RGB),  ColorHexToARGB(_colors[2], COLOR_PERMUTE_RGB)];
+int[] _priorities = [RP_STG_SHOT_N, RP_STG_SHOT_N + 2, RP_STG_SHOT_N + 4];
+
+// Amount of enemies
+int _enemyCount = 0;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 60);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUKARI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_1.png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_2.png"]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 360, 630, 185, 104, 65, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_CONTROLS, PRESS_XC);
+	NotifyEvent(_ID_PLAYER, EV_RECOLOR_WHILE_BOSS_LIVES, [255, 255, 255], _objBoss);
+	
+	// Pattern
+	_Realm();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(19000);
+		case(EV_REQUEST_TIMER) SetScriptResult(120);
+}
+
+@MainLoop
+{
+	ObjEnemy_SetDamageRate(_objBoss, (ObjEnemy_GetInfo(_objBoss, INFO_DAMAGE_RATE_SHOT) > 0) ? 100 / (_enemyCount + 1) : 0, 0);
+	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Realm()
+{
+	loop
+	{
+		// Key checking
+		if(GetVirtualKeyState(VK_BOMB) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			_realm--;
+		}
+		else if(GetVirtualKeyState(VK_USER1) == KEY_PUSH)
+		{
+			_realm++;
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		}
+		if(_realm > 2) _realm = 0;
+		else if(_realm < 0) _realm = 2;
+		
+		// Player scale
+		float scale = Interpolate_Smooth(ObjRender_GetScaleX(_objPlayer), _scales[_realm], 0.15);
+		ObjRender_SetScaleXYZ(_objPlayer, scale, scale, ID_INVALID);
+		
+		// Player color
+		int[] col = ObjRender_GetColor(_objPlayer);
+		ObjRender_SetColor(_objPlayer, Interpolate_Smooth(col[0], _colorsRGB[_realm][0], 0.15), Interpolate_Smooth(col[1], _colorsRGB[_realm][1], 0.15), Interpolate_Smooth(col[2], _colorsRGB[_realm][2], 0.15));
+		
+		// Player option scale, color, and render priority
+		NotifyEvent(_ID_PLAYER, EV_CONTROL_OPTIONS, _scales[_realm], _colorsRGB[_realm], _priorities[_realm], _colors[_realm]);
+		
+		for each(int i in ref GetAllShotID(TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(i))
+				case(SHOT_RICE_RED)
+				{
+					if(_realm == 0) ObjRender_SetAlpha(i, 255);
+					else ObjRender_SetAlpha(i, 125);
+				}
+				case(SHOT_RICE_GREEN)
+				{
+					if(_realm == 1) ObjRender_SetAlpha(i, 255);
+					else ObjRender_SetAlpha(i, 125);
+				}
+				case(SHOT_RICE_BLUE)
+				{
+					if(_realm == 2) ObjRender_SetAlpha(i, 255);
+					else ObjRender_SetAlpha(i, 125);
+				}
+		} 
+	
+		// Player shots
+		for each(int i in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_PLAYER))
+		{
+			// Scale
+			ObjRender_SetScaleXYZ(i, _scales[_realm], _scales[_realm], ID_INVALID);
+			
+			// Color
+			ObjRender_SetColor(i, _colorsRGB[_realm][0], _colorsRGB[_realm][1], _colorsRGB[_realm][2]);
+			
+			// Priority
+			Obj_SetRenderPriorityI(i, _priorities[_realm]);
+		}
+		
+		// Enemy shot hiboxes
+		for each(int i in GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			ObjShot_SetIntersectionEnable(i, (_realm == Obj_GetValueDI(i, VAL_MISC, ID_INVALID) ? true : false));
+		}
+		
+		yield;
+	}
+}
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+
+	int way = 9;
+	for(int i = 0; i <= way - 1; i++) _Bowap(i % 3, i * (360 / way), 320);
+	
+	wait(255);
+	
+	way = 6;
+	
+	loop
+	{
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(70);
+		
+		_ManageEnemy(CreateEnemy
+		(
+			1000, STANDARD_ENEMYHITBOX, false, true,
+			COLOR_RED, STANDARD_ENEMYSCALE * 0.8, true, true,
+			_enmX, _enmY, 70, 140, 75
+		), 20, 0);
+		
+		wait(110);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(70);
+		
+		_ManageEnemy(CreateEnemy
+		(
+			1000, STANDARD_ENEMYHITBOX, false, true,
+			COLOR_BLUE, STANDARD_ENEMYSCALE * 1.2, true, true,
+			_enmX, _enmY, FRAME_WIDTH - 70, 140, 75
+		), 20, 2);
+		
+		wait(110);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(70);
+		
+		_ManageEnemy(CreateEnemy
+		(
+			1000, STANDARD_ENEMYHITBOX, false, true,
+			COLOR_GREEN, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, CENTER_X, 140, 75
+		), 20, 1);
+		
+		wait(110);
+		
+		for(int i = 0; i <= way - 1; i++) _Bowap(i % 3, i * (360 / way), 120);
+		
+		wait(100);
+	}
+}
+
+task _Bowap(int realm_, float off_, int iMax_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		CreateShot_Realm(_enmX, _enmY, 0.1, ((sin(i / 3)) * 360) + off_, 0.02, 3, _shots[realm_], 15, realm_);
+		
+		yield;
+	}
+}
+
+function<int> CreateShot_Realm(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, int graphic_, int delay_, int realm_)
+{
+	int objShot = ObjShot_Create(OBJ_SHOT);
+	ObjShot_Regist(objShot);
+	ObjMove_SetPosition(objShot, posX_, posY_);
+	ObjMove_SetSpeed(objShot, spd_);
+	ObjMove_SetAngle(objShot, ang_);
+	ObjMove_SetAcceleration(objShot, accel_);
+	ObjMove_SetMaxSpeed(objShot, maxspd_);
+	ObjShot_SetGraphic(objShot, graphic_);
+	
+	if(delay_ > 0)
+	{
+		async
+		{
+			for(float i = 0; i <= delay_; i++)
+			{	
+				float scale = Interpolate_Smooth(0, _scales[realm_], i / delay_);
+				ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+				yield;
+			}
+		}
+	}
+	
+	ObjShot_SetIntersectionScaleXY(objShot, _scales[realm_], _scales[realm_]);
+	Obj_SetRenderPriorityI(objShot, _priorities[_realm] + 1);
+	Obj_SetValueI(objShot, VAL_MISC, realm_);
+	
+	ObjShot_SetIntersectionEnable(objShot, false);
+
+	return objShot;
+}
+
+task _ManageEnemy(int objEnemy_, int EnemyHitbox_, int realm_)
+{
+	_enemyCount++;
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		float enmX = ObjMove_GetX(objEnemy_);
+		float enmY = ObjMove_GetY(objEnemy_);
+		
+		for(int j = 0; j <= 3; j++) CreateShot_Realm(enmX, enmY, 0.1, ((sin(i / 3)) * 360) + (j * 90), 0.02, 3, _shots[realm_], 15, realm_);
+		
+		if(_realm == realm_) ObjEnemy_SetIntersectionCircleToShot(objEnemy_, ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), EnemyHitbox_);
+		
+		if(i % 230 == 0) ObjMove_SetDestAtFrame(objEnemy_, enmX, enmY + 180, 60, LERP_DECELERATE);
+		
+		yield;
+	}
+	_enemyCount--;
+}

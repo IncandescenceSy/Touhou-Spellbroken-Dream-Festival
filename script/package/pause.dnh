@@ -1,0 +1,67 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Pause Menu /////////////////////////
+///////////////////////////////////////////////////////////////
+
+// For when the game has been paused
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions specifically for the pause and similar menus
+#include "./../lib/lib_pause.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Package script ID
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+
+// Script results
+int[]  _result  = [RESULT_CANCEL, RESULT_END, RESULT_RETRY]; 
+bool[] _confirm = [false, IsReplay() ? false : true, IsReplay() ? false : true];
+int _cancel = 1;
+
+// Render targets
+string[] _target = [RT5, RT6, RT7];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	SetInvalidRenderPriorityA1(RP_MIN, RP_UI_TOAST);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_PAUSE);
+	
+	// Handles menu selection
+	_HandleSelection(_result, _confirm, 2, true, true);
+	
+	// Renders background image
+	_RenderBackground();
+	
+	// Renders menu title
+	_RenderTitle(0);
+	
+	// Renders pause back and star particles
+	_RenderPauseBack(0, 0.5, 1);
+	
+	// Renders option graphics
+	int off = IsReplay() ? 12 : 0;
+	for(int i = off; i <= off + 2; i++) _RenderMenuOption(i, 200, _target[i % 3]);
+	
+	// Renders spell hint
+	_RenderHint(107, 94, 255);
+}
+
+@MainLoop
+{	
+	yield;
+}

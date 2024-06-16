@@ -1,0 +1,541 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Enemy Library ///////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains all functions for creation and manipulation of basic enemies
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./lib_create.dnh"
+
+// This library contains functions that will return various values
+#include "./lib_logic.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+
+bool _prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+
+// Particle list for familiar circles
+int _objCirc = CreateParticleList2D
+(
+	DIR_IMG_EFF_CIRCLE_MAIN,
+	0, 0, 627, 627,
+	BLEND_ALPHA, RP_STG_ENM + 3
+);
+
+// Particle list for familiar trails
+int _objTrail = CreateParticleList2D
+(
+	DIR_IMG_EFF_WAVE,
+	0, 0, 454, 454,
+	BLEND_ADD_ARGB, RP_STG_ENM + 3
+);
+
+// Charge effect particles
+int _objPartChar = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED + 1
+);
+	
+bool _effChr = GetAreaCommonData(AREA_SETTINGS, EFF_CHR, 1);
+	
+/////////////////////// Library Content ///////////////////////
+
+// Creates a basic enemy
+function<int> CreateEnemy
+(
+	int enemyLife_, int enemyHitbox_, bool normalHitbox_, bool autoDelete_,
+	int enemyColor_, float enemyScale_, bool normalRender_, bool normalTrail_,
+	float enemyInitX_, float enemyInitY_, float enemyDestX_, float enemyDestY_, int enemyMoveTime_
+)
+{
+	int objEnemy = ObjEnemy_Create(OBJ_ENEMY);
+    ObjEnemy_Regist(objEnemy);
+    ObjEnemy_SetLife(objEnemy, enemyLife_);
+	Obj_SetValueI(objEnemy, VAL_MAXLIFE, enemyLife_);
+	ObjMove_SetPosition(objEnemy, enemyInitX_, enemyInitY_);
+	Obj_SetValueI(objEnemy, VAL_ENMCOL, enemyColor_);
+	if(enemyMoveTime_ > 0) _EnemyMoveSwoop(objEnemy, enemyDestX_, enemyDestY_, 0.5, enemyMoveTime_);
+	_ManageEnemy(objEnemy, enemyHitbox_, normalHitbox_, autoDelete_, enemyColor_, enemyScale_, normalRender_, normalTrail_);
+	return objEnemy;
+}
+
+// Sets a hitbox to an enemy and renders it in addition to waiting for it to be deleted
+task _ManageEnemy(int objEnemy_, int enemyHitbox_, bool normalHitbox_, bool autoDelete_, int enemyColor_,  float enemyScale_, bool normalRender_, bool normalTrail_)
+{
+	bool prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+	
+	int[] enemyColor = ColorHexToARGB(enemyColor_, COLOR_PERMUTE_RGB) + 70;
+	
+	// Enemy position
+	int enmX = ObjMove_GetX(objEnemy_);
+	int enmY = ObjMove_GetY(objEnemy_);
+
+	bool onscreen = true;
+	
+	int iCap;
+	
+	const int GLOW = 200;
+	
+	float enemyScaleRender = 0;
+	
+	for(int i = 0; ObjEnemy_GetInfo(objEnemy_, INFO_LIFE) > 0; i++)
+	{
+		// Deletion
+		if(autoDelete_ && !Obj_IsInArea(objEnemy_, -32, -32, FRAME_WIDTH + 32, FRAME_HEIGHT + 32))
+		{
+			onscreen = false;
+			ObjEnemy_SetLife(objEnemy_, 0);
+		}
+
+		// Hitbox; if normalHitbox_ is set to false, then the enemy will have no hitbox unless it is manually handled somewhere else
+		if(normalHitbox_) ObjEnemy_SetIntersectionCircleToShot(objEnemy_, ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), enemyHitbox_);
+		
+		enmX = ObjMove_GetX(objEnemy_);
+		enmY = ObjMove_GetY(objEnemy_);
+			
+		// Graphic
+		
+		// Circles
+		if(normalRender_)
+		{
+			float sz = sin(i);
+			float cz = cos(i);
+			
+			// First circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, sz + (i * 0.3), cz + (i * 0.3), i * 0.7);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Second circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, sz + (i * 0.6), cz + (i * 0.6), (i * 0.7) + 180);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Third circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.3)) + 180, (cz + (i * 0.3)) + 180, -(i * 0.7));
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Fourth circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.6)) + 180, (cz + (i * 0.6)) + 180, -(i * 0.7) + 180);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			enemyScaleRender = Interpolate_Smooth(0, enemyScale_, min(1, i / 60));
+		}
+		
+		// Trail
+		if(normalTrail_ && prtMisc && i % 3 == 0) _CreateEnemyTrail(objEnemy_, enemyColor_);
+		
+		iCap = i;
+		
+		yield;
+	}
+	
+	if(onscreen && Obj_IsInArea(objEnemy_, -32, -32, FRAME_WIDTH + 32, FRAME_HEIGHT + 32))
+	{
+		// Sound
+		NotifyEvent(GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID), EV_SFX_PLAY, DIR_SFX_EXPLODE_ENEMY);
+		
+		// Particles
+		if(prtMisc) _RenderEnemyExplosion(ObjMove_GetX(objEnemy_),ObjMove_GetY(objEnemy_), enemyColor_);
+		
+		// Enemy kill count
+		SetAreaCommonData(AREA_GAME, FAMILIAR_KILL, GetAreaCommonData(AREA_GAME, FAMILIAR_KILL, 0) + 1);
+	}
+	
+	Obj_Delete(objEnemy_);
+	
+	enemyScale_ = enemyScaleRender;
+	
+	if(normalRender_ && normalTrail_)
+	{
+		float iMax = iCap + 30;
+		for(int i = iCap; i <= iMax; i++)
+		{
+			float sz = sin(i);
+			float cz = cos(i);
+			
+			// First circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, Interpolate_Smooth(enemyScale_, 0, (i - iCap) / (iMax - iCap)));
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, sz + (i * 0.3), cz + (i * 0.3), i * 0.7);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Second circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, Interpolate_Smooth(enemyScale_, 0, (i - iCap) / (iMax - iCap)));
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, sz + (i * 0.6), cz + (i * 0.6), (i * 0.7) + 180);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Third circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, Interpolate_Smooth(enemyScale_, 0, (i - iCap) / (iMax - iCap)));
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.3)) + 180, (cz + (i * 0.3)) + 180, -(i * 0.7));
+			ObjParticleList_AddInstance(_objCirc);
+			
+			// Fourth circle
+			ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+			ObjParticleList_SetScale(_objCirc, Interpolate_Smooth(enemyScale_, 0, (i - iCap) / (iMax - iCap)));
+			ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+			ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.6)) + 180, (cz + (i * 0.6)) + 180, -(i * 0.7) + 180);
+			ObjParticleList_AddInstance(_objCirc);
+			
+			yield;
+		}
+	}
+}
+
+task _CreateEnemyTrail(int objEnemy_, int color_)
+{
+	float initX = ObjMove_GetX(objEnemy_);
+	float initY = ObjMove_GetY(objEnemy_);
+	
+	float curX = initX;
+	float curY = initY;
+	
+	int rad = 80;
+	
+	float spd = ObjMove_GetSpeed(objEnemy_);
+	float ang = (spd > 0) ? ObjMove_GetAngle(objEnemy_) + 180 : 270;
+	
+	float destX = initX + rad * cos(ang);
+	float destY = initY + rad * sin(ang);
+	
+	float iMax = 60;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Position
+		curX = Interpolate_Smooth(initX, destX, i / iMax);
+		curY = Interpolate_Smooth(initY, destY, i / iMax);
+		
+		ObjParticleList_SetPosition(_objTrail, curX, curY, ID_INVALID);
+		
+		// Fade
+		ObjParticleList_SetAlpha(_objTrail, Interpolate_Smooth(0, 1024, i / iMax));
+		
+		// Size
+		float scale = Interpolate_Smooth(0.1, 0, i / iMax);
+		ObjParticleList_SetScale(_objTrail, scale);
+		
+		// Tint
+		ObjParticleList_SetColor(_objTrail, color_);
+		
+		ObjParticleList_AddInstance(_objTrail);
+		
+		yield;
+	}
+}
+
+// Smooth movement along a circle's edge; by Neck Logo (Nicholas Logan)
+task _EnemyMoveSwoop(int obj_, float x2_, float y2_, float curveScale_, float time_)
+{
+    bool canMove = true;
+
+    float x1 = ObjMove_GetX(obj_);
+    float y1 = ObjMove_GetY(obj_);
+    
+    float angle = NormalizeAngle(atan2(y2_ - y1, x2_ - x1));
+    float angleN = (90 <= angle && angle <= 270) ? angle - 90 : angle + 90;
+    
+    float dist = hypot(y2_ - y1, x2_ - x1);
+    float midDist = dist / 2;
+    
+    float controlDist = dist * curveScale_;
+    
+    float xC = x1 + midDist * cos(angle) + controlDist * cos(angleN);
+    float yC = y1 + midDist * sin(angle) + controlDist * sin(angleN);
+    
+    async
+	{ // Movement
+        for (int t = 1i; t <= time_ && canMove && !Obj_IsDeleted(obj_); t++)
+		{
+            float interp = Interpolate_Smoother(0, 1, t / time_);
+			 //ObjMove_SetPosition(obj_, Interpolate_QuadraticBezier(x1, x2_, xC, interp), Interpolate_QuadraticBezier(y1, y2_, yC, interp));
+            ObjMove_SetDestAtFrame(obj_, Interpolate_QuadraticBezier(x1, x2_, xC, interp), Interpolate_QuadraticBezier(y1, y2_, yC, interp), 1);
+            yield;
+        }
+    }
+    
+    /*if (Obj_GetType(obj_) == OBJ_ENEMY && 0 < ObjEnemy_GetInfo(obj_, INFO_LIFE))
+	{
+        async
+		{ // Safeguard against overlapping movement
+            while (0 < ObjEnemy_GetInfo(obj_, INFO_LIFE)) yield;
+            canMove = false;
+        }
+    }*/
+    
+    return;
+}
+
+function<void> _EnemyMoveSwoop(int obj_, float x2_, float y2_, float curveScale_, float time_, int life_, int objScene_, int timeOut_)
+{
+    bool canMove = true;
+
+    float x1 = ObjMove_GetX(obj_);
+    float y1 = ObjMove_GetY(obj_);
+    
+    float angle = NormalizeAngle(atan2(y2_ - y1, x2_ - x1));
+    float angleN = (90 <= angle && angle <= 270) ? angle - 90 : angle + 90;
+    
+    float dist = hypot(y2_ - y1, x2_ - x1);
+    float midDist = dist / 2;
+    
+    float controlDist = dist * curveScale_;
+    
+    float xC = x1 + midDist * cos(angle) + controlDist * cos(angleN);
+    float yC = y1 + midDist * sin(angle) + controlDist * sin(angleN);
+    
+    async
+	{ // Movement
+        for (int t = 1i; t <= time_ && canMove && !Obj_IsDeleted(obj_); t++)
+		{
+            float interp = Interpolate_Smoother(0, 1, t / time_);
+			 //ObjMove_SetPosition(obj_, Interpolate_QuadraticBezier(x1, x2_, xC, interp), Interpolate_QuadraticBezier(y1, y2_, yC, interp));
+            ObjMove_SetDestAtFrame(obj_, Interpolate_QuadraticBezier(x1, x2_, xC, interp), Interpolate_QuadraticBezier(y1, y2_, yC, interp), 1);
+			if(ObjEnemy_GetInfo(obj_, INFO_LIFE) < life_ || ObjEnemyBossScene_GetInfo(objScene_, INFO_TIMERF) < timeOut_)
+			{
+				canMove = false;
+				//ObjMove_SetDestAtFrame(obj_, ObjMove_GetX(obj_), ObjMove_GetY(obj_), 1);
+				return;
+			}
+            yield;
+        }
+    }
+    
+    /*if (Obj_GetType(obj_) == OBJ_ENEMY && 0 < ObjEnemy_GetInfo(obj_, INFO_LIFE))
+	{
+        async
+		{ // Safeguard against overlapping movement
+            while (life_ < ObjEnemy_GetInfo(obj_, INFO_LIFE)) yield;
+            canMove = false;
+        }
+    }*/
+    
+    return;
+}
+
+// Creates and manipulates a charge effect
+task _RenderCharge(float posX_, float posY_, int waveCount_, int colorA_, int colorB_)
+{
+	
+	// Charge
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, waveCount_ >= 3 ? DIR_SFX_CHARGE_STRONG : DIR_SFX_CHARGE_WEAK);
+	loop(waveCount_)
+	{
+		if(_effChr) _RenderChargeWave(posX_, posY_, 3.5, 0, 0, 255, colorA_);
+		loop(40)
+		{
+			if(_effChr) _RenderChargeParticle(posX_, posY_, colorB_);
+			yield;
+		}
+	}
+	
+	wait(30);
+	
+	// Burst
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BURST);
+	if(_effChr)
+	{
+		_RenderChargeWave(posX_, posY_, 0, 3.5, 255, 0, colorA_);
+		loop(40)
+		{
+			_RenderBurstParticle(posX_, posY_, colorB_);
+		}
+	}
+}
+
+// Creates and manipulates a charge effect with no wave
+task _RenderChargeWaveless(float posX_, float posY_, int waveCount_, int colorA_, int colorB_)
+{
+	
+	// Charge
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, waveCount_ >= 3 ? DIR_SFX_CHARGE_STRONG : DIR_SFX_CHARGE_WEAK);
+	loop(waveCount_)
+	{
+		loop(40)
+		{
+			if(_effChr) _RenderChargeParticle(posX_, posY_, colorB_);
+			yield;
+		}
+	}
+	
+	wait(30);
+	
+	// Burst
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BURST);
+	if(_effChr)
+	{
+		loop(40)
+		{
+			_RenderBurstParticle(posX_, posY_, colorB_);
+		}
+	}
+}
+
+// Creates and manipulates a charge wave effect
+task _RenderChargeWave(float posX_, float posY_, float scaleOrg_, float scaleDest_, int alphaOrg_, int alphaDest_, int color_)
+{
+	int objWave = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_WAVE, RP_FX_MED, BLEND_ADD_ARGB,
+		0, 0, 454, 454,
+		0, 0,
+		posX_, posY_
+	);
+	
+	ObjRender_SetColor(objWave, color_);
+	
+	float scaleCur = scaleOrg_;
+	
+	float alphaCur = alphaOrg_;
+	
+	float iMax = 65;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Size
+		scaleCur = Interpolate_Smooth(scaleOrg_, scaleDest_, i / iMax);
+		ObjRender_SetScaleXYZ(objWave, scaleCur);
+		
+		// Fade
+		alphaCur = Interpolate_Smooth(alphaOrg_, alphaDest_, i / iMax);
+		ObjRender_SetAlpha(objWave, alphaCur);
+			
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objWave);
+}
+
+// Creates and manipulates a star particle for a boss charge effect
+task _RenderChargeParticle(float posX_, float posY_, int color_)
+{
+	
+	float rad = prand(200, 230);
+	
+	float orgX = posX_ + (rad * cos(prand(0, 360))); 
+	float orgY = posY_ + (rad * sin(prand(0, 360))); 
+	
+	float posX = orgX;
+	float posY = orgY;
+	
+	float angX = prand(0, 180);
+	float angY = prand(0, 180);
+	
+	float scaleOrg = prand(0.35, 0.4);
+	float scaleCur = scaleOrg;
+	
+	float alphaOrg = 0;
+	float alphaCur = alphaOrg;
+	
+	float iMax = 65;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Color
+		ObjParticleList_SetColor(_objPartChar, color_);
+	
+		// Position
+		posX = Interpolate_Accelerate(orgX, posX_, i / iMax);
+		posY = Interpolate_Accelerate(orgY, posY_, i / iMax);
+		ObjParticleList_SetPosition(_objPartChar, posX, posY, ID_INVALID);
+		
+		// Rotation
+		angX += prand(1, 2);
+		angY -= prand(1, 2);
+		ObjParticleList_SetAngle(_objPartChar, angX, angY, 0);
+		
+		// Size
+		scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+		ObjParticleList_SetScale(_objPartChar, scaleCur);
+		
+		// Fade
+		alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+		ObjParticleList_SetAlpha(_objPartChar, alphaCur);
+		
+		ObjParticleList_AddInstance(_objPartChar);
+		
+		yield;
+	}
+}
+
+// Creates and manipulates a star particle for a boss burst effect
+task _RenderBurstParticle(float posX_, float posY_, int color_)
+{
+	
+	float rad = prand(300, 330);
+	
+	float orgX = posX_;
+	float orgY = posY_;
+	
+	float posX = orgX;
+	float posY = orgY;
+	
+	float destX = posX + (rad * cos(prand(0, 360))); 
+	float destY = posY + (rad * sin(prand(0, 360))); 
+	
+	float angX = prand(0, 180);
+	float angY = prand(0, 180);
+	
+	float scaleOrg = prand(0.35, 0.4);
+	float scaleCur = scaleOrg;
+	
+	float alphaOrg = 0;
+	float alphaCur = alphaOrg;
+	
+	float iMax = 75;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Color
+		ObjParticleList_SetColor(_objPartChar, color_);
+	
+		// Position
+		posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+		posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+		ObjParticleList_SetPosition(_objPartChar, posX, posY, ID_INVALID);
+		
+		// Rotation
+		angX += prand(1, 2);
+		angY -= prand(1, 2);
+		ObjParticleList_SetAngle(_objPartChar, angX, angY, 0);
+		
+		// Size
+		scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+		ObjParticleList_SetScale(_objPartChar, scaleCur);
+		
+		// Fade
+		alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+		ObjParticleList_SetAlpha(_objPartChar, alphaCur);
+		
+		ObjParticleList_AddInstance(_objPartChar);
+		
+		yield;
+	}
+}
+
+task _RenderEnemyExplosion(float enmX_, float Enemy_, int EnemyColor_)
+{
+	loop(50) _RenderBurstParticle(enmX_, Enemy_, EnemyColor_);	
+}

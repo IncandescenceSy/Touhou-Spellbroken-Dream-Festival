@@ -1,0 +1,188 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yachie 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yachie 1st"]
+#Text["Yachie 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DGREEN;
+
+	
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 28);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YACHIE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 445, 630, 192, 110, 72, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+	_Achieve();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(30000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	int objShot = ObjPatternShot_Create();
+	ObjPatternShot_SetPatternType(objShot, PATTERN_POLYGON);
+	ObjPatternShot_SetShotType(objShot, OBJ_SHOT);
+	ObjPatternShot_SetParentObject(objShot, _objBoss);
+	ObjPatternShot_SetShotCount(objShot, 3, 4);
+	ObjPatternShot_SetSpeed(objShot, 0, 0);
+	ObjPatternShot_SetAngle(objShot, 30, 1);
+	ObjPatternShot_SetShootRadius(objShot, 30);
+	ObjPatternShot_SetDelay(objShot, 0);
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	// I don't know why I did this, actually
+	const int[] SHOTS = 
+	[
+		SHOT_SCALE_RED,
+		SHOT_SCALE_YELLOW, SHOT_SCALE_YELLOW, SHOT_SCALE_YELLOW,
+		SHOT_SCALE_GREEN, SHOT_SCALE_GREEN, SHOT_SCALE_GREEN, SHOT_SCALE_GREEN, SHOT_SCALE_GREEN, 
+		SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, SHOT_SCALE_AZURE, 
+		SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK, SHOT_SCALE_PINK
+	];
+	
+	const int[][] POINTS =
+	[
+		[CENTER_X, 100, 0],
+		[CENTER_X - 50, 140, 15], [CENTER_X, 150, 0], [CENTER_X + 50, 140, -15],
+		[CENTER_X - 100, 180, 21], [CENTER_X - 50, 200, 0], [CENTER_X, 200, 0], [CENTER_X + 50, 200, 0], [CENTER_X + 100, 180, -21],
+		[CENTER_X - 145, 230, 27], [CENTER_X - 100, 240, 13], [CENTER_X - 50, 250, 0], [CENTER_X, 250, 0], [CENTER_X + 50, 250, 0], [CENTER_X + 100, 240, -13], [CENTER_X + 145, 230, -27], 
+		[CENTER_X - 190, 270, 33], [CENTER_X - 150, 280, 22], [CENTER_X - 100, 290, 11], [CENTER_X - 50, 300, 0], [CENTER_X, 300, 0], [CENTER_X + 50, 300, 0], [CENTER_X + 100, 290, -11], [CENTER_X + 150, 280, -22], [CENTER_X + 190, 270, -33]
+	];
+	
+	loop
+	{
+		float offY = rand(-85, 25);
+		
+		int iMax = length(POINTS);
+		for(int i = 0; i < iMax; i++)
+		{	
+			ObjPatternShot_SetBasePoint(objShot, POINTS[i][0], POINTS[i][1] + offY);
+			ObjPatternShot_SetAngle(objShot, 30 + POINTS[i][2], 1);
+			ObjPatternShot_SetGraphic(objShot, SHOTS[i]);
+			int[] shots = ObjPatternShot_FireReturn(objShot);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			for each(int iShots in ref shots)
+			{
+				_GrowShot(iShots);
+				ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+			}
+			
+			wait(5);
+		}
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+	}
+}
+
+task _GrowShot(int objShot_)
+{
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{	
+		float scale = Interpolate_Smooth(0, 1, i / iMax);
+		//WriteLog("i: " ~ itoa(i) ~ "   scale: " ~ itoa(scale)); 
+		// According to this, scale is always either 0 or 1, but how is that possible???
+		// If I replace the 1 in the interpolation with a 0.5, the bullets instantly go to 0.5 scale.
+		//WriteLog(i / iMax);
+		// This seems to be as it should be...
+		ObjRender_SetScaleXYZ(objShot_, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objShot_, scale, scale);
+				
+		yield;
+	}
+	
+	wait(45);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	ObjMove_SetAcceleration(objShot_, 0.0035);
+	ObjMove_SetMaxSpeed(objShot_, 1.5);
+}
+
+task _Achieve()
+{
+	SetAreaCommonData(AREA_GAME, ACHIEVE_READY, CH41);
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_UP) != KEY_FREE || GetVirtualKeyState(VK_DOWN) != KEY_FREE)
+		{
+			SetAreaCommonData(AREA_GAME, ACHIEVE_READY, "ID_INVALID");
+			return;
+		}
+		
+		yield;
+	}
+}

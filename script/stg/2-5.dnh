@@ -1,0 +1,154 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Mystia 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Mystia 2nd"]
+#Text["Mystia 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_BROWN;
+int _colorB = COLOR_ORANGE;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 14);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MYSTIA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 497, 600, 175, 135, 70, _colorA, _colorB, CENTER_X, 110, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Visibility();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Visibility()
+{
+	int objPlayer = GetPlayerObjectID();
+	
+	loop
+	{
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			ObjRender_SetAlpha(iShots, Interpolate_Linear(255, 0, GetObjectDistance(iShots, objPlayer) / 165));
+		}
+		
+		yield;
+	}
+}
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	_Rings();
+	
+	int stack = 8;
+	
+	loop
+	{
+		int iMax = 180;
+		for(int i = -iMax; i <= iMax; i++)
+		{
+			if(i % 3 == 0)
+			{
+				for(int j = 0; j <= stack; j++)
+				{
+					int objShot = CreateShot_Enemy(_enmX, _enmY, 0.5 + (j / 4), (sin(i) * 100) + 90, 0.03 + (0.005 * j), 4 + (0.35 * j), SHOT_NOTE_GREEN, 15);
+					Obj_SetRenderPriorityI(objShot, RP_STG_SHOT - 1);
+					ObjMove_AddPatternA2(objShot, 45, NO_CHANGE, NO_CHANGE, -0.2, 0, 0); 
+					ObjMove_AddPatternA2(objShot, 90, NO_CHANGE, NO_CHANGE, 0.1, 40 + (0.35 * j), 0);
+				}
+			}
+			
+			yield;
+			
+			if(i == 0) wait(60);
+		}
+	}
+}
+
+task _Rings()
+{
+	wait(60);
+	
+	loop
+	{
+		int way = 20;
+		float off = rand(0, 360);
+		float offX = rand(-50, 50);
+		float offY = rand(-20, 20);
+		for(int i = 0; i <= way; i++)
+		{
+			float ang = (i * (360 / way)) + off;
+			ObjMove_AddPatternB2(CreateShot_Enemy(_enmX + offX, _enmY + offY, 0, 0, 0, 0, SHOT_SCALE_DGREEN, 15), 0, 1.5 * cos(ang), 1.5 * sin(ang), -0.001 * cos(ang), 0.015, -0.7 * cos(ang), 2);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(45);
+	}
+}

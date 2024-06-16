@@ -1,0 +1,8 @@
+#UserShotData
+
+shot_image = "./../assets/img/sys/shot_4.png"
+
+// SHOT_MOON
+ShotData{id = 1076; rect = (0, 0, 602, 602);     delay_color = (255, 0, 0); collision = 220; angular_velocity = 1.5; fixed_angle = true;} // RED
+ShotData{id = 1077; rect = (602, 0, 1204, 602);  delay_color = (0, 255, 0); collision = 220; angular_velocity = 1.5; fixed_angle = true;} // GREEN
+ShotData{id = 1078; rect = (1204, 0, 1806, 602); delay_color = (0, 0, 255); collision = 220; angular_velocity = 1.5; fixed_angle = true;} // BLUE

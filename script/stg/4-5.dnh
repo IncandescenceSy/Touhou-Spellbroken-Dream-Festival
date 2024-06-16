@@ -1,0 +1,275 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yachie 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yachie 3rd"]
+#Text["Yachie 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DGREEN;
+
+// Particle list for laser collision effects
+int _objPartStar = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 32);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YACHIE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 445, 630, 192, 110, 72, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_PLAYER_CIRCLE, _objBoss, 0.125, COLOR_PURPLE);
+	NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, true);
+	NotifyEvent(_ID_SYSTEM, EV_WARNING_GLOW, COLOR_PURPLE);
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(17000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int way = 2;
+	
+	loop
+	{	
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		for(int i = -way; i <= way; i++)
+		{
+			CreateLaser_Blockable(_enmX, _enmY, GetAngleToPlayer(_objBoss) + (i * 7), 512, 20, 245, SHOT_CURVY_LASER_MAGENTA, 1, 35, _objPartStar);
+		}
+		
+		for(int i = 0; i <= 15; i++)
+		{
+			CreateLaser_Blockable(_enmX, _enmY, GetAngleToPlayer(_objBoss) + (i * (360 / 15)), 512, 20, 245, SHOT_CURVY_LASER_MAGENTA, 1, 35, _objPartStar);
+		}
+		
+		loop(12)
+		{
+			int way = 15;
+			float off = rand(0, 360);
+			float offX = rand(-50, 50);
+			float offY = rand(-20, 20);
+			for(int i = 0; i <= way; i++)
+			{
+				float ang = (i * (360 / way)) + off;
+				int objShot = CreateShot_Enemy(_enmX + offX, _enmY + offY, 0, 0, 0, 0, SHOT_SCALE_AZURE, 25);
+				ObjMove_AddPatternB2(objShot, 0, 2 * cos(ang), 2 * sin(ang), -0.002 * cos(ang), 0.03, -1.4 * cos(ang), 4);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(15);
+		}
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, false);
+		
+		_AimedClaws();
+		_CrisscrossyRings();
+		
+		wait(200);
+		
+		_RenderCharge(_enmX, _enmY, 2, _colorA, _colorB);
+	
+		wait(120);
+		
+		ObjMove_SetAngle(_objBoss, GetAngleToPlayer(_objBoss));
+		ObjMove_SetSpeed(_objBoss, 0);
+		ObjMove_SetAcceleration(_objBoss, 0.065);
+		ObjMove_SetMaxSpeed(_objBoss, INT_MAX);
+		
+		while(Obj_IsInArea(_objBoss, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+		{
+			loop(6)
+			{
+				float ang = ObjMove_GetAngle(_objBoss) + rand(-25, 25) + 180;
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_SCALE_MAGENTA, 15);
+				ObjMove_AddPatternB2(objShot, 0, 0.1 * cos(ang), 0.05 * sin(ang), 0.075 * cos(ang), 0.05 * sin(ang), 10 * cos(ang), 5 * sin(ang));
+			}
+			
+			yield;
+		}
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, true);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		for(int i = -way; i <= way; i++)
+		{
+			CreateLaser_Blockable(_enmX, _enmY, GetAngleToPlayer(_objBoss) + (i * 3), 512, 20, 180, SHOT_CURVY_LASER_AZURE, 1, 35, _objPartStar);
+		}
+		
+		for(int i = 0; i <= 15; i++)
+		{
+			CreateLaser_Blockable(_enmX, _enmY, GetAngleToPlayer(_objBoss) + (i * (360 / 15)), 512, 20, 180, SHOT_CURVY_LASER_AZURE, 1, 35, _objPartStar);
+		}
+		
+		wait(60);
+		
+		ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+		ObjMove_SetSpeed(_objBoss, 0);
+		ObjMove_SetAcceleration(_objBoss, 0);
+		ObjMove_SetMaxSpeed(_objBoss, 0);
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 120, LERP_DECELERATE);
+		
+		wait(120);
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, false);
+		
+		int stack = 7;
+		float off = rand(0, 360);
+		float wvel = 0.2;
+		for(int i = 0; i <= stack; i++)
+		{
+			int way = 25;
+			for(int j = 0; j <= way; j++)
+			{
+				ObjMove_SetAngularVelocity(CreateShot_Enemy(_enmX, _enmY, 0.35 + (i / 6), (j * (360 / way)) + off, 0.01 + (i / 200) , 1.5 + (i / 1.5), SHOT_BALL_AZURE, 25), wvel);
+			}
+			wvel *= -1;
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(60);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+		wait(100);
+		
+		NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, true);
+		
+		wait(55);
+	}
+}
+
+task _AimedClaws()
+{
+	loop(40)
+	{
+		float ang = GetAngleToPlayer(_objBoss);
+		int stack = 5;
+		for(int j = 0; j <= stack; j++)
+		{
+			int way = 3;
+			for(int k = -way; k <= way; k++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0.5 + (j * 0.2), ang + (k * 40), 0.035 + (j * 0.025), 5 + (j * 1.25), SHOT_SCALE_AZURE, 25);
+			}
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(5);
+	}
+}
+
+task _CrisscrossyRings()
+{
+	float wvel = 0.35;
+	int way = 22;
+	loop(8)
+	{	
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			ObjMove_SetAngularVelocity(CreateShot_Enemy(_enmX, _enmY, 0.35, (i * (360 / way)) + off, 0.02, 3, SHOT_BALL_MAGENTA, 25), wvel);
+		}
+		wvel *= -1;
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(25);
+	}
+}
+
+// To the tone of Sonic Colors
+task _Colors()
+{
+	int hue = 0;
+	loop
+	{
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY)) ObjRender_SetColorHSV(iShots, hue, 180, 255);
+		
+		hue += 2;
+		
+		yield;
+	}
+}

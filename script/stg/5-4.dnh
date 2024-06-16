@@ -1,0 +1,238 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Sakuya 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Sakuya 2nd"]
+#Text["Sakuya 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DAZURE;
+
+// Monochrome shader
+int _objShader = ObjShader_Create();
+ObjShader_SetShaderF(_objShader, DIR_SDR_MONOCHROME);
+ObjShader_SetTechnique(_objShader, TEC_MONOCHROME);
+	
+	
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 40);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SAKUYA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 302, 630, 186, 95, 52, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(13000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		float off = GetAngleToPlayer(_objBoss);
+		int stack = 11;
+		int way = 18;
+		for(int i = 0; i <= stack; i++)
+		{
+			for(int j = 0; j <= way; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0, ((j * (360 / way)) + off) + (i * ((360 / way) / 2)), 0.01 + (0.005 * i), 1 + (0.25 * i), SHOT_KNIFE_BLUE, 25);
+			}
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(40);
+		
+		Freeze(true);
+		
+		wait(85);
+		
+		Freeze(false);
+		
+		wait(30);
+		
+		loop(3)
+		{
+			off = GetAngleToPlayer(_objBoss);
+			stack = 8;
+			way = 3;
+			for(int i = 0; i <= stack; i++)
+			{
+				for(int j = -way; j <= way; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0, off + (j * 4), 0.01 + (0.01 * i), 1.5 + (0.65 * i), SHOT_KNIFE_GREEN, 25);
+				}
+			}
+
+			way = 25;
+			
+			for(int i = 0; i <= stack; i++)
+			{
+				for(int j = 0; j <= way; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way), 0.01 + (0.01 * i), 1.5 + (0.65 * i), SHOT_KNIFE_GREEN, 25);
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(20);
+		}
+		
+		wait(40);
+		
+		Freeze(true);
+		
+		wait(85);
+		
+		Freeze(false);
+		
+		wait(30);
+		
+		for(int i = 0; i <= 21; i++)
+		{
+			off = GetAngleToPlayer(_objBoss);
+			stack = 35;
+			way = 3;
+			for(int j = -way; j <= way; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0, off + (j * 5), 0.01 + (0.0025 * i), 1.5 + (0.2 * i), SHOT_KNIFE_BLUE, 25);
+			}
+			
+			if(i % 7 == 0)
+			{
+				stack = 4;
+				way = 6;
+				for(int j = 0; j <= stack; j++)
+				{
+					for(int k = 0; k <= way; k++)
+					{
+						CreateShot_Enemy(_enmX, _enmY, 0, ((k * (360 / way)) + off) + (j * ((360 / way) / 2)), 0.025 + (0.0075 * j), 2 + (0.35 * j), SHOT_KNIFE_GREEN, 25);
+					}
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(5);
+		}
+		
+		wait(55);
+		
+		Freeze(true);
+		
+		wait(85);
+		
+		Freeze(false);
+		
+		wait(30);
+		
+		off = GetAngleToPlayer(_objBoss);
+		stack = 6;
+		way = 32;
+			
+		loop(4)
+		{
+			loop(stack)
+			{
+				off = GetAngleToPlayer(_objBoss);
+					
+				for(int i = 0; i < way; i++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 0, (i * (360 / way)) + off, 0.1, 9.5, (i == 0) ? SHOT_KNIFE_GREEN : SHOT_KNIFE_BLUE, 25);
+				}
+					
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+					
+				wait(7);
+			}
+				
+			wait(18);
+				
+			Freeze(true);
+		
+			wait(60);
+		
+			Freeze(false);
+		}
+		
+		wait(25);
+	}
+}
+
+function<void> Freeze(bool enable_)
+{
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+	PauseScript(_ID_PLAYER, enable_);
+	ObjMove_SetProcessMovement(_objPlayer, !enable_);
+	if(enable_) SetShaderI(_objShader, RP_MIN, RP_UI_FRAME - 1);
+	else ResetShaderI(RP_MIN, RP_UI_FRAME - 1);
+}

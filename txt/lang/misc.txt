@@ -1,0 +1,32 @@
+v1.10b
+thSDF
+Girls are now praying, please wait warmly...
+Loading finished! Press any key to continue!
+東方風二次創作ゲーム   Touhou-style Fangame
+Use your keyboard to type a name for the replay. Hold shift to type capitals.[r]Press ESCAPE to cancel, and press ENTER to confirm.
+No Data
+Use left and right to change the page, and up and down to make a selection.
+Controls: Z = Confirm; X = Cancel; Arrow Keys for Navigation. Please read the manual!
+Viewing Replay
+Clear Time:
+BONUS
+HISTORY
+FAILED
+Stage Locked
+Captures
+Star Requirement:
+Star Get!
+Press X!
+Press X & C!
+NEXT EXTEND:
+STAGE ???
+Spellbroken [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)] Festival
+She [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)]ed a [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)] of Pain;\She [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)]ed a [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)] of Longing.\But Above All, She [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)]ed a [f tc=(255, 0, 0) bc=(128, 0, 0)]Dream[f tc=(255, 255, 255) bc=(128, 128, 128)] of [f tc=(255, 255, 0) bc=(164, 164, 0)]Hope[f tc=(255, 255, 255) bc=(128, 128, 128)].
+Total Playtime:
+fps
+Victory
+Defeat
+Clear scene 8-1 to unlock
+POWER
+SPELL
+GET

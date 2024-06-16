@@ -1,0 +1,578 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yukari 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yukari 3rd"]
+#Text["Yukari 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DPURPLE;
+
+// Ikaruga
+const int[] _RGB_COLOR_BLUE = ColorHexToARGB(COLOR_BLUE, COLOR_PERMUTE_RGB);
+const int[] _RGB_COLOR_RED  = ColorHexToARGB(COLOR_RED, COLOR_PERMUTE_RGB);
+const int[][] _COLORS = [_RGB_COLOR_BLUE, _RGB_COLOR_RED];
+
+int[][] _colorsA = [[Interpolate_Linear(_RGB_COLOR_BLUE[0], 255, 0.35), Interpolate_Linear(_RGB_COLOR_BLUE[1], 255, 0.35), Interpolate_Linear(_RGB_COLOR_BLUE[2], 255, 0.35)], [Interpolate_Linear(_RGB_COLOR_RED[0], 255, 0.35), Interpolate_Linear(_RGB_COLOR_RED[1], 255, 0.35), Interpolate_Linear(_RGB_COLOR_RED[2], 255, 0.35)]];
+int[] _colorsB = [ColorARGBToHex(255, _colorsA[0][0], _colorsA[0][1], _colorsA[0][2]), ColorARGBToHex(255, _colorsA[1][0], _colorsA[1][1], _colorsA[1][2])];
+
+const int _BLUE = 0;
+const int _RED  = 1;
+
+int _barrier = _BLUE;
+
+int _switchTime = 0;
+
+bool _isQueue = false;
+
+int _count = 0; //counter variable for timings
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 63);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUKARI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_1.png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_2.png"]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+	
+	// The CENTER_X, CENTER_Y section is the position the boss will fly to at the start
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 360, 630, 185, 104, 65, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_CONTROLS, PRESS_X);
+	NotifyEvent(_ID_SYSTEM, EV_SET_BOSS_ALPHA, 96);
+	NotifyEvent(_ID_PLAYER, EV_RECOLOR_WHILE_BOSS_LIVES, [255, 255, 255], _objBoss);
+	
+	// Pattern
+	_Circle_Player();
+	_Circle_Boss();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)             SetScriptResult(1);
+		case(EV_REQUEST_TIMER)            SetScriptResult(30);
+		case(EV_REQUEST_IS_DURABLE_SPELL) SetScriptResult(true);
+}
+
+@MainLoop
+{	
+	// Ikaruga
+	if(_isQueue || GetVirtualKeyState(VK_BOMB) == KEY_PUSH)
+	{
+		if(_switchTime == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			_barrier = 1 - _barrier;
+			_switchTime = 20;
+			_isQueue = false;
+		}
+		else
+		{
+			_isQueue = true;
+		}
+	}
+	
+	// Player color
+	int[] col = ObjRender_GetColor(_objPlayer);
+	ObjRender_SetColor(_objPlayer, Interpolate_Smooth(col[0], _colorsA[_barrier][0], 0.15), Interpolate_Smooth(col[1], _colorsA[_barrier][1], 0.15), Interpolate_Smooth(col[2], _colorsA[_barrier][2], 0.15));
+		
+	// Player option scale, color, and render priority
+	NotifyEvent(_ID_PLAYER, EV_CONTROL_OPTIONS, 1, _colorsA[_barrier], RP_STG_PLR + 3, _colorsB[_barrier]);
+	
+	for each(int i in ref GetAllShotID(TARGET_ENEMY))
+	{
+		int[] color = GetShotDataInfoA1(ObjShot_GetImageID(i), TARGET_ENEMY, INFO_DELAY_COLOR);
+		if(color == _COLORS[_barrier])
+		{
+			ObjRender_SetAlpha(i, 165);
+		}
+		else if(color == _COLORS[1 - _barrier])
+		{
+			ObjRender_SetAlpha(i, 255);
+		}
+	} 
+	
+	// This is the section that deletes bullets
+	for each(int i in ref GetShotIdInCircleA2(GetPlayerX(), GetPlayerY(), 32, TARGET_ENEMY))
+	{
+		int[] color = GetShotDataInfoA1(ObjShot_GetImageID(i), TARGET_ENEMY, INFO_DELAY_COLOR);
+		if(color == _COLORS[_barrier])
+		{
+			if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(i), ObjMove_GetY(i)], color);
+			AddScore(3000000);
+			Obj_Delete(i);
+		}
+	} 
+	
+	_switchTime = max(_switchTime - 1, 0);
+	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+
+    _count++;
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+// This is the ikaruga circle, change its size if you want to change the effect radius
+task _Circle_Player()
+{
+	float scale = 0.11;
+	
+	float plX = GetPlayerX();
+	float plY = GetPlayerY();
+	
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ALPHA,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetColor(circleA, COLOR_BLUE);
+	
+	// Glowing circle
+	int circleB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetAlpha(circleB, 0);
+	ObjRender_SetColor(circleB, COLOR_BLUE);
+	
+	int targetAlpha;
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Rotation
+		ObjRender_SetAngleZ(circleA, z * 0.7);
+		ObjRender_SetAngleZ(circleB, z * 0.7);
+		
+		// Glow
+		ObjRender_SetAlpha(circleB, Interpolate_Smooth(255, 0, absolute(sin(z * 3))));
+		
+		// Attaches it to the player
+		plX = GetPlayerX();
+		plY = GetPlayerY();
+		
+		ObjRender_SetPosition(circleA, plX, plY, ID_INVALID);
+		ObjRender_SetPosition(circleB, plX, plY, ID_INVALID);
+		
+		// Ikaruga
+		int[] col = ObjRender_GetColor(circleA);
+		ObjRender_SetColor(circleA, Interpolate_Smooth(col[0], (_barrier == _RED) ? _RGB_COLOR_RED[0] : _RGB_COLOR_BLUE[0], 0.3), Interpolate_Smooth(col[1], (_barrier == _RED) ? _RGB_COLOR_RED[1] : _RGB_COLOR_BLUE[1], 0.3), Interpolate_Smooth(col[2], (_barrier == _RED) ? _RGB_COLOR_RED[2] : _RGB_COLOR_BLUE[2], 0.3));
+		ObjRender_SetColor(circleB, Interpolate_Smooth(col[0], (_barrier == _RED) ? _RGB_COLOR_RED[0] : _RGB_COLOR_BLUE[0], 0.3), Interpolate_Smooth(col[1], (_barrier == _RED) ? _RGB_COLOR_RED[1] : _RGB_COLOR_BLUE[1], 0.3), Interpolate_Smooth(col[2], (_barrier == _RED) ? _RGB_COLOR_RED[2] : _RGB_COLOR_BLUE[2], 0.3));
+		
+		// Counter variable
+		z++;
+		
+		yield;
+	}
+}
+
+task _Circle_Boss()
+{	
+	int objLine = CreatePrimObject(DIR_IMG_INVALID, RP_FX_MED_H, PRIMITIVE_TRIANGLESTRIP, 40);
+	
+	// Needed for the expanding animation as it forms
+	float radiusRender = 0;
+	
+	// Sets the source on the image
+	int iMax = 19;
+	for(int i = 0; i <= iMax; i++)
+	{
+		int curVert = i * 2;
+		ObjPrim_SetVertexUVT(objLine, curVert, 0, 0);
+		ObjPrim_SetVertexUVT(objLine, curVert + 1, 1, 1);
+	}	
+	
+	// Transparency
+	ObjRender_SetAlpha(objLine, 180);
+		
+	for(int i = 0; ; i++)
+	{	
+		// Sets the vertex positions
+		if(i <= 89)
+		{
+			for(int j = 0; j <= iMax; j++)
+			{
+				int curVert = j * 2;
+				
+				float angle = min(360, (360 / iMax * j));
+				
+				float posX = radiusRender * cos(angle - 90);
+				float posY = radiusRender * sin(angle - 90);
+				
+				ObjPrim_SetVertexPosition(objLine, curVert, posX, posY, 0);
+				
+				posX = (radiusRender * 1.1) * cos(angle - 90);
+				posY = (radiusRender * 1.1) * sin(angle - 90);
+				
+				ObjPrim_SetVertexPosition(objLine, curVert + 1, posX, posY, 0);
+			}
+			
+			radiusRender = i;
+		}
+		
+		// Sets the vertex colors
+		/*for(int j = 0; j <= iMax; j++)
+		{
+			int curVert = j * 2;
+			ObjPrim_SetVertexColorHSV(objLine, curVert, (j * 19) + (i * 5), 255, 255);
+			ObjPrim_SetVertexColorHSV(objLine, curVert + 1, (j * 19) + (i * 5), 255, 255);
+		}*/
+		
+		// Sets it to the boss
+		ObjRender_SetPosition(objLine, _enmX, _enmY, ID_INVALID);
+		
+		yield;
+	}
+}
+
+task _Pattern()
+{
+	wait(60);
+
+    float sRad = 0; //radius of shot boundary circle
+    float lRad = 0; //radius of laser boundary circle
+    int familiarNum = 30; //# of bullet firing familiars
+    int laserNum = 12; //# of laser firing familiars
+
+    _Boundary(); //shot boundary
+
+    //expand boundary
+    for (int i = 1; i <= 90; i++) {
+        sRad = Interpolate_Accelerate(0, 320, i / 90);
+        lRad = Interpolate_Smoother(0, 340, i / 90);
+        yield;
+    }
+
+    //bullet lines
+    _LineWalls();
+
+    //contract boundary
+    for (int i = 1; i <= 180; i++) {
+        sRad = Interpolate_Smoother(320, 100, i / 180);
+        lRad = Interpolate_Smoother(340, 120, i / 180);
+        yield;
+    }
+
+    _RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+
+    wait(65);
+
+    //move boss to radius, move along radius
+    int bRad = 140; //boss circle movement radius
+    float angleT = 0;
+
+    int sTime = 60 * 12; //12 second loop
+
+    for (int i = 1; i <= 180; i++) {
+        bRad = Interpolate_Linear(0, 140, i / 200);
+        ObjMove_SetDestAtFrame(_objBoss, CENTER_X + bRad * cos(angleT), CENTER_Y + bRad * sin(angleT), 1, LERP_LINEAR);
+        angleT += 360 / sTime;
+        yield;
+    }
+
+    for (int i = 0; i < 60 * 9; i++) {
+        ObjMove_SetDestAtFrame(_objBoss, CENTER_X + bRad * cos(angleT), CENTER_Y + bRad * sin(angleT), 1, LERP_LINEAR);
+        angleT += 360 / sTime;
+        yield;
+    }
+
+    for (int i = 1; i <= 180; i++) {
+        bRad = Interpolate_Linear(140, 0, i / 200);
+        ObjMove_SetDestAtFrame(_objBoss, CENTER_X + bRad * cos(angleT), CENTER_Y + bRad * sin(angleT), 1, LERP_LINEAR);
+        angleT += 360 / sTime;
+        yield;
+    }
+
+    _RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+
+    wait(65); // 1310 frames
+
+    task _Boundary() { //bullet/laser boundary
+        //bullets
+        int[] sfList = [];
+        float angleT = 0;
+		float angleTA = 0;
+        for (int i = 0; i < familiarNum; i += 2) { //every other enemy is a different color (rotate different direction)
+            int newFamiliar1 = CreateEnemy(
+                1, 0, false, false,
+                [COLOR_RED, COLOR_BLUE][i % 2], STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, _enmX, _enmY, 0
+            );
+            int newFamiliar2 = CreateEnemy(
+                1, 0, false, false,
+                [COLOR_RED, COLOR_BLUE][(i + 1) % 2], STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, _enmX, _enmY, 0
+            );
+            sfList ~= [newFamiliar1, newFamiliar2];
+        }
+
+        //lasers
+        int laserPart = CreateParticleList2D(
+            DIR_IMG_EFF_STAR,
+            0, 0, 256, 256,
+            BLEND_ADD_ARGB, RP_FX_MED
+        );
+
+        int[] lfList = [];
+        int[] laserList = [];
+        for (int i = 0; i < laserNum; i += 2) {
+            int newFamiliar1 = CreateEnemy(
+                1, 0, false, false,
+                COLOR_PURPLE, STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, _enmX, _enmY, 0
+            );
+            int newFamiliar2 = CreateEnemy(
+                1, 0, false, false,
+                COLOR_PURPLE, STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, _enmX, _enmY, 0
+            );
+            lfList ~= [newFamiliar1, newFamiliar2];
+        }
+
+        NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+
+        //update
+        float rotSpeed = 1.3;
+        loop {
+            //shot familiars
+            for (int i = 0; i < familiarNum; i += 2) {
+                ObjMove_SetPosition(sfList[i], _enmX + sRad * cos(angleT), _enmY + sRad * sin(angleT));
+                ObjMove_SetPosition(sfList[i + 1], _enmX + sRad * cos(-angleT), _enmY + sRad * sin(-angleT));
+
+                if (_count >= 215 && _count % 3 == 0) {
+                    CreateShot_Enemy(ObjMove_GetX(sfList[i]), ObjMove_GetY(sfList[i]), 1.5, angleT, 0.17, 25, SHOT_LARGE_DIAMOND_RED, 0);
+                    CreateShot_Enemy(ObjMove_GetX(sfList[i + 1]), ObjMove_GetY(sfList[i + 1]), 1.5, -angleT, 0.17, 25, SHOT_LARGE_DIAMOND_BLUE, 0);
+                }
+
+                if (_count >= 800 && _count < 1310) {
+                    if (_count % 172 == 0) {
+                        int shot1 = CreateShot_Enemy(ObjMove_GetX(sfList[i]), ObjMove_GetY(sfList[i]), 0, angleT + 180, 0.085, 1.4, SHOT_LARGE_DIAMOND_RED, 0);
+                        int shot2 = CreateShot_Enemy(ObjMove_GetX(sfList[i + 1]), ObjMove_GetY(sfList[i + 1]), 0, -angleT + 180, 0.085, 1.4, SHOT_LARGE_DIAMOND_RED, 0);
+                        ObjShot_SetDeleteFrame(shot1, 80);
+                        ObjShot_SetDeleteFrame(shot2, 80);
+                        NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+                    }
+                    if (_count % 172 == 86) {
+							int shot1 = CreateShot_Enemy(ObjMove_GetX(sfList[i]), ObjMove_GetY(sfList[i]), 0, angleT + 180, 0.085, 1.4, SHOT_LARGE_DIAMOND_BLUE, 0);
+							int shot2 = CreateShot_Enemy(ObjMove_GetX(sfList[i + 1]), ObjMove_GetY(sfList[i + 1]), 0, -angleT + 180, 0.085, 1.4, SHOT_LARGE_DIAMOND_BLUE, 0);
+							ObjShot_SetDeleteFrame(shot1, 80);
+							ObjShot_SetDeleteFrame(shot2, 80);
+                        NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+                    }
+                }
+
+                angleT += 360 / (familiarNum / 2);
+            }
+
+            //laser familiars
+            for (int i = 0; i < laserNum; i += 2) {
+                ObjMove_SetPosition(lfList[i], _enmX + lRad * cos(angleTA), _enmY + lRad * sin(angleTA));
+                ObjMove_SetPosition(lfList[i + 1], _enmX + lRad * cos(-angleTA), _enmY + lRad * sin(-angleTA));
+                ObjMove_SetAngle(lfList[i], angleTA);
+                ObjMove_SetAngle(lfList[i + 1], -angleTA);
+
+                angleTA += 360 / (laserNum / 2);
+            }
+
+            //lasers
+            for (int i = 0; i < length(laserList); i++) {
+                ObjMove_SetPosition(laserList[i], ObjMove_GetX(lfList[i]), ObjMove_GetY(lfList[i]));
+                ObjStLaser_SetAngle(laserList[i], ObjMove_GetAngle(lfList[i]));
+            }
+
+            if (_count == 215) { //create lasers
+                for (int i = 0; i < laserNum; i += 2) {
+                    int laser1 = CreateLaser_Blockable(ObjMove_GetX(lfList[i]), ObjMove_GetY(lfList[i]), angleT, 512, 12, INT_MAX, SHOT_CURVY_LASER_PURPLE, 1.5, 32, laserPart);
+                    int laser2 = CreateLaser_Blockable(ObjMove_GetX(lfList[i + 1]), ObjMove_GetY(lfList[i + 1]), -angleT, 512, 12, INT_MAX, SHOT_CURVY_LASER_PURPLE, 1.5, 32, laserPart);
+                    ObjShot_SetAutoDelete(laser1, false);
+                    ObjShot_SetAutoDelete(laser2, false);
+					Obj_SetRenderPriorityI(laser1, RP_STG_SHOT + 1);
+					Obj_SetRenderPriorityI(laser2, RP_STG_SHOT + 1);
+                    laserList ~= [laser1, laser2];
+                }
+                NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+            }
+
+            angleT += rotSpeed;
+			angleTA += rotSpeed / 5;
+            yield;
+        }
+    }
+
+    task _LineWalls() {
+        int[] hWall = []; //horizontal lines
+        int[] vWall = []; //vertical lines
+
+        int hNum = 8;
+        int vNum = 6;
+
+        //creation
+        for (int i = 0; i < hNum; i++) {
+            int familiar = CreateEnemy(
+                1, 0, false, false,
+                COLOR_RED, STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, [0, FRAME_WIDTH][i % 2], Interpolate_Linear(20, FRAME_HEIGHT - 20, i / as_float(hNum - 1)), 60
+            );
+            hWall ~= [familiar];
+            NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+            wait(3);
+        }
+        for (int i = 0; i < vNum; i++) {
+            int familiar = CreateEnemy(
+                1, 0, false, false,
+                COLOR_BLUE, STANDARD_ENEMYSCALE - 0.02, true, false,
+                _enmX, _enmY, Interpolate_Linear(50, FRAME_WIDTH - 50, i / as_float(vNum - 1)), [FRAME_HEIGHT, 0][i % 2], 60
+            );
+            vWall ~= [familiar];
+            NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+            wait(3);
+        }
+
+        loop {
+			if(_count % 10 == 0)
+			{
+				if (_count >= 260 && _count <= 1250) {
+					for (int i = 0; i < hNum; i++) {
+						CreateShot_Enemy(ObjMove_GetX(hWall[i]), ObjMove_GetY(hWall[i]), 1.2, [0, 180][i % 2], 0.065, 2, SHOT_BALL_RED, 20);
+					}
+					for (int i = 0; i < vNum; i++) {
+						CreateShot_Enemy(ObjMove_GetX(vWall[i]), ObjMove_GetY(vWall[i]), 1.2, [270, 90][i % 2], 0.065, 2, SHOT_BALL_BLUE, 20);
+					}
+				}
+			}
+
+            /*if (_count >= 1440 && _count < 2000) { // 2060
+                for (int i = 2; i < hNum - 2; i++) {
+                    ObjMove_SetY(hWall[i], Interpolate_Linear(5, FRAME_HEIGHT - 5, i / as_float(hNum - 1)) + 70 * sin(_count + 100));
+                }
+                for (int i = 2; i < vNum - 2; i++) {
+                    ObjMove_SetX(vWall[i], Interpolate_Linear(12, FRAME_WIDTH - 12, i / as_float(vNum - 1)) + 70 * sin(_count + 100));
+                }
+            }*/
+			if(_count >= 1310)
+			{
+				for (int i = 0; i < hNum; i++) {
+                    ObjEnemy_SetLife(hWall[i], 0);
+                }
+                for (int i = 0; i < vNum; i++) {
+                    ObjEnemy_SetLife(vWall[i], 0);
+                }
+				
+				break;
+			}
+            yield;
+        }
+		
+		// Bullshit from the corners (this code is SO fucking bad but i'm lazy)
+		int[] posX = [-15, FRAME_WIDTH + 15, FRAME_WIDTH + 15, -15];
+		int[] posY = [-15, -15, FRAME_HEIGHT + 15, FRAME_HEIGHT + 15];
+		int[] shots = [SHOT_LARGE_BLUE, SHOT_LARGE_RED, SHOT_LARGE_BLUE, SHOT_LARGE_RED];
+		
+		int stack = 3;
+		int way = 25 / 2;
+		
+		wait(30);
+		
+		for(int i = 0; i <= 6; i++)
+		{
+			wait(30);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+			for(int j = 0; j < stack; j++)
+			{
+				float ang = dottheta(posX[i % 4], posY[i % 4], CENTER_X, CENTER_Y);
+				for(int k = -way; k <= way; k++)
+				{
+					CreateShot_Enemy(posX[i % 4], posY[i % 4], j * 0.75, ang + (k * 4), 0.09, 5, shots[i % 4], 20);
+				}
+			}
+		}
+		
+		posX = [-15, FRAME_WIDTH + 15, FRAME_WIDTH + 15, -15];
+		posY = [-15, -15, FRAME_HEIGHT + 15, FRAME_HEIGHT + 15];
+		shots = [SHOT_LARGE_RED, SHOT_LARGE_BLUE];
+		
+		wait(25);
+		
+		for(int i = 0; ; i++)
+		{
+			loop(3)
+			{
+				wait(12);
+
+				for(int j = 0; j < 4; j++)
+				{
+					float ang = dottheta(posX[j % 4], posY[j % 4], CENTER_X, CENTER_Y);
+					for(int k = -way; k <= way; k++)
+					{
+						CreateShot_Enemy(posX[j], posY[j], 1, ang + (k * 4), 0.09, 5, shots[i % 2], 20);
+					}
+				}
+			}
+			
+			wait(15);
+		}
+    }
+}

@@ -1,0 +1,32 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Marisa Shot Data //////////////////////
+///////////////////////////////////////////////////////////////
+
+// This is the raw data for all of Marisa's bullets
+
+shot_image = "./../assets/img/pl/shot_player_marisa.png";
+
+// Basic blue missile
+ShotData
+{
+	id = 1;
+	rect = (0, 0, 32, 31);
+	render = ALPHA;
+	alpha = 130;
+	collision = 12;
+}
+
+// Animated magic missile
+ShotData
+{
+	id = 2;
+	AnimationData
+	{
+		animation_data = (6, 95, 0, 127, 31);
+		animation_data = (6, 127, 0, 159, 31);
+		animation_data = (6, 159, 0, 191, 31);
+	}
+	render = ALPHA;
+	alpha = 180;
+	collision = 12;
+}

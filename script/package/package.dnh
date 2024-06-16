@@ -1,0 +1,265 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Package Script ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// Runs the entire game
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Package]
+#Title["Package"]
+#Text["Package"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains various image and primitive object manipulation functions
+#include "./../lib/lib_image.dnh"
+
+// This library contains package-related functions
+#include "./../lib/lib_package.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Object for playing music
+int _objBGM = ObjSound_Create;
+ObjSound_SetSoundDivision(_objBGM, SOUND_SE);
+ObjSound_SetResumeEnable(_objBGM, false);
+
+// Currently playing BGM
+string _playingBGM = "";
+
+// Text file from which to read music names
+int _musicNames = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_musicNames, DIR_TXT_MUSICNAME);
+
+// Object for playing sound effects
+int _objSFX = ObjSound_Create;
+ObjSound_SetSoundDivision(_objSFX, SOUND_SE);
+ObjSound_SetResumeEnable(_objSFX, false);
+
+// SFX volume
+int _volSFX = 100;
+
+// BGM volume
+int _volBGM = 100;
+
+// Do you have debug enabled
+bool _debug = false;
+
+// Playtime
+float _playTime;
+float _playTimeCur;
+
+// Is the game paused?
+bool _paused = false;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	_GameInit();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		
+		// Window unfocused
+		case(EV_APP_LOSE_FOCUS)
+		{
+			if(!_paused && _menu == MENU_OVER && !IsReplay())
+			{
+				SetVirtualKeyState(VK_PAUSE, KEY_PUSH);
+			}
+		}
+		
+		// Grants an achievement
+		case(EV_GRANT_ACHIEVE)
+		{
+			string achieve = GetEventArgument(0);
+			
+			if(!IsReplay() && !GetAreaCommonData(AREA_ACHIEVE, achieve, false) && !GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false))
+			{
+				SetAreaCommonData(AREA_ACHIEVE, achieve, true);
+				SetAreaCommonData(AREA_ACHIEVE, achieve ~ DATE, GetCurrentDateTimeS());
+				SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+				
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_ACHIEVE);
+				
+				_CreateToast_Achieve(achieve);
+				
+				// If you have all maingame achievements now
+				string[] achieves = [OPEN_GAME, READ_MANUAL, PLAY_SCENE, CAPTURE_SCENE, STAGE ~ itoa(0), STAGE ~ itoa(1), STAGE ~ itoa(2), STAGE ~ itoa(3), STAGE ~ itoa(4), STAGE ~ itoa(5), STAGE ~ itoa(6), FINALE_CLEAR, STAGE ~ itoa(7), CH23, CH28, CH41, MEDAL_ALL]; 
+				for each(string iAchieves in ref achieves) if(!GetAreaCommonData(AREA_ACHIEVE, iAchieves, false)) return;
+				
+				SetAreaCommonData(AREA_ACHIEVE, ACHIEVE_ALL, true);
+				SetAreaCommonData(AREA_ACHIEVE, ACHIEVE_ALL ~ DATE, GetCurrentDateTimeS());
+				SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+				
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_ACHIEVE_ALL);
+				
+				_CreateToast_Achieve(ACHIEVE_ALL);
+			}
+		}
+		
+		// Unloads textures that are no longer needed
+		case(EV_UNLOAD_TEXTURES)
+		{
+			string   bossName   = GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID);
+			string[] background = GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID);
+			
+			RemoveTexture(DIR_IMG_CHAR ~ "/portrait_" ~ bossName ~ ".png");
+			RemoveTexture(DIR_IMG_CHAR ~ "/title_"    ~ bossName ~ ".png");
+			RemoveTexture(DIR_IMG_ENM  ~ "/sprite_"   ~ bossName ~ ".png");
+			for each(string i in ref background) RemoveTexture(i);
+		}
+	
+		// Changes the music
+		case(EV_BGM_CHANGE)
+		{
+			string pathFile = GetEventArgument(0);
+			int    toastID  = GetEventArgument(1);
+			
+			ObjSound_SetResumeEnable(_objBGM, false);
+			ObjSound_Stop(_objBGM);
+			ObjSound_Load(_objBGM, pathFile);
+			ObjSound_SetLoopEnable(_objBGM, (_menu == MENU_MUSIC || (pathFile != DIR_BGM_S8 && pathFile != DIR_BGM_CREDITS)) ? true : false);
+			ObjSound_SetVolumeRate(_objBGM, _volBGM / 2);
+			ObjSound_SeekSampleCount(_objBGM, 0);
+			
+			// There are brackets here juuuust in case (I'm paranoid)
+			alternative(pathFile)
+				case(DIR_BGM_TITLE) {ObjSound_SetLoopSampleCount(_objBGM, 742644,  INT_MAX);}
+				case(DIR_BGM_S1)    {ObjSound_SetLoopSampleCount(_objBGM, 617841,  INT_MAX);}
+				case(DIR_BGM_S2)    {ObjSound_SetLoopSampleCount(_objBGM, 587853,  INT_MAX);}
+				case(DIR_BGM_S3)    {ObjSound_SetLoopSampleCount(_objBGM, 1254204, INT_MAX);}
+				// The stage four theme loops from end to beginning
+				case(DIR_BGM_S5)    {ObjSound_SetLoopSampleCount(_objBGM, 478044,  INT_MAX);}
+				case(DIR_BGM_S6)    {ObjSound_SetLoopSampleCount(_objBGM, 1913499, INT_MAX);}
+				// The extra stage theme loops from end to beginning
+				// The unknown stage theme doesn't loop
+				// The final theme loops from end to beginning
+				// The credits theme doesn't loop
+				case(DIR_BGM_S9)    {ObjSound_SetLoopSampleCount(_objBGM, 1520127,  INT_MAX);}
+			ObjSound_Play(_objBGM);
+			
+			SetAreaCommonData(AREA_GAME, MUSIC_ROOM, _menu == MENU_MUSIC);
+			
+			_playingBGM = pathFile;
+			SetAreaCommonData(AREA_GAME, PLAYING_BGM, _playingBGM);
+			
+			if(_menu != MENU_MUSIC && toastID != ID_INVALID) _CreateToast_BGM(toastID + 1);
+			
+			if(_menu != MENU_MUSIC && toastID != ID_INVALID && !IsReplay())
+			{
+				SetAreaCommonData(AREA_ACHIEVE, HEARD ~ itoa(toastID), true);
+				SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+			} 
+		}
+		
+		// Pauses the music
+		case(EV_BGM_PAUSE)
+		{
+			ObjSound_SetResumeEnable(_objBGM, true);
+			ObjSound_Stop(_objBGM);
+		}
+		
+		// Resumes the music
+		case(EV_BGM_RESUME)
+		{
+			ObjSound_SetVolumeRate(_objBGM, _volBGM / 2);
+			ObjSound_Play(_objBGM);
+		}
+		
+		// Plays a sound effect
+		case(EV_SFX_PLAY)
+		{
+			string pathFile = GetEventArgument(0);
+			
+			ObjSound_Load(_objSFX, pathFile);
+			ObjSound_SetVolumeRate(_objSFX, _volSFX / 2);
+			ObjSound_Play(_objSFX);
+		}
+		
+		// Returns a frequency array
+		case(EV_REQUEST_FREQ)
+		{	
+			SetScriptResult(ObjSound_GetSamplesFFT(_objBGM, 16, GetEventArgument(0), true));
+		}
+		
+		// Spawns a Star Get! toast
+		case(EV_CREATE_TOAST_MEDAL)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_ACHIEVE);
+			
+			_CreateToast_Medal();
+		}
+		
+		// Filters the game screen to be ZeroRanger
+		/*case(EV_FILTER_WHILE_BOSS_LIVES)
+		{
+			int objBoss = GetEventArgument(0);
+			
+			int objShader = ObjShader_Create();
+			ObjShader_SetShaderF(objShader, DIR_SDR_ZERORANGER);
+			ObjShader_SetTechnique(objShader, TEC_ZERORANGER);
+			SetFullscreenDisplayShader(objShader);
+			SetWindowedDisplayShader(objShader);
+			
+			async
+			{
+				while(Obj_IsExists(objBoss)) yield;
+				
+				Obj_Delete(objShader);
+				SetFullscreenDisplayShader(ID_INVALID);
+				SetWindowedDisplayShader(ID_INVALID);
+			}
+		}*/
+}
+
+@MainLoop
+{
+	// Debug escape
+	//if(GetKeyState(KEY_RBRACKET) == KEY_PUSH) ClosePackage();
+	
+	// Debug toggle
+	//if(GetKeyState(KEY_O) == KEY_PUSH) _debug = (_debug) ? false : true;
+	
+	// Take a screenshot
+	if(!_isReplayScene && GetKeyState(KEY_P) == KEY_PUSH)
+	{
+		string time = GetCurrentDateTimeS();
+		string pathFile = time[0..4] ~ "-" ~ time[4..6] ~ "-" ~ time[6..8] ~ "-" ~ time[8..10] ~ "-" ~ time[10..12] ~ "-" ~ time[12..14];
+		SaveSnapShotA3(DIR_SCREENSHOTS ~ pathFile ~ ".png", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, IFF_PNG);
+	}
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+// lmao
+task _Fizzbuzz()
+{
+	for(int i = 1; i <= 100; i++)
+	{
+		string text = "";
+		
+		if(i % 3 == 0) text ~= "Fizz";
+		if(i % 5 == 0) text ~= "Buzz";
+		if(!text) text = ToString(i); 
+		
+		WriteLog(text);
+	}
+}

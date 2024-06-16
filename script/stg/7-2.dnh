@@ -1,0 +1,192 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Momoyo 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Momoyo 1st"]
+#Text["Momoyo 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DYELLOW;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 56);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MOMOYO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -50);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 344, 630, 193, 107, 60, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pede();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(13000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	ObjMove_SetSpeed(_objBoss, 0);
+	
+	for(int i = 0; ; i++)
+	{
+		ObjMove_SetAcceleration(_objBoss, 0.025);
+		ObjMove_SetMaxSpeed(_objBoss, 2);
+		
+		loop(120)
+		{
+			ObjMove_SetAngle(_objBoss, GetAngleToPlayer(_objBoss));
+			
+			yield;
+		}
+		
+		ObjMove_SetAcceleration(_objBoss, -0.025);
+		ObjMove_SetMaxSpeed(_objBoss, 0);
+		
+		while(ObjMove_GetSpeed(_objBoss) > 0) yield;
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		int way = 10 + (min(i, 10) * 1.35);
+		float off = GetAngleToPlayer(_objBoss);
+		for(int j = 0; j < way; j++)
+		{
+			for(int k = -1; k <= 1; k += 2)
+			{
+				int objCrLaser = CreateLaser_Curvy(_enmX, _enmY, 0, j * (360 / way) + off, 0.025, 4, SHOT_CURVY_LASER_GREEN, 120, 12, 0.3 * k, 0);
+				ObjMove_AddPatternA2(objCrLaser, 90, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, 5 * k);
+				ObjMove_AddPatternA2(objCrLaser, 180, NO_CHANGE, NO_CHANGE, NO_CHANGE, NO_CHANGE, 0.4 * k);
+			}
+		}
+		
+		wait(90);
+	}
+}
+
+// Pede
+task _Pede()
+{
+	wait(5);
+	
+	for(int i = 0; ; i++)
+	{
+		if(i % 8 == 0 && ObjMove_GetSpeed(_objBoss) > 0.5)
+		{
+			// Orb
+			_Segment(i);
+			
+			// Lasers
+			float ang = ObjMove_GetAngle(_objBoss);
+			for(int j = -1; j <= 1; j += 2)
+			{
+				int objLaser = CreateLaser_Loose(_enmX, _enmY, 2, ang + (j * 90), -0.042, 0, SHOT_CURVY_LASER_AQUA, 40, 14, 0);
+				ObjMove_AddPatternA2(objLaser, 200, NO_CHANGE, NO_CHANGE, 0.025, 4, 0);
+			}
+		}
+		
+		yield;
+	}
+}
+
+task _Segment(i)
+{
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_LARGE_AQUA, 25);
+	
+	if(!Obj_IsInArea(objShot, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+	{
+		Obj_Delete(objShot);
+		return;
+	}
+	
+	wait(200);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	float shotX = ObjMove_GetX(objShot);
+	float shotY = ObjMove_GetY(objShot);
+	
+	float off = rand(0, 360);
+	int way = 7 + (min(i, 1500) / 200);
+	for(int i = 0; i < way; i++)
+	{
+		CreateShot_Enemy(shotX, shotY, 0, i * (360 / way) + off, 0.02, 2, SHOT_BALL_AURA_AQUA, 25);
+	}
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(1, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objShot, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objShot, scale, scale);
+				
+		yield;
+	}
+	
+	Obj_Delete(objShot);
+}

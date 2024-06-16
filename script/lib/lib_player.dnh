@@ -1,0 +1,611 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Player Library ///////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains all general variables and functions that are shared between player scripts
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains all functions for manipulation of basic enemies
+#include "./lib_enemy.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+int _objPlayer = GetPlayerObjectID();
+
+int _shotTimer = 0;
+
+bool _delOpt = false;
+
+// Stuff for that one yukari spell
+int _shotScale = 1;
+int _shotCol = COLOR_WHITE;
+int _shotPri = RP_STG_PLR;
+
+
+//////////////////////// Global Settings //////////////////////
+
+ObjMove_SetPosition(_objPlayer, CENTER_X, FRAME_HEIGHT - 32);
+_RenderPlayerHitbox();
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Sets up options / handles power
+task _Options()
+{
+	SetPlayerPower(ID_INVALID);
+	
+	while(GetPlayerPower() == ID_INVALID) yield;
+	
+	if(GetPlayerPower() == POWER_MAX + 1)
+	{
+		_CreateOption(18, 25, -1);
+		_CreateOption(18, 25, 1);
+		_CreateOption(33, 15, -1);
+		_CreateOption(33, 15, 1);
+	}
+	else if(GetPlayerPower() == POWER_MAX + 2)
+	{
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_MAX, 100);
+		
+		_CreateOption(24, 23, -1);
+		_CreateOption(24, 23, 1);
+		_CreateOption(41, 15, -1);
+		_CreateOption(41, 15, 1);
+		_CreateOption(0, 28, 1);
+	}
+	else
+	{
+		// One power
+		while(GetPlayerPower() < 200) yield;
+		
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_UP, 150);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+					
+		_delOpt = true;
+		
+		yield;
+		
+		_delOpt = false;
+		
+		_CreateOption(0, 28, 1);
+		
+		// Two power
+		while(GetPlayerPower() < 400) yield;
+		
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_UP, 150);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+					
+		_delOpt = true;
+		
+		yield;
+		
+		_delOpt = false;
+		
+		_CreateOption(20, 24, 1);
+		_CreateOption(20, 24, -1);
+		
+		// Three power
+		while(GetPlayerPower() < 600) yield;
+		
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_UP, 150);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+		
+		_delOpt = true;
+		
+		yield;
+		
+		_delOpt = false;
+		
+		_CreateOption(26, 21, 1);
+		_CreateOption(26, 21, -1);
+		_CreateOption(0, 28, 1);
+		
+		// Four power
+		while(GetPlayerPower() < 800) yield;
+		
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_UP, 150);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+		
+		_delOpt = true;
+		
+		yield;
+		
+		_delOpt = false;
+		
+		_CreateOption(16, 25, -1);
+		_CreateOption(16, 25, 1);
+		_CreateOption(33, 15, -1);
+		_CreateOption(33, 15, 1);
+		
+		// Five power
+		while(GetPlayerPower() < POWER_MAX) yield;
+		
+		NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POWER_MAX, 200);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_POWER_UP);
+		
+		_delOpt = true;
+		
+		yield;
+		
+		_delOpt = false;
+		
+		_CreateOption(24, 23, -1);
+		_CreateOption(24, 23, 1);
+		_CreateOption(41, 15, -1);
+		_CreateOption(41, 15, 1);
+		_CreateOption(0, 28, 1);
+	}
+}
+
+// Handles bombing
+task _Bomb(int color_)
+{
+	SetPlayerRebirthPosition(GetPlayerX(), GetPlayerY());
+	SetPlayerDownStateFrame(0);	
+	
+	int objManage = GetSpellManageObject();
+	
+	SetPlayerInvincibilityFrame(230);
+	_Flash(200, ColorHexToARGB(color_, COLOR_PERMUTE_RGB));
+	
+	HandleBomb(color_);
+	
+	Obj_Delete(objManage);
+	_spell = false;
+}
+
+function<void> HandleBomb(int color_)
+{	
+	int objSpell = ObjSpell_Create;
+	ObjSpell_Regist(objSpell);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+	
+	int objCirc = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_B, RP_FX_MED_H, BLEND_MULTIPLY,
+		0, 0, 300, 300,
+		0, 0,
+		GetPlayerX(), GetPlayerY()
+	);
+	ObjRender_SetColor(objCirc, color_);
+	
+	float posX = ObjRender_GetX(objCirc);
+	float posY = ObjRender_GetY(objCirc);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0, 0.75, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objCirc, scale);
+		
+		DeleteShotInCircle(TYPE_SHOT, TYPE_ITEM, GetPlayerX(), GetPlayerY(), scale * 155); 
+		
+		if(_prtMisc) _RenderBurstParticle(posX + prand(-(i * 5), i * 5), posY + prand(-(i * 5), i * 5), color_);
+		
+		yield;
+	}
+	
+	iMax = 100;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetPosition(objCirc, posX, posY - i, ID_INVALID);
+		
+		DeleteShotInCircle(TYPE_SHOT, TYPE_ITEM, posX, posY - i, 0.75 * 155); 
+		
+		if(_prtMisc) _RenderBurstParticle(posX + prand(-100, 100), posY - i + prand(-100, 100), color_);
+		
+		yield;
+	}
+	
+	posX = ObjRender_GetX(objCirc);
+	posY = ObjRender_GetY(objCirc);
+	
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0.75, 0, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objCirc, scale);
+		
+		DeleteShotInCircle(TYPE_SHOT, TYPE_ITEM, posX, posY, scale * 155); 
+		
+		yield;
+	}
+	
+	Obj_Delete(objCirc);
+	Obj_Delete(objSpell);
+}
+	
+// Invincibility indicator
+task _Flash(float time_, int[] color_)
+{
+	float plX = GetPlayerX();
+	float plY = GetPlayerY();
+	
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ALPHA,
+		0, 0, 627, 627,
+		0.3, 0.3,
+		plX, plY
+	);
+	ObjRender_SetColor(circleA, color_[0], color_[1], color_[2]);
+	
+	// Glowing circle
+	int circleB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 627, 627,
+		0.3, 0.3,
+		plX, plY
+	);
+	ObjRender_SetAlpha(circleB, 0);
+	ObjRender_SetColor(circleB, color_[0], color_[1], color_[2]);
+	
+	for(int i = 0; i <= time_; i++)
+	{
+		// Flashing
+		ObjRender_SetColor(_objPlayer, Interpolate_Smooth(255, color_[0], absolute(sin(i * 15))), Interpolate_Smooth(255, color_[1], absolute(sin(i * 15))), Interpolate_Smooth(255, color_[2], absolute(sin(i * 15))));
+		
+		plX = GetPlayerX();
+		plY = GetPlayerY();
+		
+		// Position
+		ObjRender_SetPosition(circleA, plX, plY, ID_INVALID);
+		ObjRender_SetPosition(circleB, plX, plY, ID_INVALID);
+		
+		// Size
+		ObjRender_SetScaleXYZ(circleA, Interpolate_Smooth(0.3, 0, i / time_));
+		ObjRender_SetScaleXYZ(circleB, Interpolate_Smooth(0.3, 0, i / time_));
+		
+		// Rotation
+		ObjRender_SetAngleZ(circleA, i * 0.7);
+		ObjRender_SetAngleZ(circleB, i * 0.7);
+		
+		// Glow
+		ObjRender_SetAlpha(circleB, Interpolate_Smooth(255, 0, absolute(sin(i * 3))));
+		
+		yield;
+	}
+	
+	ObjRender_SetColor(_objPlayer, COLOR_WHITE);
+	Obj_Delete(circleA);
+	Obj_Delete(circleB);
+}
+
+// Draws the main player sprite
+task _RenderPlayerSprite(string playerSprite_)
+{
+	// Texture
+    ObjPrim_SetTexture(_objPlayer, playerSprite_);
+    Obj_SetRenderPriorityI(_objPlayer, RP_STG_PLR + 1); 
+	
+	// Variables
+	int stallAnimation = 8;
+	
+    bool hasTurned = false;
+	
+	int iMax = 7;
+	
+        loop
+        {
+            for(int i = 0; i <= iMax; i++)
+            {
+                    ObjSprite2D_SetSourceRect(_objPlayer, 1 + (32 * i), 1, 32 * (i + 1), 48);
+                    ObjSprite2D_SetDestCenter(_objPlayer);
+                        if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE) // Idle
+                        {
+                            hasTurned = false;
+                            wait(stallAnimation);
+                        }
+            }
+            if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD) // Moving
+            {
+				for(int i = (hasTurned) ? 4 : 0; i < iMax; i++)
+                {
+                    if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE) // Idle
+                    {
+                        ObjSprite2D_SetSourceRect(_objPlayer, 32 * i, 1, 32 * (i + 1), 48);
+                        ObjSprite2D_SetDestCenter(_objPlayer);
+                    }
+                    if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD) // Moving left
+                    {
+                        ObjSprite2D_SetSourceRect(_objPlayer, 32 * i, 48, 32 * (i + 1), 48 * 2);
+                        ObjSprite2D_SetDestCenter(_objPlayer);
+                    }
+                    if(GetVirtualKeyState(VK_RIGHT) == KEY_HOLD) // Moving right
+                    {
+                        ObjSprite2D_SetSourceRect(_objPlayer, 32 * i, 48 * 2, 32 * (i + 1), 48 * 3);
+                        ObjSprite2D_SetDestCenter(_objPlayer);
+                    }
+                wait(stallAnimation);
+                hasTurned = true;
+                }
+            }
+            yield;
+        }
+}
+
+// Draws the player's hitbox (visible when focused)
+task _RenderPlayerHitbox()
+{
+	// First snowflake
+	int targetA = ObjPrim_Create(OBJ_SPRITE_2D);
+	ObjPrim_SetTexture(targetA, DIR_IMG_PL_HITBOX_EDGE);
+	ObjSprite2D_SetSourceRect(targetA, 0, 0, 59, 62);
+	ObjSprite2D_SetDestCenter(targetA);
+	Obj_SetRenderPriorityI(targetA, RP_STG_FLAKE);
+	ObjRender_SetAlpha(targetA, 0);
+	
+	// Second snowflake
+	int targetB = ObjPrim_Create(OBJ_SPRITE_2D);
+	ObjPrim_SetTexture(targetB, DIR_IMG_PL_HITBOX_EDGE);
+	ObjSprite2D_SetSourceRect(targetB, 0, 0, 59, 62);
+	ObjSprite2D_SetDestCenter(targetB);
+	Obj_SetRenderPriorityI(targetB, RP_STG_FLAKE);
+	ObjRender_SetAlpha(targetB, 0);
+	
+	// Hitbox center
+	int center = ObjPrim_Create(OBJ_SPRITE_2D);
+	ObjPrim_SetTexture(center, DIR_IMG_PL_HITBOX_CENTER);
+	ObjSprite2D_SetSourceRect(center, 0, 0, 10, 10);
+	ObjSprite2D_SetDestRect(center, -5, -5, 6, 6);
+	Obj_SetRenderPriorityI(center, RP_STG_HITBOX);
+	ObjRender_SetScaleXYZ(center, 0, 0, ID_INVALID);
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Control visibility
+		if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH) // Unfocused
+		{
+			
+			// Fade
+			ObjRender_SetAlpha(targetA, Interpolate_Linear(ObjRender_GetAlpha(targetA), 0, 0.1));
+			ObjRender_SetAlpha(targetB, Interpolate_Linear(ObjRender_GetAlpha(targetB), 0, 0.1));
+			
+			// Size
+			ObjRender_SetScaleXYZ(targetA, Interpolate_Linear(ObjRender_GetScaleX(targetA), 1.75, 0.1), Interpolate_Linear(ObjRender_GetScaleY(targetA), 1.75, 0.1), ID_INVALID); 
+			ObjRender_SetScaleXYZ(targetB, Interpolate_Linear(ObjRender_GetScaleX(targetB), 1.75, 0.1), Interpolate_Linear(ObjRender_GetScaleY(targetB), 1.75, 0.1), ID_INVALID); 
+			
+			float sx = ObjRender_GetScaleX(center);
+			ObjRender_SetScaleXYZ(center, (sx > 0.2) ? Interpolate_Linear(sx, 0, 0.175) : 0);
+		}
+		else // Focused
+		{
+			// Fade
+			ObjRender_SetAlpha(targetA, Interpolate_Linear(ObjRender_GetAlpha(targetA), 205, 0.1));
+			ObjRender_SetAlpha(targetB, Interpolate_Linear(ObjRender_GetAlpha(targetB), 205, 0.1));
+			
+			// Size
+			ObjRender_SetScaleXYZ(targetA, Interpolate_Linear(ObjRender_GetScaleX(targetA), 1, 0.1), Interpolate_Linear(ObjRender_GetScaleY(targetA), 1, 0.1), ID_INVALID); 
+			ObjRender_SetScaleXYZ(targetB, Interpolate_Linear(ObjRender_GetScaleX(targetB), 1, 0.1), Interpolate_Linear(ObjRender_GetScaleY(targetB), 1, 0.1), ID_INVALID); 
+			ObjRender_SetScaleXYZ(center, Interpolate_Linear(ObjRender_GetScaleX(center), 0.9 * RES, 0.1), Interpolate_Linear(ObjRender_GetScaleY(center), 0.9 * RES, 0.1), ID_INVALID);
+		}
+		
+		// Set it to the player's position
+		ObjRender_SetPosition(targetA, GetPlayerX(), GetPlayerY(), ID_INVALID);
+		ObjRender_SetPosition(targetB, GetPlayerX(), GetPlayerY(), ID_INVALID);
+		ObjRender_SetPosition(center, GetPlayerX() * RES, GetPlayerY() * RES, ID_INVALID);
+		
+		// Set the rotation angle
+		ObjRender_SetAngleZ(targetA, z);
+		ObjRender_SetAngleZ(targetB, -z);
+		ObjRender_SetAngleZ(center, -z);
+		
+		// Counter variable
+		z++;
+	
+		yield;
+	}
+}
+
+// Creates a 3D star particle when you graze a bullet
+task _CreateParticle_Graze(int[] color_)
+{	
+	// Variables
+	float   initialPosX  = GetPlayerX();
+	float   initialPosY  = GetPlayerY();
+	float   moveAngle    = prand(0, 360);
+	float[] moveAngleCom = [cos(moveAngle), sin(moveAngle)];
+	float   moveSpeed    = prand(0, 4) + prand(0, 8);
+	float   particleSize = prand(0.08, 0.12);
+
+	int iMax = 70;
+	
+		// Animation
+		for(int i = 0; i <= iMax; i++)
+		{
+			// Color
+			ObjParticleList_SetColor(_objPartGraze, color_[0], color_[1], color_[2]);
+			
+			// Position
+			ObjParticleList_SetPosition(_objPartGraze, initialPosX + moveAngleCom[0] * i, initialPosY + moveAngleCom[1] * i, ID_INVALID);
+			
+			// Rotation
+			ObjParticleList_SetAngle(_objPartGraze, i * 2, i * 2, i * 2);
+			
+			// Size
+			ObjParticleList_SetScale(_objPartGraze, particleSize - (i / 701), particleSize - (i / 701), ID_INVALID);
+			
+			// Fade
+			if(i > (iMax / 2)) ObjParticleList_SetAlpha(_objPartGraze, 180 - (i - iMax / 2) * 180 / (iMax / 2));
+			else ObjParticleList_SetAlpha(_objPartGraze, 180);
+			
+			ObjParticleList_AddInstance(_objPartGraze);
+			
+			yield;
+		}
+}
+
+// Tints the color of a bullet when you graze it
+task _ColorGrazedShot(int objShot_, int[] colorOrg_, int[] colorDest_)
+{
+	float iMax = 16;
+	
+	colorDest_ = [Interpolate_Linear(colorDest_[0], 255, 0.55), Interpolate_Linear(colorDest_[1], 255, 0.55), Interpolate_Linear(colorDest_[2], 255, 0.55)];
+	
+	// Gaining
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetColor(objShot_, Interpolate_Linear(colorOrg_[0], colorDest_[0], i / iMax), Interpolate_Linear(colorOrg_[1], colorDest_[1], i / iMax), Interpolate_Linear(colorOrg_[2], colorDest_[2], i / iMax));
+		yield;
+	}
+	
+	// Pause at height
+	wait(30);
+	
+	// Losing
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetColor(objShot_, Interpolate_Linear(colorDest_[0], colorOrg_[0], i / iMax), Interpolate_Linear(colorDest_[1], colorOrg_[1], i / iMax), Interpolate_Linear(colorDest_[2], colorOrg_[2], i / iMax));
+		yield;
+	}
+}
+
+// Creates and manipulates the boss explosion effect on death
+task _RenderPlayerExplosion(float posX_, float posY_, int colorA_, int colorB_)
+{	
+	bool prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+	
+	int objPartExpl;
+	
+	// Star particles
+	if(prtMisc)
+	{
+		objPartExpl = CreateParticleList2D
+		(
+			DIR_IMG_EFF_STAR,
+			0, 0, 256, 256,
+			BLEND_ADD_ARGB, RP_FX_LOW
+		);
+
+		loop(180)
+		{
+			_RenderPlayerExplosionParticle(objPartExpl, (posX_ * RES) + FRAME_LEFT, (posY_ * RES) + FRAME_TOP, colorA_);
+			_RenderPlayerExplosionParticle(objPartExpl, (posX_ * RES) + FRAME_LEFT, (posY_ * RES) + FRAME_TOP, colorB_);
+		}
+	}
+	
+	// Inversion squares
+	
+	int ang = 0;
+	
+	loop(4)
+	{
+		_RenderPlayerInversionSquare(posX_ + (128 * cos(ang)), posY_ + (128 * sin(ang)));
+		ang += 360 / 4;
+	}
+	
+	_RenderPlayerInversionSquare(posX_, posY_);
+	wait(30);
+	_RenderPlayerInversionSquare(posX_, posY_);
+	
+	wait(110);
+	
+	// Cleanup
+	if(prtMisc) Obj_Delete(objPartExpl);
+}
+
+// Creates and manipulates a star particle for a player explosion
+task _RenderPlayerExplosionParticle(int objPartExpl_, float posX_, float posY_, int color_)
+{
+	
+	float rad = prand(300, 500);
+	
+	float initX = posX_;
+	float initY = posY_;
+	
+	float destX = posX_ + (rad * cos(prand(0, 360)));
+	float destY = posY_ + (rad * sin(prand(0, 360)));
+	
+	float angX = prand(0, 180);
+	float angY = prand(0, 180);
+	float angZ = prand(0, 180);
+	
+	float scaleOrg = 0.2;
+	float scaleCur = scaleOrg;
+	
+	float initAlpha = 0;
+	float curAlpha  = initAlpha;
+	
+	float iMax = 50;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Color
+		ObjParticleList_SetColor(objPartExpl_, color_);
+	
+		// Position
+		posX_ = Interpolate_Accelerate(initX, destX, i / iMax);
+		posY_ = Interpolate_Accelerate(initY, destY, i / iMax);
+		ObjParticleList_SetPosition(objPartExpl_, posX_, posY_, ID_INVALID);
+		
+		// Rotation
+		angX += prand(1, 2);
+		angY -= prand(1, 2);
+		angZ += prand(-3, 3);
+		ObjParticleList_SetAngle(objPartExpl_, angX, angY, angZ);
+		
+		// Size
+		if(i >= 120) scaleCur = Interpolate_Smooth(scaleOrg, 0, (i - 120) / (iMax - 120));
+		ObjParticleList_SetScale(objPartExpl_, scaleCur, scaleCur, ID_INVALID);
+		
+		// Fade
+		curAlpha = Interpolate_Smooth(initAlpha, 255, i / iMax);
+		ObjParticleList_SetAlpha(objPartExpl_, curAlpha);
+		
+		ObjParticleList_AddInstance(objPartExpl_);
+		
+		yield;
+	}
+}
+
+// Creates and manipulates an inversion square for a player explosion
+task _RenderPlayerInversionSquare(float posX_, float posY_)
+{
+	int objSquare = CreateSprite2D_Pos
+	(
+		DIR_IMG_INVALID, RP_FX_HIGH, BLEND_INV_DESTRGB,
+		0, 0, 512, 512,
+		0, 0,
+		posX_ * RES, posY_ * RES
+	);
+	
+	float iMax = 200;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetScaleXYZ(objSquare, Interpolate_Smooth(0, 10, i / iMax));
+		yield;
+	}
+}
+
+function<int> CreateShot_Player(float posX_, float posY_, float spd_, float ang_, float accel_, float maxspd_, float dmg_, int penetration_, int graphic_)
+{
+	int objShot = ObjShot_Create(OBJ_SHOT);
+	ObjShot_Regist(objShot);
+	ObjMove_SetPosition(objShot, posX_, posY_);
+	ObjMove_SetSpeed(objShot, spd_);
+	ObjMove_SetAngle(objShot, ang_);
+	ObjMove_SetAcceleration(objShot, accel_);
+	ObjMove_SetMaxSpeed(objShot, maxspd_);
+	ObjShot_SetDamage(objShot, dmg_);
+	ObjShot_SetPenetration(objShot, penetration_);
+	ObjShot_SetGraphic(objShot, graphic_);
+	ObjRender_SetScaleXYZ(objShot, _shotScale);
+	ObjRender_SetColor(objShot, _shotCol);
+	Obj_SetRenderPriorityI(objShot, _shotPri);
+	return objShot;
+}

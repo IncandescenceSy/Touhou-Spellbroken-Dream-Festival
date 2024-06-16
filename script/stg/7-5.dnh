@@ -1,0 +1,174 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Momoyo 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Momoyo 2nd"]
+#Text["Momoyo 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DYELLOW;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 59);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MOMOYO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_EFF_BED]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -50);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 344, 630, 193, 107, 60, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(20000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	int way = 7;
+	float off = rand(0, 360);
+	for(int i = 0; i < way; i++)
+	{
+		float ang = i * (360 / way) + off;
+		_CreateBed(_enmX + 120 * cos(ang), _enmY + 120 * sin(ang), 120, 0.45);
+	}
+	
+	wait(120);
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 60, LERP_DECELERATE);
+	
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	for(int i = 0; ; i++)
+	{
+		_CreateBed(GetPlayerX(), GetPlayerY(), 150, 1.35);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(max(30, 100 - (i * 4)));
+	}
+}
+
+task _CreateBed(float destX_, float destY_, float time_, float pow_)
+{
+	int objBed = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_BED, RP_STG_ENM, BLEND_ALPHA,
+		0, 0, 300, 226,
+		0.35, 0.35,
+		_enmX, _enmY
+	);
+	
+	for(int i = 0; i <= time_; i++)
+	{
+		ObjRender_SetPosition(objBed, Interpolate_Smooth(_enmX, destX_, i / time_), Interpolate_Smooth(_enmY, destY_, i / time_), ID_INVALID);
+		ObjRender_SetScaleXYZ(objBed, min(Interpolate_Smooth(0, 0.65, i / time_), 0.25));
+		
+		yield;
+	}
+	
+	wait(20);	
+	
+	float posX = ObjRender_GetX(objBed);
+	float posY = ObjRender_GetY(objBed);
+	
+	_RenderChargeWaveless(posX, posY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	loop(30 * pow_)
+	{
+		ObjShot_SetDeleteFrame(CreateShot_Enemy(posX, posY, rand(2, 3), rand(0, 360), rand(-0.04, -0.06), 0, SHOT_FIREBALL_ORANGE, 25), rand(120, 160));
+	}
+	
+	loop(53 * pow_)
+	{
+		CreateShot_Enemy(posX, posY, rand(0, 1), rand(0, 360), rand(0.01, 0.02), rand(2.5, 4), prand(SHOT_BALL_RED, SHOT_BALL_DYELLOW), 25);
+	}
+	
+	int shot = prand(SHOT_LARGE_RED, SHOT_LARGE_YELLOW);
+	
+	int way = 23 * pow_;
+	for(int i = 0; i < way; i++)
+	{
+		CreateShot_Enemy(posX, posY, 0, i * (360 / way), 0.015, 2, shot, 25);
+	}
+	
+	time_ /= 2.5;
+	
+	for(int i = 0; i <= time_; i++)
+	{
+		ObjRender_SetScaleXYZ(objBed, Interpolate_Smooth(0.25, 0, i / time_));
+		
+		yield;
+	}
+}

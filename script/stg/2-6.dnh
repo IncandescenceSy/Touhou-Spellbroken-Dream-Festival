@@ -1,0 +1,274 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Kyouko 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Kyouko 2nd"]
+#Text["Kyouko 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DMINT;
+
+// Whether the force field is enabled
+bool _field = false;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 15);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KYOUKO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 459, 600, 187, 101, 30, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+	_Field();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	int[][] dims = [[0, 0, 120, 120], [FRAME_WIDTH - 120, 0, FRAME_WIDTH, 120], [0, FRAME_HEIGHT - 120, 120, FRAME_HEIGHT], [FRAME_WIDTH - 120, FRAME_HEIGHT - 120, FRAME_WIDTH, FRAME_HEIGHT]];
+	int[][] pos = [[5, 5], [FRAME_WIDTH - 5, 5], [5, FRAME_HEIGHT - 5], [FRAME_WIDTH - 5, FRAME_HEIGHT - 5]];
+	
+	loop
+	{	
+		wait(60);
+	
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		// Ring from boss
+		int  way = 30;
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			_ManageShot(CreateShot_Enemy(_enmX, _enmY, 0.1, (i * (360 / way)) + off, 0.005, 1.5, SHOT_BALL_AURA_RED, 25), dims);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+
+		wait(30);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		_field = false;
+		
+		// Rings from corners
+		way = 50;
+		off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			for each(int[] iPos in ref pos)
+			{
+				_ManageShot(CreateShot_Enemy(iPos[0], iPos[1], 0.1, (i * (360 / way)) + off, 0.005, 1.5, SHOT_BALL_AURA_RED, 25), dims);
+			}
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+
+		wait(50);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+		wait(155);
+		
+		_field = true;
+		
+		wait(120);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		// Ring from boss
+		way = 30;
+		off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			_ManageShot(CreateShot_Enemy(_enmX, _enmY, 0.1, (i * (360 / way)) + off, 0.005, 1.5, SHOT_BALL_AURA_RED, 25), dims);
+		}
+		
+		// Rings from corners
+		way = 50;
+		off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			for each(int[] iPos in ref pos)
+			{
+				_ManageShot(CreateShot_Enemy(iPos[0], iPos[1], 0.1, (i * (360 / way)) + off, 0.005, 1.5, SHOT_BALL_AURA_RED, 25), dims);
+			}
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+
+		wait(120);
+	}
+}
+
+task _ManageShot(int objShot_, int[][] dims_)
+{	
+	while(!_field) yield;
+	
+	bool[] isInside = 
+	[
+		Obj_IsInArea(objShot_, dims_[0][0], dims_[0][1], dims_[0][2], dims_[0][3]),
+		Obj_IsInArea(objShot_, dims_[1][0], dims_[1][1], dims_[1][2], dims_[1][3]),
+		Obj_IsInArea(objShot_, dims_[2][0], dims_[2][1], dims_[2][2], dims_[2][3]),
+		Obj_IsInArea(objShot_, dims_[3][0], dims_[3][1], dims_[3][2], dims_[3][3])
+	];
+	
+	while(_field && Obj_IsExists(objShot_))
+	{
+		for(int i = 0; i <= 3; i++)
+		{
+			/*if(isInside[i] && !Obj_IsInArea(objShot_, dims_[i][0], dims_[i][1], dims_[i][2], dims_[i][3]))
+			{
+				int reflect;
+				float posX = ObjMove_GetX(objShot_);
+				float posY = ObjMove_GetY(objShot_);
+				
+				if(posX < dims_[i][0])      reflect = 90;
+				else if(posY < dims_[i][1]) reflect = 0;
+				else if(posX > dims_[i][2]) reflect = 90;
+				else if(posY > dims_[i][3]) reflect = 0;
+				ObjMove_SetAngle(objShot_, ReflectAngle(ObjMove_GetAngle(objShot_), reflect));
+				
+				wait(5);
+			}
+			else if(!isInside[i] && Obj_IsInArea(objShot_, dims_[i][0], dims_[i][1], dims_[i][2], dims_[i][3]))
+			{
+				int reflect;
+				float posX = ObjMove_GetX(objShot_);
+				float posY = ObjMove_GetY(objShot_);
+				
+				if(posX > dims_[i][0])      reflect = 90;
+				else if(posY > dims_[i][1]) reflect = 0;
+				else if(posX < dims_[i][2]) reflect = 90;
+				else if(posY < dims_[i][3]) reflect = 0;
+				ObjMove_SetAngle(objShot_, ReflectAngle(ObjMove_GetAngle(objShot_), reflect));
+				
+				wait(5);
+			}*/
+			if(isInside[i] && !Obj_IsInArea(objShot_, dims_[i][0], dims_[i][1], dims_[i][2], dims_[i][3]))
+			{
+				ObjMove_SetAngle(objShot_, ObjMove_GetAngle(objShot_) + 180);
+				wait(5);
+			}
+			else if(!isInside[i] && Obj_IsInArea(objShot_, dims_[i][0], dims_[i][1], dims_[i][2], dims_[i][3]))
+			{
+				ObjMove_SetAngle(objShot_, ObjMove_GetAngle(objShot_) + 180);
+				wait(5);
+			}
+		}
+		
+		yield;
+	}
+}
+
+task _Field()
+{
+	int[] fields =
+	[
+		CreateSprite2D_NoTexture_Dest_RGB
+		(
+			RP_FX_MED_H, BLEND_ALPHA,
+			0, 0, 1, 1,
+			0, 0, 120, 120,
+			COLOR_AZURE
+		),
+		
+		CreateSprite2D_NoTexture_Dest_RGB
+		(
+			RP_FX_MED_H, BLEND_ALPHA,
+			0, 0, 1, 1,
+			FRAME_WIDTH - 120, 0, FRAME_WIDTH, 120,
+			COLOR_AZURE
+		),
+		
+		CreateSprite2D_NoTexture_Dest_RGB
+		(
+			RP_FX_MED_H, BLEND_ALPHA,
+			0, 0, 1, 1,
+			0, FRAME_HEIGHT - 120, 120, FRAME_HEIGHT,
+			COLOR_AZURE
+		),
+		
+		CreateSprite2D_NoTexture_Dest_RGB
+		(
+			RP_FX_MED_H, BLEND_ALPHA,
+			0, 0, 1, 1,
+			FRAME_WIDTH - 120, FRAME_HEIGHT - 120, FRAME_WIDTH, FRAME_HEIGHT,
+			COLOR_AZURE
+		)
+	];
+	
+	for each(int iFields in ref fields) ObjRender_SetAlpha(iFields, 0);
+	
+	loop
+	{
+		for each(int iFields in ref fields) ObjRender_SetAlpha(iFields, Interpolate_Smooth(ObjRender_GetAlpha(iFields), _field * 80, 0.18));
+		
+		yield;
+	}
+}

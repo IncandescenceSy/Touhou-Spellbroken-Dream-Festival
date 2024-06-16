@@ -1,0 +1,17 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Flandre Shot Data /////////////////////
+///////////////////////////////////////////////////////////////
+
+// This is the raw data for all of Flandre's bullets
+
+shot_image = "./../assets/img/pl/shot_player_flandre.png";
+
+// Red main shot
+ShotData
+{
+	id = 1;
+	rect = (0, 0, 14, 38);
+	render = ALPHA;
+	alpha = 130;
+	collision = 12;
+}

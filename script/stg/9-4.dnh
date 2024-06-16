@@ -1,0 +1,1486 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Keiki ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Keiki"]
+#Text["Keiki"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DGREEN;
+
+// Colors
+const int TETR_NONE   = 0; // Empty
+const int TETR_AQUA   = 1; // L block
+const int TETR_YELLOW = 2; // Cube
+const int TETR_PURPLE = 3; // T block
+const int TETR_BLUE   = 4; // J block
+const int TETR_ORANGE = 5; // L block
+const int TETR_GREEN  = 6; // S block
+const int TETR_RED    = 7; // Z block
+const int TETR_GRAY   = 8; // Death effect
+
+const int TETR_FADETOWHITE_OFFSET = 64;
+
+// Moves for B2B tracking
+const int TETR_OTHER = 0;
+const int TETR_MINI_TSPIN_DOUBLE = 1;
+const int TETR_TSPIN_SINGLE = 2;
+const int TETR_TETRIS = 3;
+const int TETR_TSPIN_DOUBLE = 4;
+const int TETR_TSPIN_TRIPLE = 5;
+
+const int[] TETR_COLORS = [
+	COLOR_BLACK,
+	COLOR_AQUA,
+	COLOR_YELLOW,
+	COLOR_PURPLE,
+	COLOR_AZURE,
+	COLOR_ORANGE,
+	COLOR_GREEN,
+	COLOR_RED,
+	COLOR_GRAY
+];
+
+// Pieces
+const int TETR_I = 0;
+const int TETR_CUBE = 1;
+const int TETR_T = 2;
+const int TETR_J = 3;
+const int TETR_L = 4;
+const int TETR_S = 5;
+const int TETR_Z = 6;
+
+// Rotation directions
+const int TETR_CW = 0;
+const int TETR_CCW = 1;
+
+// piece, rotation, tilemap
+const int[][][][] TETR_PIECES = [
+	[
+		[
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_AQUA, TETR_AQUA, TETR_AQUA, TETR_AQUA],
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_NONE, TETR_AQUA, TETR_NONE],
+			[TETR_NONE, TETR_NONE, TETR_AQUA, TETR_NONE],
+			[TETR_NONE, TETR_NONE, TETR_AQUA, TETR_NONE],
+			[TETR_NONE, TETR_NONE, TETR_AQUA, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_AQUA, TETR_AQUA, TETR_AQUA, TETR_AQUA],
+			[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_AQUA, TETR_NONE, TETR_NONE],
+			[TETR_NONE, TETR_AQUA, TETR_NONE, TETR_NONE],
+			[TETR_NONE, TETR_AQUA, TETR_NONE, TETR_NONE],
+			[TETR_NONE, TETR_AQUA, TETR_NONE, TETR_NONE]
+		]
+	],
+	[
+		[
+			[TETR_YELLOW, TETR_YELLOW],
+			[TETR_YELLOW, TETR_YELLOW]
+		],
+		[
+			[TETR_YELLOW, TETR_YELLOW],
+			[TETR_YELLOW, TETR_YELLOW]
+		],
+		[
+			[TETR_YELLOW, TETR_YELLOW],
+			[TETR_YELLOW, TETR_YELLOW]
+		],
+		[
+			[TETR_YELLOW, TETR_YELLOW],
+			[TETR_YELLOW, TETR_YELLOW]
+		]
+	],
+	[
+		[
+			[TETR_NONE,   TETR_PURPLE, TETR_NONE  ],
+			[TETR_PURPLE, TETR_PURPLE, TETR_PURPLE],
+			[TETR_NONE,   TETR_NONE,   TETR_NONE  ]
+		],
+		[
+			[TETR_NONE, TETR_PURPLE, TETR_NONE  ],
+			[TETR_NONE, TETR_PURPLE, TETR_PURPLE],
+			[TETR_NONE, TETR_PURPLE, TETR_NONE  ]
+		],
+		[
+			[TETR_NONE,   TETR_NONE,   TETR_NONE  ],
+			[TETR_PURPLE, TETR_PURPLE, TETR_PURPLE],
+			[TETR_NONE,   TETR_PURPLE, TETR_NONE  ]
+		],
+		[
+			[TETR_NONE,   TETR_PURPLE, TETR_NONE],
+			[TETR_PURPLE, TETR_PURPLE, TETR_NONE],
+			[TETR_NONE,   TETR_PURPLE, TETR_NONE]
+		]
+	],
+	[
+		[
+			[TETR_BLUE, TETR_NONE, TETR_NONE],
+			[TETR_BLUE, TETR_BLUE, TETR_BLUE],
+			[TETR_NONE, TETR_NONE, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_BLUE, TETR_BLUE],
+			[TETR_NONE, TETR_BLUE, TETR_NONE],
+			[TETR_NONE, TETR_BLUE, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_BLUE, TETR_BLUE, TETR_BLUE],
+			[TETR_NONE, TETR_NONE, TETR_BLUE]
+		],
+		[
+			[TETR_NONE, TETR_BLUE, TETR_NONE],
+			[TETR_NONE, TETR_BLUE, TETR_NONE],
+			[TETR_BLUE, TETR_BLUE, TETR_NONE]
+		]
+	],
+	[
+		[
+			[TETR_NONE,   TETR_NONE,   TETR_ORANGE],
+			[TETR_ORANGE, TETR_ORANGE, TETR_ORANGE],
+			[TETR_NONE,   TETR_NONE,   TETR_NONE  ]
+		],
+		[
+			[TETR_NONE, TETR_ORANGE, TETR_NONE],
+			[TETR_NONE, TETR_ORANGE, TETR_NONE],
+			[TETR_NONE, TETR_ORANGE, TETR_ORANGE]
+		],
+		[
+			[TETR_NONE,   TETR_NONE,   TETR_NONE],
+			[TETR_ORANGE, TETR_ORANGE, TETR_ORANGE],
+			[TETR_ORANGE, TETR_NONE,   TETR_NONE]
+		],
+		[
+			[TETR_ORANGE, TETR_ORANGE, TETR_NONE],
+			[TETR_NONE,   TETR_ORANGE, TETR_NONE],
+			[TETR_NONE,   TETR_ORANGE, TETR_NONE]
+		]
+	],
+	[
+		[
+			[TETR_NONE,  TETR_GREEN, TETR_GREEN],
+			[TETR_GREEN, TETR_GREEN, TETR_NONE ],
+			[TETR_NONE,  TETR_NONE,  TETR_NONE ]
+		],
+		[
+			[TETR_NONE, TETR_GREEN, TETR_NONE],
+			[TETR_NONE, TETR_GREEN, TETR_GREEN],
+			[TETR_NONE, TETR_NONE,  TETR_GREEN]
+		],
+		[
+			[TETR_NONE,  TETR_NONE,  TETR_NONE],
+			[TETR_NONE,  TETR_GREEN, TETR_GREEN],
+			[TETR_GREEN, TETR_GREEN, TETR_NONE]
+		],
+		[
+			[TETR_GREEN, TETR_NONE,  TETR_NONE],
+			[TETR_GREEN, TETR_GREEN, TETR_NONE],
+			[TETR_NONE,  TETR_GREEN, TETR_NONE]
+		]
+	],
+	[
+		[
+			[TETR_RED,  TETR_RED,  TETR_NONE],
+			[TETR_NONE, TETR_RED,  TETR_RED ],
+			[TETR_NONE, TETR_NONE, TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_NONE, TETR_RED ],
+			[TETR_NONE, TETR_RED,  TETR_RED ],
+			[TETR_NONE, TETR_RED,  TETR_NONE]
+		],
+		[
+			[TETR_NONE, TETR_NONE, TETR_NONE],
+			[TETR_RED,  TETR_RED,  TETR_NONE],
+			[TETR_NONE, TETR_RED,  TETR_RED ]
+		],
+		[
+			[TETR_NONE, TETR_RED,  TETR_NONE],
+			[TETR_RED,  TETR_RED,  TETR_NONE],
+			[TETR_RED,  TETR_NONE, TETR_NONE]
+		]
+	]
+];
+
+const int[] UNSHUFFLED_BAG = [
+	TETR_I,
+	TETR_CUBE,
+	TETR_T,
+	TETR_J,
+	TETR_L,
+	TETR_S,
+	TETR_Z
+];
+
+// Sequences to try moving the piece in when rotated a certain way.
+// If it doesn't fit one way it tries the next, if none fit, rotation is cancelled.
+// type, rotate-to, rotatedir
+const int[][][][][] KICKS = [
+[ // non-I kicks
+	[
+		[[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]], // 3 -> 0
+		[[0, 0], [1,  0], [1,  -1], [0, 2], [1,  2]] // 1 -> 0
+	],
+	[
+		[[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]], // 0 -> 1
+		[[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]] // 2 -> 1
+	],
+	[
+		[[0, 0], [1,  0], [1,  -1], [0, 2], [1,  2]], // 1 -> 2
+		[[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]] // 3 -> 2
+	],
+	[
+		[[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]], // 2 -> 3
+		[[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]] // 0 -> 3
+	]
+],
+[ // I kicks
+	[
+		[[0, 0], [1, 0], [-2, 0], [1, -2], [-2,  1]],
+		[[0, 0], [2, 0], [-1, 0], [2, 1 ], [-1, -2]]
+	],
+	[
+		[[0, 0], [-2, 0], [1,  0], [-2, -1], [1,  2]],
+		[[0, 0], [1,  0], [-2, 0], [1,  -2], [-2, 1]]
+	],
+	[
+		[[0, 0], [-1, 0], [2, 0], [-1, 2],  [2, -1]],
+		[[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2 ]]
+	],
+	[
+		[[0, 0], [2,  0], [-1, 0], [2,  1], [-1, -2]],
+		[[0, 0], [-1, 0], [2,  0], [-1, 2], [2, -1 ]]
+	]
+]
+];
+
+int TETR_FALL_TIME = 30;
+int TETR_FORCED_FALL_TIME = TETR_FALL_TIME * 3;
+const int TETR_START_X = 3;
+const int TETR_START_Y = 0;
+const int TETR_INITIAL_HOLD_DELAY = 8;
+const int TETR_HOLD_DELAY = 2;
+
+const int TETR_FADETOWHITE_DURATION = 36;
+
+// Board
+int[][] _tetr =
+[
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+	[TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE],
+];
+
+int[] _tetrBag = [0, 0, 0, 0, 0, 0, 0];
+int _tetrNextBagIndex = 7;
+int[][][] _tetrNext = [[], [], [], [], []];
+int[] _tetrNextPieces = [0, 0, 0, 0, 0];
+int[][] _tetrHold = [[]];
+int _tetrHoldPiece = 0;
+
+int[][] _tetrCur = [[]];
+int _curTetrPiece = 0;
+int _curTetrRot = 0;
+int _curTetrX = TETR_START_X;
+int _curTetrY = TETR_START_Y;
+int _tetrFallTimer = TETR_FALL_TIME;
+int _tetrForcedFallTimer = TETR_FORCED_FALL_TIME;
+int _tetrLeftHold = TETR_INITIAL_HOLD_DELAY;
+int _tetrRightHold = TETR_INITIAL_HOLD_DELAY;
+int _tetrDropHold = TETR_HOLD_DELAY;
+int _tetrCombo = 0;
+bool _tetrLastClearDifficult = false; // B2B purposes
+int _tetrHardDropDist = 0;
+bool _tetrCanHold = true;
+bool _tetrKicked = false;
+bool _tetrTSpin = false;
+bool _tetrMiniTSpin = false;
+bool _tetrCheckClear = false;
+
+int _tetrFadeProgress = 0;
+
+int blockList = CreateParticleList2D(DIR_IMG_EFF_TETR, 0, 0, 35, 35, BLEND_ALPHA, RP_UI_MISC + 1);
+ObjShader_SetShaderF(blockList, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(blockList, TEC_RENDER);
+ObjShader_SetFloat(blockList, FLOAT_STEP_X, 35 / 70);
+ObjShader_SetFloat(blockList, FLOAT_STEP_Y, 1);
+
+// Cleared line count
+int _clearedLines = 0;
+		
+// Is in endless mode
+bool _isEndless = GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+
+// Current level
+int _level = 1;
+
+// Max boss life
+int _lifeMax = 1900;
+
+// Star particles
+int objPart_ = CreateParticleList2D 
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_UI_MISC + 1
+);
+
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, true);
+
+int[] _colors = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_OLIVE, COLOR_GREEN, COLOR_MINT, COLOR_AQUA, COLOR_AZURE, COLOR_BLUE, COLOR_INDIGO, COLOR_PURPLE, COLOR_MAGENTA, COLOR_PINK];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, (_isEndless) ? 71 : 70);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KEIKI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_EFF_TETR, DIR_IMG_SYS_HOLDNEXT, DIR_IMG_SYS_LINES, DIR_IMG_SYS_LEVEL, DIR_IMG_SYS_BOSSLIFE, DIR_IMG_SYS_TOAST_TETR, DIR_IMG_SYS_TOAST_TSPIN]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SET_LIFEBAR_ALPHA, 0);
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 538, 600, 187, 111, 70, _colorA, _colorB, CENTER_X, CENTER_Y - 60, (_isEndless) ? 0 : 12600, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+	//_DebugTextKick();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(_lifeMax);
+		case(EV_REQUEST_TIMER) SetScriptResult((_isEndless) ? 35000000 : 250);
+		case(EV_PAUSE_LEAVE)   Obj_SetVisible(blockList, true);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+/*task _DebugTextKick()
+{
+	int objLines = CreateTextObject
+	(
+		itoa(_tetrKicked), FONT_KORURI, RP_UI_MISC + 5,
+		400, 400,
+		60, 1000, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	
+	loop
+	{
+		ObjText_SetText(objLines, itoa(_tetrKicked));
+		yield;
+	}
+}*/
+
+task _Pattern()
+{
+	_CheckPause();
+	
+	ObjMove_SetProcessMovement(_objPlayer, false);
+	SetForbidPlayerShot(true);
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	// Board
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_FX_MED_H, BLEND_ALPHA,
+		0, 0, 1, 1,
+		90, 0, FRAME_WIDTH - 90, FRAME_HEIGHT,
+		COLOR_BLACK
+	);
+	_FadeIn(objDark, 20, 200);
+	
+	// Hold
+	int objDarkA = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		187, 60, 291, 169,
+		COLOR_BLACK
+	);
+	_FadeIn(objDarkA, 20, 200);
+	
+	// Next
+	int objDarkB = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		662, 60, 766, 680,
+		COLOR_BLACK
+	);
+	_FadeIn(objDarkB, 20, 200);
+	
+	// Lines
+	int objDarkC = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		187, 196, 290, 281,
+		COLOR_BLACK
+	);
+	_FadeIn(objDarkC, 20, 200);
+	
+	// Level
+	int objDarkD = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		187, 196 + 27 + 86, 290, 281 + 27 + 86,
+		COLOR_BLACK
+	);
+	_FadeIn(objDarkD, 20, 200);
+	
+	// Hold & Next text
+	int objText = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_HOLDNEXT, RP_UI_MISC + 1, BLEND_ALPHA,
+		0, 0, 600, 29,
+		FRAME_LEFT, 64, FRAME_RIGHT, 93
+	);
+	_FadeIn(objText, 20);
+	
+	// Lines text
+	int objTextA = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_LINES, RP_UI_MISC + 1, BLEND_ALPHA,
+		0, 0, 100, 33,
+		187, 198, 290, 231
+	);
+	_FadeIn(objTextA, 20);
+	
+	// Level text
+	int objTextB = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_LEVEL, RP_UI_MISC + 1, BLEND_ALPHA,
+		0, 0, 100, 33,
+		187, 198 + 27 + 86, 290, 231 + 27 + 86
+	);
+	_FadeIn(objTextB, 20);
+	
+	// Counter for cleared lines
+	int objLines = CreateTextObject
+	(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		189, 240, 
+		30, 100, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	_FadeIn(objLines, 20);
+	
+	// Counter for level
+	int objLevel = CreateTextObject
+	(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		189, 240 + 27 + 86, 
+		30, 100, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	_FadeIn(objLevel, 20);
+	
+	// Lines
+	_LineExtend();
+	
+	_ManageBoard();
+	_DrawBoard();
+	
+	if(!_isEndless) _RenderBossLife();
+	
+	loop
+	{
+		ObjText_SetText(objLines, DigitToCommaArray(min(9999, _clearedLines)));
+		ObjText_SetText(objLevel, itoa(_level));
+		
+		yield;
+	}
+}
+
+task _RenderBossLife()
+{
+	int objDarkD = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 1, 1,
+		187, 196 + 27 + 86 + 27 + 86, 290, 281 + 27 + 86 + 27 + 86,
+		COLOR_BLACK
+	);
+	_FadeIn(objDarkD, 20, 200);
+	
+	int objTextB = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_BOSSLIFE, RP_UI_MISC + 1, BLEND_ALPHA,
+		0, 0, 100, 33,
+		187, 198 + 27 + 86 + 27 + 86, 290, 231 + 27 + 86 + 27 + 86
+	);
+	_FadeIn(objTextB, 20, 255);
+	
+	int objLevel = CreateTextObject
+	(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		189, 240 + 27 + 86 + 27 + 86, 
+		30, 100, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	_FadeIn(objLevel, 20, 255);
+	
+	loop
+	{
+		float lifeTotal = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		float lifeRate = lifeTotal / _lifeMax;
+		
+		ObjText_SetText(objLevel, itoa(lifeRate * 100) ~ "%");
+		ObjRender_SetColorHSV(objLevel, 120 * lifeRate, 255, 255);
+		
+		yield;
+	}
+}
+
+task _CheckPause()
+{
+	loop
+	{
+		if(GetVirtualKeyState(VK_PAUSE) == KEY_PUSH) Obj_SetVisible(blockList, false);
+		yield;
+	}
+}
+
+task _LineExtend()
+{
+	int objLine = CreatePrimObject(RP_FX_MED_H, PRIMITIVE_LINELIST, 64);
+	_FadeIn(objLine, 20, 200);
+	
+	// Horizontal lines
+	for(int i = 0; i < 42; i += 2)
+	{
+			//int start = (i % 4 == 0) ? 90 : FRAME_WIDTH - 90;
+			ObjPrim_SetVertexPosition(objLine, i, 90, i * (440 / 40), ID_INVALID);
+			
+			/*async
+			{
+				int ind = i;
+				
+				float jMax = 20;
+				for(int j = 0; j <= jMax; j++)
+				{
+					ObjPrim_SetVertexPosition(objLine, ind + 1, Interpolate_Smooth(start, (FRAME_WIDTH - 180) - start + 90, j / jMax), ind * 22, ID_INVALID);
+					yield;
+				}
+			}*/
+			ObjPrim_SetVertexPosition(objLine, i + 1, FRAME_WIDTH - 90, i * (440 / 40), ID_INVALID);
+	}
+	
+	// Vertical lines
+	for(int i = 42; i < 64; i += 2)
+	{
+			int start = (i % 4) * FRAME_HEIGHT; // I'm a branchless programming master are you proud of me Neck
+			ObjPrim_SetVertexPosition(objLine, i, 90 + (i - 42) * (220 / 20), start, ID_INVALID);
+			
+		/*async
+		{
+			int ind = i;
+			
+			float jMax = 20;
+			for(int j = 0; j <= jMax; j++)
+			{
+				ObjPrim_SetVertexPosition(objLine, ind + 1, ind * 22, Interpolate_Smooth(start, FRAME_HEIGHT - start, j / jMax), ID_INVALID);
+				yield;
+			}
+		}*/
+		
+		ObjPrim_SetVertexPosition(objLine, i + 1, 90 + (i - 42) * (220 / 20), FRAME_HEIGHT - start, ID_INVALID);
+	}
+}
+
+task _ManageBoard()
+{
+	// first 6 pieces
+	for(int i = 0; i < 6; i++) {
+		_tetrTakePiece();
+	}
+	loop
+	{
+		_tetrCheckClear = false;
+		int leftKey = GetVirtualKeyState(VK_LEFT);
+		int rightKey = GetVirtualKeyState(VK_RIGHT);
+		int downKey = GetVirtualKeyState(VK_DOWN);
+		bool rotateCw = GetVirtualKeyState(VK_SHOT) == KEY_PUSH;
+		bool rotateCcw = GetVirtualKeyState(VK_BOMB) == KEY_PUSH;
+		bool hardDrop = GetVirtualKeyState(VK_UP) == KEY_PUSH;
+		bool hold = GetVirtualKeyState(VK_SLOWMOVE) == KEY_PUSH;
+
+		if(leftKey == KEY_PUSH) {
+			if(_tetrCheckMove(-1, 0)) {
+				_curTetrX--;
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+				if(!_tetrCheckMove(0, 1)) {
+					_tetrFallTimer = TETR_FALL_TIME;
+				}
+			}
+			_tetrLeftHold = TETR_INITIAL_HOLD_DELAY;
+		} else if(leftKey == KEY_HOLD) {
+			_tetrLeftHold--;
+			if(_tetrLeftHold <= 0) {
+				_tetrLeftHold = TETR_HOLD_DELAY;
+				if(_tetrCheckMove(-1, 0)) {
+					_curTetrX--;
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+					if(!_tetrCheckMove(0, 1)) {
+						_tetrFallTimer = TETR_FALL_TIME;
+					}
+				}
+			}
+		}
+
+		if(rightKey == KEY_PUSH) {
+			if(_tetrCheckMove(1, 0)) {
+				_curTetrX++;
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+				if(!_tetrCheckMove(0, 1)) {
+					_tetrFallTimer = TETR_FALL_TIME;
+				}
+			}
+			_tetrRightHold = TETR_INITIAL_HOLD_DELAY;
+		} else if(rightKey == KEY_HOLD) {
+			_tetrRightHold--;
+			if(_tetrRightHold <= 0) {
+				_tetrRightHold = TETR_HOLD_DELAY;
+				if(_tetrCheckMove(1, 0)) {
+					_curTetrX++;
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+					if(!_tetrCheckMove(0, 1)) {
+						_tetrFallTimer = TETR_FALL_TIME;
+					}
+				}
+			}
+		}
+		if(downKey == KEY_PUSH) {
+			_tetrDropHold = 0;
+		}
+
+		if(downKey == KEY_HOLD || downKey == KEY_PUSH) {
+			_tetrDropHold--;
+			if(_tetrDropHold <= 0) {
+				if(_tetrCheckMove(0, 1)) {
+					_tetrFallTimer = TETR_FALL_TIME;
+					_tetrForcedFallTimer = TETR_FORCED_FALL_TIME;
+					_curTetrY++;
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_DAMAGE_NORMAL);
+					AddScore(1);
+				}
+			}
+		}
+
+		if(rotateCw) {
+			_tetrRotate(1);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_GRAZE);
+		}
+		if(rotateCcw) {
+			_tetrRotate(-1);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_GRAZE);
+		}
+
+		if(hold && _tetrCanHold) {
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_tetrCanHold = false;
+			int pieceToHold = _curTetrPiece;
+			if(length(_tetrHold[0]) != 0) {
+				_curTetrPiece = _tetrHoldPiece;
+				_tetrCur = TETR_PIECES[_curTetrPiece][0];
+			} else {
+				_tetrTakePiece(); // handling for empty holdbox
+			}
+			_curTetrRot = 0;
+			_curTetrY = TETR_START_Y;
+			_curTetrX = TETR_START_X;
+			_tetrHoldPiece = pieceToHold;
+			_tetrHold = TETR_PIECES[pieceToHold][0];
+			_tetrFallTimer = TETR_FALL_TIME;
+			_tetrForcedFallTimer = TETR_FORCED_FALL_TIME;
+		}
+
+		_tetrFallTimer--;
+		_tetrForcedFallTimer--;
+		if(_tetrFallTimer <= 0 || _tetrForcedFallTimer <= 0) {
+			_tetrFallTimer = TETR_FALL_TIME;
+			_tetrForcedFallTimer = TETR_FORCED_FALL_TIME;
+			if(!_tetrCheckMove(0, 1)) {
+				_tetrSolidify();
+			} else {
+				_curTetrY++;
+			}
+		}
+
+		_tetrHardDropDist = 0;
+		for(int distDrop = 0; distDrop + _curTetrY < 20; distDrop++) {
+			if(!_tetrCheckMove(0, distDrop + 1)) {
+				_tetrHardDropDist = distDrop;
+				break;
+			}
+		}
+
+		// Hard dropping
+		if(hardDrop) {
+			_curTetrY += _tetrHardDropDist;
+			//NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_FIRESHOOT);
+			_tetrSolidify();
+			AddScore(_tetrHardDropDist * 2);
+		}
+
+		if(_tetrCheckClear) {
+			_tetrDoClearCheck();
+		}
+		_tetrTSpin = false;
+		_tetrMiniTSpin = false;
+		
+		yield;
+	}
+}
+
+task _DrawBoard() {
+	loop {
+		float fadeF = _tetrFadeProgress / float(TETR_FADETOWHITE_DURATION);
+		_tetrFadeProgress++;
+		
+		//int nextList = CreateParticleList2D(DIR_IMG_EFF_TETR, 0, 0, 35, 35, BLEND_ALPHA, RP_UI_MISC);
+		//ObjRender_SetScaleXYZ(nextList, 0.6667);
+
+		// Here's the preview stuff!
+		// I've moved it first so it stops rendering in front of the non-preview tiles lol
+		int previewList = blockList;
+		for each(int i, int[] line in ref _tetrCur) {
+			for each(int j, int square in ref line) {
+				if(square != TETR_NONE && i + _curTetrY + _tetrHardDropDist >= 0) {
+					int xPos = 331 + (j + _curTetrX) * 33;
+					int yPos = 46 + (i + _curTetrY + _tetrHardDropDist) * 33;
+					ObjParticleList_SetColor(previewList, TETR_COLORS[square]);
+					ObjParticleList_SetScale(previewList, 1, 1, 1);
+					ObjParticleList_SetPosition(previewList, xPos, yPos, ID_INVALID);
+					ObjParticleList_SetExtraData(previewList, 1, 0, 1);
+					ObjParticleList_AddInstance(previewList);
+				}
+			}
+		}
+
+
+		
+		for each(int i, int[] line in ref _tetr) {
+			for each(int j, int square in ref line) {
+				if(square != TETR_NONE) {
+					int color = 0;
+					if(square >= TETR_FADETOWHITE_OFFSET) {
+						square -= TETR_FADETOWHITE_OFFSET;
+						color = TETR_COLORS[square];
+						int r = (color & 0xFF0000) >> 16;
+						int g = (color & 0x00FF00) >> 8;
+						int b = (color & 0x0000FF);
+						r = Interpolate_Smooth(r, 0xFF, fadeF);
+						g = Interpolate_Smooth(g, 0xFF, fadeF);
+						b = Interpolate_Smooth(b, 0xFF, fadeF);
+						color = (r << 16) | (g << 8) | b;
+					} else {
+						color = TETR_COLORS[square];
+					}
+					int xPos = 331 + j * 33;
+					int yPos = 46 + i * 33;
+					ObjParticleList_SetColor(blockList, color);
+					ObjParticleList_SetScale(blockList, 1, 1, 1);
+					ObjParticleList_SetPosition(blockList, xPos, yPos, ID_INVALID);
+					ObjParticleList_SetExtraData(blockList, 0, 0, 1);
+					ObjParticleList_AddInstance(blockList);
+				}
+			}
+		}
+
+		for each(int i, int[] line in ref _tetrCur) {
+			for each(int j, int square in ref line) {
+				if(square != TETR_NONE && i + _curTetrY >= 0) {
+					int xPos = 331 + (j + _curTetrX) * 33;
+					int yPos = 46 + (i + _curTetrY) * 33;
+					ObjParticleList_SetColor(blockList, TETR_COLORS[square]);
+					ObjParticleList_SetScale(blockList, 1, 1, 1);
+					ObjParticleList_SetPosition(blockList, xPos, yPos, ID_INVALID);
+					ObjParticleList_SetExtraData(blockList, 0, 0, 1);
+					ObjParticleList_AddInstance(blockList);
+				}
+			}
+		}
+
+		// 187, 104 wide: center = 239
+		// left: 239 - width/2
+		// 98, 71 tall: center = 133.5
+		for each(int i, int[] line in ref _tetrHold) {
+			int width = length(line) * 11;
+			int startX = 239 - width + 11; // no i do not know why i need a +11 here
+			int height = 2 * 11;
+			if (_tetrHoldPiece == TETR_I) {
+				height = 3 * 11; // i don't fucking know anymore
+			}
+			int startY = 133 - height + 11;
+			for each(int j, int square in ref line) {
+				if(square != TETR_NONE) {
+					int xPos = startX + j * 22;
+					int yPos = startY + i * 22;
+
+
+					ObjParticleList_SetColor(blockList, TETR_COLORS[square]);
+					ObjParticleList_SetScale(blockList, 0.6667, 0.6667, 1);
+					ObjParticleList_SetPosition(blockList, xPos, yPos, ID_INVALID);
+					ObjParticleList_SetExtraData(blockList, 0, 0, 1);
+					ObjParticleList_AddInstance(blockList);
+				}
+			}
+		}
+
+		// 662-766, 104 wide: center = 714
+		// 116 tall, center: +66
+		for each(int i, int[][] piece in ref _tetrNext) {
+			int height = 2 * 11;
+			if (_tetrNextPieces[i] == TETR_I) {
+				height = 3 * 11; // i don't fucking know anymore
+			}
+			for each(int j, int[] line in ref piece) {
+				int width = length(line) * 11;
+				int startX = 714 - width + 11; // no i do not know what these numbers are
+				int startY = 133 + (i * 125) - height + 11;
+				for each(int k, int square in ref line) {
+					if(square != TETR_NONE) {
+						int xPos = startX + k * 22;
+						int yPos = startY + (j * 22);
+
+						ObjParticleList_SetColor(blockList, TETR_COLORS[square]);
+						ObjParticleList_SetScale(blockList, 0.6667, 0.6667, 1);
+						ObjParticleList_SetPosition(blockList, xPos, yPos, ID_INVALID);
+						ObjParticleList_SetExtraData(blockList, 0, 0, 1);
+						ObjParticleList_AddInstance(blockList);
+					}
+				}
+			}
+		}
+		ObjParticleList_SetScale(blockList, 1f);
+		yield;
+	}
+}
+
+// Solidifies the current piece and queues the next.
+function<void> _tetrSolidify() {
+	// T-spin detection
+	// We definitely can't move down if we're here in solidify so save the overhead
+	//if(_curTetrPiece == TETR_T) _DebugText(!_tetrCheckMove(1, 0), !_tetrCheckMove(0, -1), !_tetrCheckMove(-1, 0));
+	
+	if(_curTetrPiece == TETR_T && !_tetrCheckMove(1, 0) && !_tetrCheckMove(0, -1) && !_tetrCheckMove(-1, 0)) {
+		// TSpin!
+		_tetrTSpin = !_tetrKicked;
+		_tetrMiniTSpin = _tetrKicked;
+	}
+
+	// actual solidification
+	for each(int i, int[] line in ref _tetrCur) {
+		for each(int j, int square in ref line) {
+			if(square != TETR_NONE) {
+				int sqY = i + _curTetrY;
+				if(sqY >= 0) {
+					_tetr[i + _curTetrY][j + _curTetrX] = square;
+				} else {
+					NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, ID_INVALID);
+					
+					// Graying effect
+					for(int i = 0; i < length(_tetrCur); i++)
+					{
+						for(int j = 0; j < length(_tetrCur[i]); j++)
+						{
+							if(_tetrCur[i][j] != TETR_NONE) _tetrCur[i][j] = TETR_GRAY;
+						}
+					}
+					
+					for(int i = 0; i < length(_tetr); i++)
+					{
+						for(int j = 0; j < length(_tetr[i]); j++)
+						{
+							if(_tetr[i][j] != TETR_NONE) _tetr[i][j] = TETR_GRAY;
+						}
+						
+						yield;
+					}
+					
+					return;
+				}
+			}
+		}
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_MISSILESHOOT);
+
+	_tetrCanHold = true;
+	_tetrFallTimer = TETR_FALL_TIME;
+	_tetrForcedFallTimer = TETR_FORCED_FALL_TIME;
+	_tetrCheckClear = true;
+	_tetrTakePiece();
+}
+
+/*task _DebugText(bool ch1, bool ch2, bool ch3)
+{
+	int objLines = CreateTextObject
+	(
+		itoa(ch1) ~ "  " ~ itoa(ch2) ~ "  " ~ itoa(ch3), FONT_KORURI, RP_UI_MISC + 5,
+		400, 400,
+		60, 1000, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	wait(60);
+	Obj_Delete(objLines);
+}*/
+
+// Checks if moving the current piece by dx and dy is a valid position.
+function<bool> _tetrCheckMove(int dx, int dy) {
+	int newX = _curTetrX + dx;
+	int newY = _curTetrY + dy;
+	for each(int i, int[] line in ref _tetrCur) {
+		for each(int j, int square in ref line) {
+			if(square != TETR_NONE) {
+				int squareY = i + newY;
+				int squareX = j + newX;
+				// OOB checks -- off top is fine
+				if(squareY >= 20 || squareX >= 10 || squareX < 0) {
+					return false;
+				} else if(squareY >= 0 && _tetr[squareY][squareX] != TETR_NONE) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+function<void> _tetrRotate(int dr) {
+	int newRot = (_curTetrRot + dr) % 4;
+	_tetrCur = TETR_PIECES[_curTetrPiece][newRot];
+	int rotDir = dr <= 0 ? 1 : 0;
+	int iIndex = _curTetrPiece == TETR_I ? 1 : 0;
+	bool applyRot = false;
+	for each(int i, int[] kick in ref KICKS[iIndex][newRot][rotDir]) {
+		if(_tetrCheckMove(kick[0], -kick[1])) {
+			_curTetrX += kick[0];
+			_curTetrY -= kick[1];
+			applyRot = true;
+			_tetrKicked = i != 0;
+			break;
+		}
+	}
+	if(applyRot) {
+		_curTetrRot = newRot;
+		if(!_tetrCheckMove(0, 1)) {
+			_tetrFallTimer = TETR_FALL_TIME;
+		}
+	} else {
+		_tetrCur = TETR_PIECES[_curTetrPiece][_curTetrRot]; // revert if rotation fail
+	}
+}
+
+function<void> _tetrTakePiece() {
+	_tetrCur = _tetrNext[0];
+	_curTetrPiece = _tetrNextPieces[0];
+	_curTetrRot = 0;
+	if(_tetrNextBagIndex >= 7) {
+		_tetrRefillBag();
+	}
+	for(int i = 0; i < 4; i++) {
+		_tetrNext[i] = _tetrNext[i + 1];
+		_tetrNextPieces[i] = _tetrNextPieces[i + 1];
+	}
+	int newPiece = _tetrBag[_tetrNextBagIndex];
+	_tetrNextPieces[-1] = newPiece;
+	_tetrNext[-1] = TETR_PIECES[newPiece][0];
+	_tetrNextBagIndex++;
+	
+	_curTetrX = TETR_START_X;
+	_curTetrY = TETR_START_Y;
+	while(!_tetrCheckMove(0, 0)) {
+		_curTetrY--;
+	}
+}
+
+function<void> _tetrRefillBag() {
+	int[] defaultBag = UNSHUFFLED_BAG;
+	_tetrBag = defaultBag;
+	for(int i = 0; i < 7; i++) {
+		int takeIndex = rand_int(0, 6 - i);
+		int taken = defaultBag[takeIndex];
+		defaultBag[takeIndex] = defaultBag[-(i + 1)];
+		_tetrBag[i] = taken;
+	}
+	_tetrNextBagIndex = 0;
+}
+
+function<int> _tetrScore(int clearedLines) {
+    if(_tetrMiniTSpin) {
+        alternative(clearedLines)
+            case(0) {
+                return 100; // Mini-TSpin
+            }
+            case(1) {
+                _tetrLastClearDifficult = true;
+                return 200; // Mini-TSpin Single
+            }
+            case(2) {
+                int b2bAdditional = _tetrLastClearDifficult * 200;
+                _tetrLastClearDifficult = true;
+                return 400 + b2bAdditional; // Mini-TSpin Double
+            }
+            case(3) {
+                 int b2bAdditional = _tetrLastClearDifficult * 800;
+                _tetrLastClearDifficult = true;
+                return 1600 + b2bAdditional;
+            }
+
+    } else if(_tetrTSpin) {
+        alternative(clearedLines)
+            case(0) {
+                return 400;
+            }
+            case(1) {
+                int b2bAdditional = _tetrLastClearDifficult * 400;
+                _tetrLastClearDifficult = true;
+                return 800 + b2bAdditional;
+            }
+            case(2) {
+                int b2bAdditional = _tetrLastClearDifficult * 600;
+                _tetrLastClearDifficult = true;
+                return 1200 + b2bAdditional;
+            }
+    } else {
+        alternative(clearedLines) 
+            case(0) return 0;
+            case(1,2,3) {
+                _tetrLastClearDifficult = false;
+                return (clearedLines * 200) - 100;
+            }
+            case(4) {
+				int b2bAdditional = _tetrLastClearDifficult * 400;
+                _tetrLastClearDifficult = true;
+                return 800 + b2bAdditional;
+            }
+        
+    }
+}
+
+function<void> _tetrDoClearCheck() {
+	int[] clearedLines = [];
+	for each(int counter, int[] iLine in ref _tetr)
+	{
+		// Checks if a line is full
+		int tileCount = 0;
+		
+		for each(int iTile in ref iLine)
+		{
+			if(iTile != TETR_NONE) tileCount++;
+		}
+		
+		// If it is, add to clear list
+		if(tileCount == 10)
+		{
+			clearedLines = [counter] ~ clearedLines;
+			
+			for(int i = 0; i < length(_tetr[counter]); i++)
+			{
+				_tetr[counter][i] += TETR_FADETOWHITE_OFFSET;
+			}
+		}
+	}
+	int linesCleared = length(clearedLines);
+	// fade...
+	if(linesCleared > 0) {
+	
+		if(_prtSht)
+		{
+			for each(int iLine in ref clearedLines)
+			{
+				_StarParticles(iLine);
+			}
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+		if(linesCleared == 4) NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		_tetrFadeProgress = 0;
+		// wait for the fade
+		tetrCheckToast(linesCleared, clearedLines);
+		for(int distDrop = 0; distDrop + _curTetrY < 20; distDrop++) {
+            if(!_tetrCheckMove(0, distDrop + 1)) {
+                _tetrHardDropDist = distDrop;
+                break;
+            }
+        }
+		wait(TETR_FADETOWHITE_DURATION + ((linesCleared > 4) * 20));
+	}
+	else // tspin no lines cleared
+	{
+		tetrCheckToast(linesCleared, clearedLines);
+	}
+	
+	// Honestly I don't quite understand this bit either
+	for each(int clearedOffs, int lineIdx in ref clearedLines) {
+		for(int i = lineIdx + clearedOffs; i >= 0; i--) {
+			if(i != 0) {
+				_tetr[i] = _tetr[i - 1];
+			} else {
+				// This can't be a constant, that triggers a weird dnh bug
+				_tetr[0] = [TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE, TETR_NONE];
+			}
+		}
+	}
+	_clearedLines += linesCleared;
+	
+	int score = _tetrScore(linesCleared);
+	if(linesCleared > 0) {
+		score += 50 * _tetrCombo;
+		_tetrCombo++;
+	} else {
+		_tetrCombo = 0;
+	}
+	AddScore(score);
+	
+	if(!_isEndless)
+	{
+		int life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		ObjEnemy_SetLife(_objBoss, life - score);
+	}
+	
+	// Check level
+	_level = min(99, 1 + (_clearedLines / 10));
+	TETR_FALL_TIME = max(1, 30 - _level);
+	TETR_FORCED_FALL_TIME = max(1, TETR_FALL_TIME * 3);
+}
+
+function<void> tetrCheckToast(int clearedLines_, int[] lineID_)
+{
+	 if(_tetrMiniTSpin)
+	 {
+        alternative(clearedLines_)
+            case(0)
+			{
+                _ToastMiniTSpin(0);
+			}
+            case(1)
+			{
+                _ToastMiniTSpin(1);
+			    if(_tetrLastClearDifficult) _ToastB2B();
+            }
+            case(2)
+			{
+                _ToastMiniTSpin(2);
+				if(_tetrLastClearDifficult) _ToastB2B();
+            }
+            case(3)
+			{
+                _ToastMiniTSpin(3);
+				if(_tetrLastClearDifficult) _ToastB2B();
+            }
+
+    }
+	else if(_tetrTSpin)
+	{
+        alternative(clearedLines_)
+            case(0)
+			{
+                _ToastTSpin(0);
+            }
+            case(1)
+			{
+			    _ToastTSpin(1);
+				if(_tetrLastClearDifficult) _ToastB2B();
+            }
+            case(2)
+			{
+                _ToastTSpin(2);
+				if(_tetrLastClearDifficult) _ToastB2B();
+			}
+    }
+	else
+	{
+        alternative(clearedLines_) 
+            case(4)
+			{
+				_ToastTetr(lineID_);
+				if(_tetrLastClearDifficult) _ToastB2B();
+            }
+        
+    }
+	
+	if(clearedLines_ > 0 && _tetrCombo > 0)
+	{
+		_ToastCombo();
+	}
+}
+
+task _ToastMiniTSpin(int lines_)
+{
+	int objToast = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+		0, 0, 132, 44,
+		181, 533, 312, 576
+	);
+	
+	int objToastA = -1;
+	
+	if(lines_ > 0)
+	{
+		int off = (lines_ - 1) * 44;
+		
+		objToastA = CreateSprite2D_Dest
+		(
+			DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+			0, 88 + off, 132, 132 + off,
+			181, 563, 312, 606
+		);
+	}
+	
+	_FadeIn(objToast, 14);
+	_FadeIn(objToastA, 14);
+	wait(49);
+	_FadeOut(objToast, 14);
+	_FadeOut(objToastA, 14);
+	wait(14);
+	Obj_Delete(objToast);
+	Obj_Delete(objToastA);
+}
+
+task _ToastTSpin(int lines_)
+{
+	int objToast = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+		0, 44, 132, 88,
+		181, 533, 312, 576
+	);
+	
+	int objToastA = -1;;
+	
+	if(lines_ > 0)
+	{
+		int off = (lines_ - 1) * 44;
+		
+		objToastA = CreateSprite2D_Dest
+		(
+			DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+			0, 88 + off, 132, 132 + off,
+			181, 563, 312, 606
+		);
+	}
+	
+	_FadeIn(objToast, 14);
+	_FadeIn(objToastA, 14);
+	wait(49);
+	_FadeOut(objToast, 14);
+	_FadeOut(objToastA, 14);
+	wait(14);
+	Obj_Delete(objToast);
+	Obj_Delete(objToastA);
+}
+
+task _ToastTetr(int[] lineID_)
+{
+	int objToast = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_TOAST_TETR, RP_UI_MISC + 2, BLEND_ALPHA,
+		0, 0, 331, 136,
+		314, (lineID_[3] * 34) + 12, 644, (lineID_[3] * 34) + 12 + 136
+	);
+	_FadeIn(objToast, 14);
+	wait(49);
+	_FadeOut(objToast, 14);
+	wait(14);
+	Obj_Delete(objToast);
+}
+
+task _ToastB2B()
+{
+	int objToast = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+		0, 264, 132, 308,
+		181, 643, 312, 686
+	);
+	_FadeIn(objToast, 14);
+	wait(49);
+	_FadeOut(objToast, 14);
+	wait(14);
+	Obj_Delete(objToast);
+}
+
+task _ToastCombo()
+{
+	int objToast = CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_TOAST_TSPIN, RP_UI_MISC + 2, BLEND_ALPHA,
+		0, 220, 132, 264,
+		181, 599, 312, 642
+	);
+	
+	int objToastA = CreateTextObject
+	(
+		itoa(min(99, _tetrCombo + 1)), FONT_KOUZANBRUSH, RP_UI_MISC,
+		276, 603,
+		30, 300, ALIGNMENT_LEFT,
+		BORDER_FULL, 1 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	
+	_FadeIn(objToast, 14);
+	_FadeIn(objToastA, 14);
+	wait(49);
+	_FadeOut(objToast, 14);
+	_FadeOut(objToastA,14);
+	wait(14);
+	Obj_Delete(objToast);
+	Obj_Delete(objToastA);
+}
+
+task _StarParticles(int line_)
+{
+	int minY = ((line_ * 35));
+	int maxY = ((minY + 35));
+	
+	loop(60)
+	{
+		_CreateStarParticle(prand(FRAME_LEFT + (90 * RES), FRAME_LEFT + ((FRAME_WIDTH - 90) * RES)), prand(minY, maxY));
+	}
+}
+
+task _CreateStarParticle(int orgX, int orgY)
+{
+	int color = _colors[prand_int(0, length(_colors) - 1)];
+	float rad = prand(15 * RES, 25 * RES);
+										
+										float posX = orgX;
+										float posY = orgY;
+										
+										float destX = posX + (rad * cos(prand(0, 360))); 
+										float destY = posY + (rad * sin(prand(0, 360))); 
+										
+										float angX = prand(0, 180);
+										float angY = prand(0, 180);
+										
+										float scaleOrg = prand(0.25 * RES, 0.3 * RES);
+										float scaleCur = scaleOrg;
+										
+										float alphaOrg = 0;
+										float alphaCur = alphaOrg;
+										
+										float iMax = 50;
+										for(int i = 0; i <= iMax; i++)
+										{
+											// Color
+											ObjParticleList_SetColor(objPart_, color);
+										
+											// Position
+											posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+											posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+											ObjParticleList_SetPosition(objPart_, posX, posY, ID_INVALID);
+											
+											// Rotation
+											angX += prand(1, 2);
+											angY -= prand(1, 2);
+											ObjParticleList_SetAngle(objPart_, angX, angY, (angX * angY) / 100);
+											
+											// Size
+											scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+											ObjParticleList_SetScale(objPart_, scaleCur);
+											
+											// Fade
+											alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+											ObjParticleList_SetAlpha(objPart_, alphaCur);
+											
+											ObjParticleList_AddInstance(objPart_);
+											
+											yield;
+										}
+}

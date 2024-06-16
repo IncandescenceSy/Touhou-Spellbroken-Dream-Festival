@@ -1,0 +1,37 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Reimu Shot Data //////////////////////
+///////////////////////////////////////////////////////////////
+
+// This is the raw data for all of Reimu's bullets
+
+shot_image = "./../assets/img/pl/shot_player_reimu.png";
+
+// Basic red amulet with a blue trail
+ShotData
+{
+	id = 1;
+	rect = (85, 0, 98, 46);
+	render = ALPHA;
+	alpha = 130;
+	collision = 12;
+}
+
+// Blue homing amulet
+ShotData
+{
+	id = 2;
+	rect = (0, 17, 17, 34);
+	render = ALPHA;
+	alpha = 130;
+	collision = 12;
+}
+
+// Persuasion needle
+ShotData
+{
+	id = 3;
+	rect = (68, 0, 85, 55);
+	render = ALPHA;
+	alpha = 160;
+	collision = 12;
+}

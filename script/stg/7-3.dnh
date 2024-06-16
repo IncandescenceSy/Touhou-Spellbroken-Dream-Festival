@@ -1,0 +1,462 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yukari 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yukari 1st"]
+#Text["Yukari 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DPURPLE;
+
+// Is the player moving
+bool _move = false;
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Particle list for laser collision effects
+int _objPartStar;
+
+if(_prtLsr)
+{
+	_objPartStar = CreateParticleList2D
+	(
+		DIR_IMG_EFF_STAR,
+		0, 0, 256, 256,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+// Star trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_1,
+		204, 238, 238, 272,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 57);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUKARI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_1.png", DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ "_2.png"]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -200);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 360, 630, 185, 104, 65, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Circle();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(25000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_move = (GetVirtualKeyState(VK_LEFT) != KEY_FREE || GetVirtualKeyState(VK_RIGHT) != KEY_FREE || GetVirtualKeyState(VK_UP) != KEY_FREE || GetVirtualKeyState(VK_DOWN) != KEY_FREE);
+	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Circle()
+{
+	float scale = 0.2;
+	
+	float plX = GetPlayerX();
+	float plY = GetPlayerY();
+	
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ALPHA,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetColor(circleA, COLOR_AQUA);
+	
+	// Glowing circle
+	int circleB = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 627, 627,
+		scale, scale,
+		plX, plY
+	);
+	ObjRender_SetAlpha(circleB, 0);
+	ObjRender_SetColor(circleB, COLOR_AQUA);
+	
+	int targetAlpha;
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Rotation
+		ObjRender_SetAngleZ(circleA, z * 0.7);
+		ObjRender_SetAngleZ(circleB, z * 0.7);
+		
+		// Glow
+		ObjRender_SetAlpha(circleB, Interpolate_Smooth(255, 0, absolute(sin(z * 3))));
+		
+		Obj_SetVisible(circleA, !_move);
+		Obj_SetVisible(circleB, !_move);
+		
+		// Attaches it to the player
+		plX = GetPlayerX();
+		plY = GetPlayerY();
+		
+		ObjRender_SetPosition(circleA, plX, plY, ID_INVALID);
+		ObjRender_SetPosition(circleB, plX, plY, ID_INVALID);
+		
+		// Counter variable
+		z++;
+		
+		yield;
+	}
+}
+
+
+task _Pattern()
+{
+	wait(60);
+	loop
+	{
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		wait(65);
+		_AimedStars([SHOT_SCALE_AZURE, SHOT_SCALE_PINK], 60);
+		_Lasers(-30, FRAME_HEIGHT + 60, FRAME_WIDTH + 25, 180, SHOT_CURVY_LASER_AQUA);
+		wait(160);
+		_AimedStars([SHOT_SCALE_AZURE, SHOT_SCALE_PINK], 60);
+		_Lasers(FRAME_HEIGHT + 30, -60, -25, 0, SHOT_CURVY_LASER_AQUA);
+		wait(100);
+		
+		int dir = -1;
+		
+		loop(4)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			float ang = GetAngleToPlayer(_objBoss) + ((360 / 12) / 2);
+			for(int i = 0; i < 9; i++)
+			{
+				_LaserStar(ang, dir);
+				ang += 360 / 9;
+			}
+			
+			dir *= -1;
+			
+			wait(15);
+			
+			_AimedStars([SHOT_SCALE_AZURE, SHOT_SCALE_PINK], 20);
+			
+			wait(30);
+		}
+		
+		wait(25);
+		_AimedStars([SHOT_SCALE_AZURE, SHOT_SCALE_PINK], 20);
+		wait(5);
+	}
+}
+
+task _Lasers(float initY_, float destY_, float posX_, float ang_, int graphic_)
+{
+	loop(4)
+	{
+		_MoveLaser(CreateLaser_NonNewtonian(posX_, initY_, ang_, 512, 25, 200, graphic_, 30, 56), initY_, destY_);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		wait(25);
+	}
+}
+
+task _MoveLaser(int objLaser_, float initY_, float destY_)
+{
+	float iMax = 150;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjMove_SetY(objLaser_, Interpolate_Smooth(initY_, destY_, i / iMax));
+		yield;
+	}
+}
+
+// "These aren't stars" cope + seethe + mald + didn't ask + *you're + ratio + cringe
+task _AimedStars(int[] shots_, int cnt_)
+{
+	loop(cnt_ / 3)
+	{
+		float ang = GetAngleToPlayer(_objBoss);
+		for(int i = -15; i <= 15; i++)
+		{
+			int shot = (i == 0) ? shots_[0] : shots_[1];
+			CreateShot_Enemy(_enmX, _enmY, 0.5, ang + (i * 10), 0.05, 10, shot, 15);
+		}
+		
+		wait(3);
+	}
+}
+
+task _LaserStar(float ang_, int dir_)
+{
+	int objShot = CreateShot_Enemy(_enmX, _enmY, 1.5, ang_, -0.03, 0, SHOT_YING_YANG_AQUA, 25);
+	
+	async
+	{
+		while(Obj_IsExists(objShot))
+		{	
+			if(_prtSht)
+			{
+				async
+				{
+					float scaleOrg = 1.25;
+					float scaleCur = scaleOrg;
+					
+					float posX = ObjMove_GetX(objShot);
+					float posY = ObjMove_GetY(objShot);
+					
+					int z = 0;
+				
+					float iMax = 45;
+					for(int i = 0; i <= iMax; i++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_AQUA);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Rotation
+						z++;
+						ObjParticleList_SetAngleZ(_objPartTrail, z);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+			wait(10);
+		}
+	}
+	
+	wait(40);
+	
+	int objLaser = CreateLaser_NonNewtonian(ObjMove_GetX(objShot), ObjMove_GetY(objShot), ObjMove_GetAngle(objShot), 512, 15, 150, SHOT_CURVY_LASER_AQUA, 60, 56);
+	
+	async
+	{
+		while(Obj_IsExists(objLaser))
+		{
+			ObjMove_SetPosition(objLaser, ObjMove_GetX(objShot), ObjMove_GetY(objShot));
+			ObjMove_SetAngle(objLaser, ObjMove_GetAngle(objShot));
+			
+			if(Obj_IsDeleted(objShot)) Obj_Delete(objLaser);
+			
+			yield;
+		}
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	ObjMove_SetAngularVelocity(objShot, 0.2 * dir_);
+	ObjMove_SetAcceleration(objShot, 0.015);
+	ObjMove_SetMaxSpeed(objShot, 2);
+}
+
+function<int> CreateLaser_NonNewtonian(float posX_, float posY_, float ang_, float length_, float width_, int deleteFrame_, float graphic_, float delay_, int rad_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetIntersectionWidth(objStLaser, width_);
+	ObjLaser_SetRenderWidth(objStLaser, width_);
+	ObjShot_SetDeleteFrame(objStLaser, deleteFrame_);
+	ObjShot_SetGraphic(objStLaser, graphic_);
+	ObjLaser_SetItemDistance(objStLaser, 10);
+	
+	int[] shotColor = GetShotDataInfoA1(graphic_, TARGET_ENEMY, INFO_DELAY_COLOR);
+	
+	int objPlayer = GetPlayerObjectID();
+	
+	async
+	{
+		int t = 0;
+		while(Obj_IsExists(objStLaser))
+		{
+			local
+            {
+                int lx = ObjMove_GetX(objStLaser);
+                int ly = ObjMove_GetY(objStLaser);
+				
+                float px = GetPlayerX();
+                float py = GetPlayerY();
+                
+                let dx = px - lx;
+                let dy = py - ly;
+                
+				ang_ = ObjStLaser_GetAngle(objStLaser);
+                let vx = cos(ang_);
+                let vy = sin(ang_);
+                
+                let lw = dx * vy - dy * vx;
+                let ld = dx * vx + dy * vy;
+                
+                ObjLaser_SetLength(objStLaser, min(t * 12, length_));
+				
+                if (ld > 0 && !_move) 
+				{
+                    let lh = rad_ * rad_ - lw * lw;
+                    if (lh > 0)
+					{
+                        let ll = ld - sqrt(lh);
+                        ObjLaser_SetLength(objStLaser, min(min(t * 12, length_), max(ll, 0)));
+						
+						float pdx = GetPlayerX() + (vx * 1);
+						float pdy = GetPlayerY() + (vy * 1);
+						if(t * 12 >= GetObjectDistance(_objPlayer, objStLaser))
+						{
+							//if(!Pos_IsInArea(pdx, pdy, 6, 6, FRAME_WIDTH - 6, FRAME_HEIGHT - 6)) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, ID_INVALID);
+							//ObjMove_SetPosition(objPlayer, pdx, pdy);
+						
+						
+							float laserEndX = lx + (max(ll, 0) * vx);
+							float laserEndY = ly + (max(ll, 0) * vy);
+							
+							if(_prtLsr)
+							{
+								if(t % 18 == 0) _CreateDeletionEffect([laserEndX, laserEndY], shotColor);
+							
+								// Deletion particle effect
+								if(t % 6 == 0)
+								{
+									async
+									{
+										float rad = prand(30, 50);
+						
+										float orgX = laserEndX + prand(-10, 10);
+										float orgY = laserEndY + prand(-10, 10);
+										
+										float posX = orgX;
+										float posY = orgY;
+										
+										float destX = posX + (rad * cos(prand(0, 360))); 
+										float destY = posY + (rad * sin(prand(0, 360))); 
+										
+										float angX = prand(0, 180);
+										float angY = prand(0, 180);
+										
+										float scaleOrg = prand(0.25, 0.3);
+										float scaleCur = scaleOrg;
+										
+										float alphaOrg = 0;
+										float alphaCur = alphaOrg;
+										
+										float iMax = 60;
+										for(int i = 0; i <= iMax; i++)
+										{
+											// Color
+											ObjParticleList_SetColor(_objPartStar, shotColor[0], shotColor[1], shotColor[2]);
+										
+											// Position
+											posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+											posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+											ObjParticleList_SetPosition(_objPartStar, posX, posY, ID_INVALID);
+											
+											// Rotation
+											angX += prand(1, 2);
+											angY -= prand(1, 2);
+											ObjParticleList_SetAngle(_objPartStar, angX, angY, (angX * angY) / 100);
+											
+											// Size
+											scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+											ObjParticleList_SetScale(_objPartStar, scaleCur);
+											
+											// Fade
+											alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+											ObjParticleList_SetAlpha(_objPartStar, alphaCur);
+											
+											ObjParticleList_AddInstance(_objPartStar);
+											
+											yield;
+										}
+									}
+								}
+							}
+						}
+                    }
+                }
+            }
+        
+            t++;
+			
+            yield;
+		}
+	}
+	
+	return objStLaser;
+}

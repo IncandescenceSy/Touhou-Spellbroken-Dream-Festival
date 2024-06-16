@@ -1,0 +1,175 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Rumia 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Rumia 3rd"]
+#Text["Rumia 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DYELLOW;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 7);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_RUMIA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 440, 640, 122, 93, 70, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	async
+	{
+		int objDark = CreatePrimObject(RP_FX_LOW, PRIMITIVE_TRIANGLESTRIP, 4);
+		ObjRender_SetColor(objDark, COLOR_BLACK);
+		float rad = 0;
+		
+		float iMax = 350;
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjPrim_SetVertexPosition(objDark, 0, ((_enmX + rad * cos(0)) * RES) + FRAME_LEFT, ((_enmY + rad * sin(0)) * RES) + FRAME_TOP, ID_INVALID);
+			ObjPrim_SetVertexPosition(objDark, 1, ((_enmX + rad * cos(90)) * RES) + FRAME_LEFT, ((_enmY + rad * sin(90)) * RES) + FRAME_TOP, ID_INVALID);
+			ObjPrim_SetVertexPosition(objDark, 2, ((_enmX + rad * cos(270)) * RES) + FRAME_LEFT, ((_enmY + rad * sin(270)) * RES) + FRAME_TOP, ID_INVALID);
+			ObjPrim_SetVertexPosition(objDark, 3, ((_enmX + rad * cos(180)) * RES) + FRAME_LEFT, ((_enmY + rad * sin(180)) * RES) + FRAME_TOP, ID_INVALID);
+			rad = Interpolate_Smooth(0, 500, i / iMax);
+			
+			yield;
+		}
+	}
+	
+	// Rings
+	loop(6)
+	{
+		int  way = 25;
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			int objShot = CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.01, 2, SHOT_BALL_GREY, 15);
+			ObjRender_SetColor(objShot, COLOR_BLACK);
+			Obj_SetRenderPriorityI(objShot, RP_STG_SHOT_N);
+			Obj_SetValueI(objShot, VAL_GRZCOL, false);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		wait(60);
+	}
+		
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 70, 60, LERP_DECELERATE);
+	wait(60);
+	
+	loop
+	{
+		// Rings
+		int  way = 20;
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			int objShot = CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.01, 2, SHOT_BALL_GREY, 15);
+			ObjRender_SetColor(objShot, COLOR_BLACK);
+			Obj_SetRenderPriorityI(objShot, RP_STG_SHOT_N);
+			Obj_SetValueI(objShot, VAL_GRZCOL, false);
+		}
+		
+		// Aimed claws of lines
+		float ang = GetAngleToPlayer(_objBoss);
+		int stack = 5;
+		for(int i = 0; i <= stack; i++)
+		{
+			way = 2;
+			for(int j = -way; j <= way; j++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0.5, ang + (j * 20), 0.025, 2 + (i * 0.25), SHOT_KNIFE_GREY, 15);
+				ObjRender_SetColor(objShot, COLOR_BLACK);
+				Obj_SetRenderPriorityI(objShot, RP_STG_SHOT_N);
+				Obj_SetValueI(objShot, VAL_GRZCOL, false);
+			}
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		// Random falling bullets
+		async
+		{
+			loop(15)
+			{
+				int objShot = CreateShot_Enemy(rand(0, FRAME_WIDTH), -30, rand(0.2, 0.3), 90, rand(0.01, 0.02), rand(2, 3.5), SHOT_KNIFE_GREY, 0);
+				ObjRender_SetColor(objShot, COLOR_BLACK);
+				Obj_SetRenderPriorityI(objShot, RP_STG_SHOT_N);
+				Obj_SetValueI(objShot, VAL_GRZCOL, false);
+				wait(6);
+			}
+		}
+		
+		wait(90);
+	}
+}

@@ -1,0 +1,822 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Alice 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Alice 3rd"]
+#Text["Alice 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_YELLOW;
+int _colorB = COLOR_DYELLOW;
+
+// Whether the boss currently has a hitbox
+bool _isHitbox = false;
+
+// Familiar life
+const int _ENEMY_LIFE = 2000;
+
+// Did you shoot the wrong enemy
+bool _killedWrongEnemy = false;
+
+// Current target enemy
+int _targetEnemy = ID_INVALID;
+
+// Amount of enemies
+int _enemyCount = 0;
+
+// Initial destinations for the familiars
+const int[][] _DESTS =
+[
+	// First familiar
+	[CENTER_X - 150, 120],
+	
+	// Second familiar
+	[CENTER_X + 150, 120],
+	
+	// Third familiar
+	[CENTER_X - 90, 80],
+	
+	// Fourth familiar
+	[CENTER_X + 90, 80],
+	
+	// Fifth familiar
+	[CENTER_X - 30, 260],
+	
+	// Sixth familiar
+	[CENTER_X + 30, 260],
+	
+	// Seventh familiar
+	[CENTER_X - 120, 380],
+	
+	// Eighth familiar
+	[CENTER_X + 120, 380]
+];
+
+int _dmg = 100;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 25);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_ALICE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 352, 640, 192, 102, 40, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Hitbox();
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(12000);
+		case(EV_REQUEST_TIMER) SetScriptResult(180);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Hitbox()
+{
+	const int RADIUS_HITBOX = 32;
+	
+	loop
+	{
+		if(_isHitbox)
+		{
+			ObjEnemy_SetDamageRate(_objBoss, _dmg, 0);
+			
+			ObjEnemy_SetIntersectionCircleToShot(_objBoss, _enmX, _enmY, RADIUS_HITBOX);
+			ObjEnemy_SetIntersectionCircleToPlayer(_objBoss, _enmX, _enmY, RADIUS_HITBOX / 2);
+		}
+		else
+		{
+			ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+		}
+		
+		yield;
+	}
+}
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	// One enemy
+	
+	int[] enemies =
+	[
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_AZURE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		)
+	];
+	
+	for each(int i, int iEnemies in ref enemies) _ManageEnemy(iEnemies, i);
+	
+	_RenderBar(enemies, [COLOR_AZURE]);
+	
+	while(!_killedWrongEnemy && Objs_AreExists(enemies)) yield;
+	
+	if(Objs_AreExists(enemies))
+	{
+		for each(int iEnemies in ref enemies)
+		{
+			if(Obj_IsExists(iEnemies)) ObjEnemy_SetLife(iEnemies, 0);
+		}
+	}
+	
+	if(_killedWrongEnemy)
+	{
+		_YouFuckedUp();
+		return;
+	}
+	
+	_isHitbox = true;
+	
+	// Rings
+	int way = 25;
+	int iMax = 9;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.015, 2, SHOT_BALL_YELLOW, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		wait(20);
+	}
+	
+	_isHitbox = false;
+	
+	// Two enemies 
+	
+	enemies =
+	[
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_RED, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_AZURE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		)
+	];
+	
+	for each(int i, int iEnemies in ref enemies) _ManageEnemy(iEnemies, i);
+	
+	_RenderBar(enemies, [COLOR_RED, COLOR_AZURE]);
+	
+	while(!_killedWrongEnemy && Objs_AreExists(enemies)) yield;
+	
+	if(Objs_AreExists(enemies))
+	{
+		for each(int iEnemies in ref enemies)
+		{
+			if(Obj_IsExists(iEnemies)) ObjEnemy_SetLife(iEnemies, 0);
+		}
+	}
+	
+	if(_killedWrongEnemy)
+	{
+		_YouFuckedUp();
+		return;
+	}
+	
+	_isHitbox = true;
+	
+	// Rings
+	way = 28;
+	iMax = 10;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.0175, 2.35, SHOT_BALL_YELLOW, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		wait(17);
+	}
+	
+	_isHitbox = false;
+	
+	// Four enemies
+	
+	enemies =
+	[
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_RED, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_GREEN, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_AZURE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_PINK, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+	];
+	
+	for each(int i, int iEnemies in ref enemies) _ManageEnemy(iEnemies, i);
+	
+	_RenderBar(enemies, [COLOR_RED, COLOR_GREEN, COLOR_AZURE, COLOR_PINK]);
+	
+	while(!_killedWrongEnemy && Objs_AreExists(enemies)) yield;
+	
+	if(Objs_AreExists(enemies))
+	{
+		for each(int iEnemies in ref enemies)
+		{
+			if(Obj_IsExists(iEnemies)) ObjEnemy_SetLife(iEnemies, 0);
+		}
+	}
+	
+	if(_killedWrongEnemy)
+	{
+		_YouFuckedUp();
+		return;
+	}
+	
+	_isHitbox = true;
+	
+	// Rings
+	way = 30;
+	iMax = 11;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.015, 2.5, SHOT_BALL_YELLOW, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		loop(14)
+		{
+			if(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) < 1000) _isHitbox = false;
+			
+			yield;
+		}
+	}
+	
+	_isHitbox = false;
+	
+	// Eight enemies
+	
+	enemies =
+	[
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_RED, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_ORANGE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_YELLOW, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_GREEN, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_AQUA, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_AZURE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_PURPLE, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+		
+		CreateEnemy
+		(
+			_ENEMY_LIFE, STANDARD_ENEMYHITBOX, true, false,
+			COLOR_PINK, STANDARD_ENEMYSCALE, false, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		),
+	];
+	
+	for each(int i, int iEnemies in ref enemies) _ManageEnemy(iEnemies, i);
+	
+	_RenderBar(enemies, [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_AZURE, COLOR_PURPLE, COLOR_PINK]);
+	
+	while(!_killedWrongEnemy && Objs_AreExists(enemies)) yield;
+	
+	if(Objs_AreExists(enemies))
+	{
+		for each(int iEnemies in ref enemies)
+		{
+			if(Obj_IsExists(iEnemies)) ObjEnemy_SetLife(iEnemies, 0);
+		}
+	}
+	
+	if(_killedWrongEnemy)
+	{
+		_YouFuckedUp();
+		return;
+	}
+	
+	_isHitbox = true;
+	
+	// Rings
+	way = 33;
+	for(int i = 0; ; i++)
+	{
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.019, 2.8, SHOT_BALL_YELLOW, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		wait(14);
+	}
+}
+
+task _ManageEnemy(int objEnemy_, int index_)
+{
+	Obj_SetValueI(objEnemy_, VAL_TARGET, false);
+	
+	_RenderEnemy(objEnemy_);
+	
+	_enemyCount++;
+	
+	int enemy;
+	
+	int[] SHOTS;
+	
+	alternative(Obj_GetValueDI(objEnemy_, VAL_ENMCOL, ID_INVALID))
+		case(COLOR_RED)    SHOTS = [SHOT_SCALE_RED, SHOT_BALL_RED];
+		case(COLOR_ORANGE) SHOTS = [SHOT_SCALE_ORANGE, SHOT_BALL_ORANGE];
+		case(COLOR_YELLOW) SHOTS = [SHOT_SCALE_YELLOW, SHOT_BALL_YELLOW];
+		case(COLOR_GREEN)  SHOTS = [SHOT_SCALE_GREEN, SHOT_BALL_GREEN];
+		case(COLOR_AQUA)   SHOTS = [SHOT_SCALE_AQUA, SHOT_BALL_AQUA];
+		case(COLOR_AZURE)  SHOTS = [SHOT_SCALE_AZURE, SHOT_BALL_AZURE];
+		case(COLOR_PURPLE) SHOTS = [SHOT_SCALE_PURPLE, SHOT_BALL_PURPLE];
+		case(COLOR_PINK)   SHOTS = [SHOT_SCALE_PINK, SHOT_BALL_PINK];
+		
+	ObjEnemy_SetDamageRate(objEnemy_, 0, 0);
+	
+	async
+	{
+		wait(90);
+	
+		ObjEnemy_SetDamageRate(objEnemy_, 100, 0);
+	}
+	
+	ObjMove_SetDestAtFrame(objEnemy_, _DESTS[index_][0], _DESTS[index_][1], 90, LERP_DECELERATE);
+	
+	int start = (index_ % 2 == 0) ? 0 : 180;
+	
+	int rad = 20;
+	
+	for(int i = start; i <= 90 + start; i += 2)
+	{
+		if(i % _enemyCount == 0)
+		{
+			float ang = sin(i) + 90; 
+			
+			int enmX = ObjMove_GetX(objEnemy_);
+			int enmY = ObjMove_GetY(objEnemy_);
+			
+			CreateShot_Enemy(enmX + rad * cos(ang), enmY + rad * sin(ang), 0.05, ang + (i * 4), 0.01, 1.5, SHOTS[0], 20);
+			CreateShot_Enemy(enmX + rad * cos(ang + 180), enmY + rad * sin(ang + 180), 0.05, ang + (i * 4) + 180, 0.01, 1.5, SHOTS[0], 20);
+		}
+		
+		wait(2);
+	}
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		int enmX = ObjMove_GetX(objEnemy_);
+		int enmY = ObjMove_GetY(objEnemy_);
+			
+		if(i % 120 == 0)
+		{
+			
+			float destX = ID_INVALID;
+			while(destX < 30 || destX > FRAME_WIDTH - 30) destX = enmX + rand(-140, 140);
+			
+			float destY = ID_INVALID;
+			while(destY < 26 || destY > FRAME_HEIGHT - 126) destY = enmY + rand(-119, 119);
+			
+			ObjMove_SetDestAtFrame(objEnemy_, destX, destY, 120, LERP_SMOOTH);
+			
+			int way = ceil(35 / _enemyCount);
+			
+			float off = rand(0, 360);
+			
+			for(int j = 0; j <= way; j++)
+			{
+				bool isEven = i % 2 == 0;
+				CreateShot_Enemy(enmX, enmY, 0.5, (j * (360 / way)) + off, 0.015 + (0.005 * isEven), 1.25 + (0.35 * isEven), SHOTS[1], 25);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		enemy = objEnemy_;
+		
+		if(enemy == _targetEnemy) ObjEnemy_SetDamageRate(enemy, 200, 0);
+		else ObjEnemy_SetDamageRate(enemy, 80, 0);
+		
+		yield;
+	}
+	
+	_enemyCount--;
+	
+	if(enemy != _targetEnemy) _killedWrongEnemy = true;
+}
+
+/*
+function<bool> IsNearEnemy(float destX_)
+{
+	const int DIST = 10;
+	
+	for each(int iX in ref _enmX_list)
+	{	
+		if((destX_ < (iX + DIST)) && (destX_ > (iX - DIST)))
+		{
+			int chance = rand_int(1, 100);
+			if(chance == 100) return false;
+			else return true; 
+		}
+	}
+	
+	return false;
+}
+*/
+
+// Custom enemy rendering
+task _RenderEnemy(int objEnemy_)
+{
+	int rawColor = Obj_GetValueDI(objEnemy_, VAL_ENMCOL, ID_INVALID);
+	int[] enemyColor = ColorHexToARGB(rawColor, COLOR_PERMUTE_RGB);
+	
+	const int GLOW = 200;
+	
+	int objPos = CreatePrimObject(RP_STG_LINE, PRIMITIVE_LINELIST, 4);
+	float iMax = 3;
+	for(int i = 0; i <= iMax; i++) ObjPrim_SetVertexPosition(objPos, i, ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0);
+	ObjRender_SetColor(objPos, rawColor);
+	
+	int destColorCirc = rawColor;
+	int[] destColorLine = enemyColor;
+	
+	float enemyScaleRender = 0;
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		int enmX = ObjMove_GetX(objEnemy_);
+		int enmY = ObjMove_GetY(objEnemy_);
+		
+		float sz = sin(i);
+		float cz = cos(i);
+			
+		// First circle
+		ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+		ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+		if(objEnemy_ != _targetEnemy) ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+		else ObjParticleList_SetColor(_objCirc, destColorCirc);
+		ObjParticleList_SetAngle(_objCirc, sz + (i * 0.3), cz + (i * 0.3), i * 0.7);
+		ObjParticleList_AddInstance(_objCirc);
+			
+		// Second circle
+		ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+		ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+		if(objEnemy_ != _targetEnemy) ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+		else ObjParticleList_SetColor(_objCirc, destColorCirc);
+		ObjParticleList_SetAngle(_objCirc, sz + (i * 0.6), cz + (i * 0.6), (i * 0.7) + 180);
+		ObjParticleList_AddInstance(_objCirc);
+			
+		// Third circle
+		ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+		ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+		if(objEnemy_ != _targetEnemy) ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+		else ObjParticleList_SetColor(_objCirc, destColorCirc);
+		ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.3)) + 180, (cz + (i * 0.3)) + 180, -(i * 0.7));
+		ObjParticleList_AddInstance(_objCirc);
+			
+		// Fourth circle
+		ObjParticleList_SetPosition(_objCirc, enmX, enmY, ID_INVALID);
+		ObjParticleList_SetScale(_objCirc, enemyScaleRender);
+		if(objEnemy_ != _targetEnemy) ObjParticleList_SetColor(_objCirc, Interpolate_Smooth(enemyColor[0], max(enemyColor[0], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[1], max(enemyColor[1], GLOW), absolute(sz)), Interpolate_Smooth(enemyColor[2], max(enemyColor[2], GLOW), absolute(sz)));
+		else ObjParticleList_SetColor(_objCirc, destColorCirc);
+		ObjParticleList_SetAngle(_objCirc, (sz + (i * 0.6)) + 180, (cz + (i * 0.6)) + 180, -(i * 0.7) + 180);
+		ObjParticleList_AddInstance(_objCirc);
+		
+		enemyScaleRender = Interpolate_Smooth(0, STANDARD_ENEMYSCALE, min(1, i / 60));
+		
+		if(i % 10 == 0) destColorCirc = (destColorCirc == rawColor) ? COLOR_WHITE : rawColor;
+		
+		// Horizontal line
+		ObjPrim_SetVertexPosition(objPos, 0, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 0)[0], 0, 0.035), enmY, 0);
+		ObjPrim_SetVertexPosition(objPos, 1, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 1)[0], FRAME_WIDTH, 0.035), enmY, 0);
+		
+		// Vertical line
+		ObjPrim_SetVertexPosition(objPos, 2, enmX, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 2)[1], 0, 0.035), 0);
+		ObjPrim_SetVertexPosition(objPos, 3, enmX, Interpolate_Linear(ObjPrim_GetVertexPosition(objPos, 3)[1], FRAME_HEIGHT, 0.035), 0);
+		
+		if(objEnemy_ != _targetEnemy) ObjRender_SetColor(objPos, rawColor);
+		else ObjRender_SetColor(objPos, destColorLine[0], destColorLine[1], destColorLine[2]);
+		
+		if(i % 10 == 0) destColorLine = (destColorLine == enemyColor) ? enemyColor + 120 : enemyColor;
+		
+		yield;
+	}
+	
+	iMax = 45;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetAlpha(objPos, Interpolate_Smooth(255, 0, i / iMax));
+		
+		yield;
+	}
+}
+
+task _RenderBar(int[] enemies_, int[] colors_)
+{	
+	// Octagonal lifebar
+	int objLife = CreatePrimObject(DIR_IMG_SYS_LIFEBAR, RP_STG_LIFE + 1, PRIMITIVE_TRIANGLESTRIP, 18);
+	
+	// Octagonal lifebar outline
+	int objLine = CreatePrimObject(DIR_IMG_SYS_LIFEBAR, RP_STG_LIFE + 1, PRIMITIVE_TRIANGLESTRIP, 18);
+	
+	// Color
+	int objShader = ObjShader_Create();
+	ObjShader_SetShaderF(objShader, DIR_SDR_ANGCOLOR);
+	ObjShader_SetTechnique(objShader, TEC_ANGCOLOR);
+	ObjShader_SetFloat(objShader, FLOAT_COLORS, length(colors_));
+	ObjShader_SetFloat(objShader, FLOAT_ENM_X, (_enmX * RES) + FRAME_LEFT);
+	ObjShader_SetFloat(objShader, FLOAT_ENM_Y, (_enmY * RES) + FRAME_TOP);
+	SetShaderI(objShader, RP_STG_LIFE + 1, RP_STG_LIFE + 1);
+	
+	// Needed for the filling up / expanding animations as it forms
+	float lifeRateRender = 0;
+	float lifeRadiusRender = 0;
+	
+	float edgeCount = 1 + floor(lifeRateRender / 0.125);
+	
+	// Sets the source on the image
+	int iMax = 8;
+    for(int i = 0; i <= iMax; i++)
+    {
+        int curVert = i * 2;
+	
+        ObjPrim_SetVertexUVT(objLife, curVert, 0, 0);
+        ObjPrim_SetVertexUVT(objLife, curVert + 1, 10, 32); 
+        ObjPrim_SetVertexUVT(objLine, curVert, 10, 0);
+        ObjPrim_SetVertexUVT(objLine, curVert + 1, 19, 32);
+    }
+	
+	int index = (8 / length(colors_)) * 1.25;
+	
+	int liveEnemies = 0;
+	for each(int iEnemies in ref enemies_)
+	{
+		if(Obj_IsExists(iEnemies))
+		{
+			_targetEnemy = iEnemies;
+			liveEnemies++;
+		}
+	}
+	
+	float lifeRate = ((_ENEMY_LIFE * liveEnemies) + ObjEnemy_GetInfo(_targetEnemy, INFO_LIFE)) / (_ENEMY_LIFE * length(enemies_));
+	
+	while(!_killedWrongEnemy && Objs_AreExists(enemies_))
+	{
+		// Rechecks enmY life, target, and count
+		liveEnemies = 0;
+		for each(int iEnemies in ref enemies_)
+		{
+			if(Obj_IsExists(iEnemies))
+			{
+				_targetEnemy = iEnemies;
+				liveEnemies++;
+			}
+		}
+	
+		lifeRate = ((_ENEMY_LIFE * (liveEnemies - 1)) + ObjEnemy_GetInfo(_targetEnemy, INFO_LIFE)) / (_ENEMY_LIFE * length(enemies_));
+	
+		// Amount of lifebar edges to render
+        edgeCount = 1 + floor(lifeRateRender / 0.125);
+        
+        // Draw every edge that is to be fully rendered
+		for(int i = 0; i < edgeCount; i++)
+		{
+			ObjPrim_SetVertexPosition(objLife, i * 2, cos(-90 - i * 45) * lifeRadiusRender, sin(-90 - i * 45) * lifeRadiusRender, 0);
+			ObjPrim_SetVertexPosition(objLife, (i * 2) + 1, cos(-90 - i * 45) * lifeRadiusRender * 1.083, sin(-90 - i * 45) * lifeRadiusRender * 1.083, 0);
+		}
+				
+		// Draws the edge that needs to be only partially rendered
+		float x1 = cos(-90 - (edgeCount) * 45) * lifeRadiusRender;
+		float y1 = sin(-90 - (edgeCount) * 45) * lifeRadiusRender;
+		float x2 = cos(-90 - (edgeCount - 1) * 45) * lifeRadiusRender;
+		float y2 = sin(-90 - (edgeCount - 1) * 45) * lifeRadiusRender;
+		float rate = (lifeRateRender % 0.125) * 8;
+		
+		iMax = 8;
+		
+		for(int i = edgeCount; i <= iMax; i++) ObjPrim_SetVertexPosition(objLife, i * 2, Interpolate_Lifebar(x1, x2, rate), Interpolate_Lifebar(y1, y2, rate), 0);
+				
+		x1 = cos(-90 - (edgeCount) * 45) * lifeRadiusRender * 1.083;
+		y1 = sin(-90 - (edgeCount) * 45) * lifeRadiusRender * 1.083;
+		x2 = cos(-90 - (edgeCount - 1) * 45) * lifeRadiusRender * 1.083;
+		y2 = sin(-90 - (edgeCount - 1) * 45) * lifeRadiusRender * 1.083;
+        
+		for(int i = edgeCount; i <= iMax; i++) ObjPrim_SetVertexPosition(objLife, (i * 2) + 1, Interpolate_Lifebar(x1, x2, rate), Interpolate_Lifebar(y1, y2, rate), 0);
+        
+        // Sets the positions of all of the vertices based on the current life
+       for(int i = 0; i <= iMax; i++)
+        {
+            int curVert = i * 2;
+			
+            float angle = min(360, (360 / 8 * i));
+            
+            float posX = lifeRadiusRender * cos(angle - 90);
+            float posY = lifeRadiusRender * sin(angle - 90);
+            
+            ObjPrim_SetVertexPosition(objLine, curVert, posX, posY, 0);
+            
+            posX = (lifeRadiusRender * 1.083) * cos(angle - 90);
+            posY = (lifeRadiusRender * 1.083) * sin(angle - 90);
+            
+            ObjPrim_SetVertexPosition(objLine, curVert + 1, posX, posY, 0);
+        }
+		
+		// Fades out the lifebars if the player is nearby
+		if(GetObjectDistance(_objPlayer, _objBoss) < 120)
+		{
+			ObjRender_SetAlpha(objLife, Interpolate_Linear(ObjRender_GetAlpha(objLife), 60, 0.1));
+			ObjRender_SetAlpha(objLine, Interpolate_Linear(ObjRender_GetAlpha(objLine), 60, 0.1));
+		}
+		else
+		{
+			ObjRender_SetAlpha(objLife, Interpolate_Linear(ObjRender_GetAlpha(objLife), 230, 0.1));
+			ObjRender_SetAlpha(objLine, Interpolate_Linear(ObjRender_GetAlpha(objLine), 230, 0.1));
+		}
+		
+		
+		// Sets the octagonal lifebar to the boss
+		
+		// Octagonal lifebar
+		ObjRender_SetPosition(objLife, _enmX, _enmY, ID_INVALID);
+		ObjRender_SetPosition(objLine, _enmX, _enmY, ID_INVALID);
+			
+		// Sets the rendering variables for the spawning animations
+		lifeRateRender = min(lifeRateRender + 0.0085, lifeRate);
+		lifeRadiusRender = min(lifeRadiusRender + 1, 104);
+		
+		yield;
+	}
+	
+	// Cleanly fades out the lifebars before deleting them once the boss they are attached to is gone and it is no longer needed
+	iMax = 60;
+	
+	float lifeAlpha = ObjRender_GetAlpha(objLife);
+	float lineAlpha = ObjRender_GetAlpha(objLine);
+	
+	for(float i = 0; i <= iMax; i++)
+	{		
+		// Octagonal lifebar
+		ObjRender_SetAlpha(objLife, Interpolate_Smooth(lifeAlpha, 0, i / iMax));
+		ObjRender_SetAlpha(objLine, Interpolate_Smooth(lineAlpha, 0, i / iMax));
+	
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objLife);
+	Obj_Delete(objLine);
+}
+
+task _YouFuckedUp()
+{
+	ObjEnemy_SetDamageRate(_objBoss, 40, 0);
+	_dmg = 40;
+	_isHitbox = true;
+	
+	loop
+	{
+		// Rings
+		int  way = 40;
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.035, 5, SHOT_BALL_YELLOW, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(12);
+	}
+}

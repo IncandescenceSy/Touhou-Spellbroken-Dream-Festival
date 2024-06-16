@@ -1,0 +1,325 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Sakuya 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Sakuya 3rd"]
+#Text["Sakuya 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DAZURE;
+
+// Monochrome shader
+int _objShader = ObjShader_Create();
+ObjShader_SetShaderF(_objShader, DIR_SDR_MONOCHROME);
+ObjShader_SetTechnique(_objShader, TEC_MONOCHROME);
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Knife trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_1,
+		408, 510, 442, 544,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 43);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SAKUYA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 302, 630, 186, 95, 52, _colorA, _colorB, CENTER_X, 130, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(13000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	_ManageCicatrix(CreateShot_Enemy(_enmX, _enmY, 0, GetAngleToPlayer(_objBoss), 0.15, 14, SHOT_KNIFE_PURPLE, 15, 1.225));
+	
+	wait(90);
+	
+	loop
+	{
+		int way = 8;
+		for(int i = 0; i < way; i++)
+		{
+			for(int j = 0; j <= 1; j++) _ManageShot(CreateShot_Enemy(_enmX, _enmY, 2, (i * (360 / way)) + (j * 180), -0.0075 - (i * 0.00175), 0, SHOT_KNIFE_RED, 25));
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(11);
+		}
+		
+		wait(45);
+		
+		loop(3)
+		{
+			float off = GetAngleToPlayer(_objBoss);
+			int stack = 3;
+			way = 6;
+			for(int i = 0; i <= stack; i++)
+			{
+				for(int j = 0; j <= way; j++)
+				{
+					_Trail(CreateShot_Enemy(_enmX, _enmY, 0, ((j * (360 / way)) + off) + (i * 15), 0.02 + (0.009 * i), 2 + (0.5 * i), SHOT_KNIFE_RED, 25));
+				}
+			}
+				
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(80);
+		}
+		
+		wait(45);
+		
+		loop(3)
+		{
+			float off = GetAngleToPlayer(_objBoss);
+			int stack = 3;
+			way = 2;
+			for(int i = 0; i <= stack; i++)
+			{
+				for(int j = -way; j <= way; j++)
+				{
+					_Trail(CreateShot_Enemy(_enmX, _enmY, 0, off + (j * 4), 0.02 + (0.02 * i), 2 + (1 * i), SHOT_KNIFE_RED, 25));
+				}
+			}
+
+			way = 5;
+			
+			for(int i = 0; i <= stack; i++)
+			{
+				for(int j = 0; j <= way; j++)
+				{
+					_Trail(CreateShot_Enemy(_enmX, _enmY, 0, j * (360 / way), 0.01 + (0.01 * i), 1.5 + (0.65 * i), SHOT_KNIFE_RED, 25));
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(80);
+		}
+		
+		wait(45);
+	}
+}
+
+task _ManageCicatrix(int objFuckyou_)
+{
+	ObjShot_SetAutoDelete(objFuckyou_, false);
+	
+	async
+	{
+		wait(16);
+		ObjShot_SetIntersectionScaleXY(objFuckyou_, 1.35, 1.35);
+	}
+	
+	for(int i = 0; ; i++)
+	{
+		if(!Obj_IsInArea(objFuckyou_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+		{
+			ObjMove_SetAngle(objFuckyou_, GetAngleToPlayer(objFuckyou_));
+			
+			if(_effChr) loop(40) _RenderBurstParticle(ObjMove_GetX(objFuckyou_), ObjMove_GetY(objFuckyou_), COLOR_DPURPLE);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		}
+		
+		float ang = NormalizeAngle(ObjMove_GetAngle(objFuckyou_));
+		float plr = NormalizeAngle(GetAngleToPlayer(objFuckyou_));
+		
+		if((ang >= (plr - 9)) && (ang <= (plr + 9)))
+		{
+			StartSlow(TARGET_ALL, 25);
+			SetShaderI(_objShader, RP_MIN, RP_UI_FRAME - 1);
+		}
+		else
+		{
+			StopSlow(TARGET_ALL);
+			ResetShaderI(RP_MIN, RP_UI_FRAME - 1);
+		}
+		
+		if(_prtSht)
+		{
+			async
+			{					
+				float posX = ObjMove_GetX(objFuckyou_);
+				float posY = ObjMove_GetY(objFuckyou_);
+				
+				float scaleOrg = 1.225;
+				float scaleCur = scaleOrg;
+					
+				float ang = ObjMove_GetAngle(objFuckyou_) - 90 + 180;
+				
+				float alphaOrg = 255;
+				float alphaCur = alphaOrg;
+				
+				float iMax = 60;
+				for(int i = 0; i <= iMax; i++)
+				{
+					// Color
+					ObjParticleList_SetColor(_objPartTrail, COLOR_DPURPLE);
+									
+					// Position
+					ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+					// Size
+					scaleCur = Interpolate_Smooth(scaleOrg, 1.6, i / iMax);
+					ObjParticleList_SetScale(_objPartTrail, scaleCur);
+					
+					// Angle
+					ObjParticleList_SetAngleZ(_objPartTrail, ang);
+						
+					// Fade
+					alphaCur = Interpolate_Smooth(alphaOrg, 0, i / iMax);
+					ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+					ObjParticleList_AddInstance(_objPartTrail);
+						
+					yield;
+				}
+			}
+		}
+		
+		yield;
+	}
+}
+
+task _ManageShot(int objShot_)
+{
+	wait(70);
+	
+	ObjMove_SetAngle(objShot_, GetAngleToPlayer(objShot_));
+	ObjMove_SetAcceleration(objShot_, 0.065);
+	ObjMove_SetMaxSpeed(objShot_, 8);
+	
+	_Trail(objShot_);
+}
+
+task _Trail(int objShot_)
+{
+	if(!_prtSht) return;
+	
+	for(int i = 0; Obj_IsExists(objShot_); i++)
+	{
+		if(i % 8 == 0)
+		{
+			async
+			{					
+				float posX = ObjMove_GetX(objShot_);
+				float posY = ObjMove_GetY(objShot_);
+				
+				float scaleOrg = 1;
+				float scaleCur = scaleOrg;
+					
+				float ang = ObjMove_GetAngle(objShot_) - 90 + 180;
+				
+				float alphaOrg = 255;
+				float alphaCur = alphaOrg;
+				
+				float iMax = 60;
+				for(int i = 0; i <= iMax; i++)
+				{
+					// Color
+					ObjParticleList_SetColor(_objPartTrail, COLOR_DRED);
+									
+					// Position
+					ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+					// Size
+					scaleCur = Interpolate_Smooth(scaleOrg, 1.25, i / iMax);
+					ObjParticleList_SetScale(_objPartTrail, scaleCur);
+					
+					// Angle
+					ObjParticleList_SetAngleZ(_objPartTrail, ang);
+						
+					// Fade
+					alphaCur = Interpolate_Smooth(alphaOrg, 0, i / iMax);
+					ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+					ObjParticleList_AddInstance(_objPartTrail);
+						
+					yield;
+				}
+			}
+		}
+		
+		yield;
+	}
+}

@@ -1,0 +1,526 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// System Script ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This script handles all basic gameplay elements pertaining to UI and game mechanics, and runs at all times except during the main menu
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains all variables and functions unique to the final boss
+#include "./../lib/lib_final.dnh"
+
+// This library contains the tasks that the system script uses to render the UI elements, handle game mechanics, and so on
+#include "./../lib/lib_system.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Item script ID
+int _ID_ITEM;
+
+// Text file from which to read spell card names
+int _spellNames = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_spellNames, DIR_TXT_SPELLNAME);
+
+// Text file from which to read medal requirements
+int _medalReq = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_medalReq, DIR_TXT_MEDAL);
+
+// Tracks whether the spell and everything following it is over
+bool _isEnd = false;
+
+// Particle lists for minor toasts (popups that appear near the player and then fly away)
+int _objPartToast = CreateParticleList2D
+(
+	DIR_IMG_SYS_TOAST_MINOR,
+	0, 0, 228, 67,
+	BLEND_ALPHA, RP_FX_MED + 2
+);
+ObjShader_SetShaderF(_objPartToast, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartToast, TEC_RENDER);
+ObjShader_SetFloat(_objPartToast, FLOAT_STEP_X, 1);
+ObjShader_SetFloat(_objPartToast, FLOAT_STEP_Y, 67 / 335);
+
+// Debug stuff
+bool _invincible = false;
+int _slow = 60;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	//SetIntersectionVisualization(true);
+	//SetIntersectionVisualizationRenderPriority(RP_FX_MED_H);
+	
+	SetAutoDeleteObject(true);
+	 
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SYSTEM, GetOwnScriptID());
+	
+	// Starts all of the tasks and sets all of the parameters necessary for basic game function
+	_SysInit();
+	
+	_ID_ITEM = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_ITEM, ID_INVALID);
+}
+
+@Event
+{
+	alternative(GetEventType())
+		
+		// The game is paused
+		case(EV_PAUSE_ENTER)
+		{
+			SetAreaCommonData(AREA_GAME, IS_GAME_PAUSED, true);
+		}
+		
+		// The game is unpaused
+		case(EV_PAUSE_LEAVE)
+		{
+			SetAreaCommonData(AREA_GAME, IS_GAME_PAUSED, false);
+		}
+		
+		// Notification of the start of a spell
+		case(EV_SPELL_START)
+		{
+			int      objBoss       = GetEventArgument(0);
+			int      objScene      = GetEventArgument(1);
+			int      spellID       = GetEventArgument(2);
+			string   bossName      = GetEventArgument(3);
+			int      rectPortraitX = GetEventArgument(4);
+			int      rectPortraitY = GetEventArgument(5);
+			int      rectTitleX    = GetEventArgument(6);
+			int      rectTitleY    = GetEventArgument(7);
+			float     offX          = GetEventArgument(8);
+			int      colorA        = GetEventArgument(9);
+			int      colorB        = GetEventArgument(10);
+			float     bossDestX     = GetEventArgument(11);
+			float     bossDestY     = GetEventArgument(12);
+			int      scoreOrg      = GetEventArgument(13);
+			string[] background    = GetEventArgument(14);
+			
+			_isEnd = false;
+			
+			LoadTextureEx(DIR_IMG_CHAR ~ "/portrait_" ~ bossName ~ ".png", true, true);
+			LoadTextureEx(DIR_IMG_CHAR ~ "/title_"    ~ bossName ~ ".png", true, true);
+			LoadTextureEx(DIR_IMG_ENM  ~ "/sprite_"   ~ bossName ~ ".png", true, true);
+			for each(string i in ref background) LoadTextureEx(i, true, true);
+	
+			SetPlayerPower((GetAreaCommonData(AREA_REPLAY, POWER, false)) ? POWER_MAX + 2 : POWER_MAX + 1);
+			SetPlayerSpell(0);
+			
+			ObjEnemy_SetDamageRate(objBoss, 0, 0);
+			
+			async
+			{
+				wait(120);
+				ObjEnemy_SetDamageRate(objBoss, 100, 0);
+			}
+			
+			ObjMove_SetDestAtFrame(objBoss, bossDestX, bossDestY, 60, LERP_DECELERATE);
+			
+			int color;
+			if(spellID < 64) color = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_BLUE, COLOR_PURPLE][(ceil(spellID / 9)) - 1];
+			else color = COLOR_WHITE;
+			
+			_RenderBackground(objBoss, objScene, bossName, background, color, spellID);
+			
+			_RenderBossCircle(objBoss, colorB);
+			_RenderBossDistortion(objBoss, objScene, spellID);
+			_RenderBossLifebar(objBoss, objScene, GetPlayerObjectID(), spellID);
+			_RenderBossPortrait
+			(
+				bossName, objScene,
+				rectPortraitX, rectPortraitY, rectTitleX, rectTitleY, 
+				offX, colorA
+			);
+			_RenderBossSprite(objBoss, bossName, colorA, colorB);
+			
+			_RenderCounters(spellID);
+			
+			_RenderSpellCutin
+			(
+				objBoss, objScene, bossName, background,
+				spellID, _spellNames, scoreOrg, 
+				colorA, colorB
+			);
+			
+			_ManageBoss(objBoss, objScene, colorA, colorB);
+			
+			async
+			{
+				while(!ObjEnemyBossScene_GetInfo(objScene, INFO_IS_SPELL)) yield;
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_SPELL_START);
+			}
+		}
+		
+		// Notification of the end of a spell
+		case(EV_SPELL_END)
+		{
+			int      countMiss  = GetEventArgument(0);
+			int      countSpell = GetEventArgument(1);
+			int      timerCur   = GetEventArgument(2);
+			int      timerOrg   = GetEventArgument(3);
+			bool     isTimeout  = GetEventArgument(4);
+			int      scoreCur   = GetEventArgument(5);
+			int      scoreOrg   = GetEventArgument(6);
+			float     posX       = GetEventArgument(7);
+			float     posY       = GetEventArgument(8);
+			string   bossName   = GetEventArgument(9);
+			string[] background = GetEventArgument(10);
+			
+			//RemoveTexture(DIR_IMG_CHAR ~ "/portrait_" ~ bossName ~ ".png");
+		//	RemoveTexture(DIR_IMG_CHAR ~ "/title_"    ~ bossName ~ ".png");
+			//RemoveTexture(DIR_IMG_ENM  ~ "/sprite_"   ~ bossName ~ ".png");
+			//for each(string i in ref background) RemoveTexture(i);
+			int spellID = GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID);
+			
+			if(spellID != 70) NotifyEvent(_ID_ITEM, EV_DROP_POINTS, posX, posY);
+			
+			if(countMiss + countSpell == 0 && (timerCur != 0 || isTimeout)) // If the spell was captured
+			{
+				if(!IsReplay)
+				{
+					if(!GetAreaCommonData(AREA_ACHIEVE, CAPTURE ~ itoa(spellID), false)) SetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0) + 1);
+					SetAreaCommonData(AREA_ACHIEVE, CAPTURE ~ itoa(spellID), true);
+					
+					NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, CAPTURE_SCENE);
+					
+					int[] div = [1, 10, 19, 28, 37, 46, 55, 64, 65]; //74];
+
+					int iMax = length(div) - 1;
+					for(int i = 0; i < iMax; i++)
+					{
+						bool cap = true;
+						
+						for(int j = div[i]; j < div[i + 1]; j++)
+						{
+							cap = GetAreaCommonData(AREA_ACHIEVE, CAPTURE ~ itoa(j), false);
+							if(!cap) break;
+						}
+						
+						if(cap) NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, STAGE ~ itoa(i));
+					}
+					
+					// Afterparty
+					bool capA = true;
+					for(int i = 67; i <= 70; i++)
+					{
+						if(!GetAreaCommonData(AREA_ACHIEVE, CAPTURE ~ itoa(i), false)) capA = false;
+						if(!capA) break;
+					}
+					for(int i = 72; i <= 76; i++)
+					{
+						if(!GetAreaCommonData(AREA_ACHIEVE, CAPTURE ~ itoa(i), false)) capA = false;
+						if(!capA) break;
+					}
+					
+					if(capA) NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, STAGE ~ itoa(8));
+					
+					string ready = GetAreaCommonData(AREA_GAME, ACHIEVE_READY, "ID_INVALID");
+					if(ready != "ID_INVALID") NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, ready);
+					
+					SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+				}
+				
+				SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, false);
+				AddScore(scoreCur);
+				NotifyEventOwn(EV_CREATE_TOAST_MAJOR, TOAST_MAJOR_SPELL_CAPTURE, scoreCur, timerOrg - timerCur);
+					
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_SPELL_CAPTURE);
+			}
+			else
+			{
+				if(bossName != CHAR_FLANDRE || ((bossName == CHAR_FLANDRE) && (timerCur == 0))) SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, true);
+				NotifyEventOwn(EV_CREATE_TOAST_MAJOR, TOAST_MAJOR_SPELL_FAILURE, scoreCur, timerOrg - timerCur);
+			}
+		}
+		
+		// Creates a small popup that flies away from the player
+		case(EV_CREATE_TOAST_MINOR)
+		{
+			int toastType = GetEventArgument(0);
+			int aMax      = GetEventArgument(1);
+					
+			if(toastType != TOAST_MINOR_POINT || _prtMisc) _RenderToast_Minor(toastType, aMax);
+		}
+		
+		// Creates a large popup near the top of the screen
+		case(EV_CREATE_TOAST_MAJOR)
+		{
+			int toastType = GetEventArgument(0);
+			int scoreCur  = GetEventArgument(1);
+			int clearTime = GetEventArgument(2);
+			
+			int  offY = 0;
+			bool displayScore;
+			
+			alternative(toastType)
+				case(TOAST_MAJOR_SPELL_CAPTURE)
+				{
+					displayScore = true;
+				}
+				case(TOAST_MAJOR_SPELL_FAILURE)
+				{
+					offY = 121;
+					displayScore = false;
+				}
+				
+			_RenderToast_Major(offY, displayScore, scoreCur, clearTime);
+		}
+		
+		// Saves the spell history and hiscore data
+		case(EV_SAVE_DATA)
+		{
+			int  countMiss  = GetEventArgument(0);
+			int  countSpell = GetEventArgument(1);
+			int  timerCur   = GetEventArgument(2);
+			bool isTimeout  = GetEventArgument(3);
+			
+			_isEnd = true;
+	
+			// Spell card history
+			int spellID = GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID);
+			int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ GetPlayerID(), 0i);
+			int numCap = historyData >> 32 & 0xffff;
+			int numTry = historyData & 0xffff;
+
+			if(!IsReplay())
+			{
+				if(countMiss + countSpell == 0 && (timerCur != 0 || isTimeout)) numCap = min(numCap + 1, 65535);
+				
+				SetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ GetPlayerID(), numCap << 32 | numTry);
+			}
+			
+			async
+			{
+				wait(2);
+				SaveCommonDataAreaA2(AREA_HISTORY, DIR_DAT_SPELLHISTORY);
+			}
+		}
+		
+		// Renders unique boss auras like Yuyuko's fan
+		case(EV_RENDER_AURA)
+		{
+			if(GetAreaCommonData(AREA_SETTINGS, EFF_BOSS, 1))
+			{
+				int    objBoss  = GetEventArgument(0);
+				string pathFile = GetEventArgument(1);
+				int    colorA   = GetEventArgument(2);
+				int    colorB   = GetEventArgument(3);
+				int    rectX    = GetEventArgument(4);
+				int    rectY    = GetEventArgument(5);
+				int    interval = GetEventArgument(6);
+				float  scale    = GetEventArgument(7);
+				int    offY     = GetEventArgument(8);
+				
+				_RenderBossAura(objBoss, pathFile, colorA, colorB, rectX, rectY, interval, scale, offY);
+			}
+		}
+		
+		// Renders a magic circle around the player
+		case(EV_RENDER_PLAYER_CIRCLE)
+		{
+			int  objBoss = GetEventArgument(0);
+			float scale   = GetEventArgument(1);
+			int  color   = GetEventArgument(2);
+			
+			_RenderPlayerCircle(objBoss, scale, color);
+		}
+		
+		// Toggles whether the magic circle around the player is hidden from view
+		case(EV_TOGGLE_PLAYER_CIRCLE)
+		{
+			_circDestScale = GetEventArgument(0);
+		}
+		
+		// Waits for the boss to die, and then resets the player speed to the usual values
+		case(EV_RESET_SPEED)
+		{
+			int    objBoss = GetEventArgument(0);
+			float[] spd     = GetEventArgument(1);
+			
+			async
+			{
+				while(Obj_IsExists(objBoss)) yield;
+				SetPlayerSpeed(spd[0], spd[1]);
+			}
+		}
+		
+		// Sets the destination lifebar alpha
+		case(EV_SET_LIFEBAR_ALPHA)
+		{
+			_lifeAlpha = GetEventArgument(0);
+		}
+		
+		// Creates a momentary glow at the edges of the screen
+		case(EV_WARNING_GLOW)
+		{
+			int color = GetEventArgument(0);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			
+			_WarningGlow(color);
+		}
+		
+		// Spawns a small popup that sticks to the player
+		case(EV_CREATE_TOAST_CONTROLS)
+		{
+			string text = GetEventArgument(0);
+			
+			_CreateToast_Controls(text);
+		}
+		
+		// Notification of the start of the final spell
+		case(EV_FINAL_START)
+		{
+			int      objBoss       = GetEventArgument(0);
+			int      objScene      = GetEventArgument(1);
+			int      spellID       = GetEventArgument(2);
+			string   bossName      = GetEventArgument(3);
+			int      rectPortraitX = GetEventArgument(4);
+			int      rectPortraitY = GetEventArgument(5);
+			int      rectTitleX    = GetEventArgument(6);
+			int      rectTitleY    = GetEventArgument(7);
+			float     offX          = GetEventArgument(8);
+			int      colorA        = GetEventArgument(9);
+			int      colorB        = GetEventArgument(10);
+			float     bossDestX     = GetEventArgument(11);
+			float     bossDestY     = GetEventArgument(12);
+			int      scoreOrg      = GetEventArgument(13);
+			string[] background    = GetEventArgument(14);
+			
+			_isEnd = false;
+			
+			//LoadTextureEx(DIR_IMG_CHAR ~ "/portrait_" ~ bossName ~ ".png", true, true);
+			//LoadTextureEx(DIR_IMG_CHAR ~ "/title_"    ~ bossName ~ ".png", true, true);
+			//LoadTextureEx(DIR_IMG_ENM  ~ "/sprite_"   ~ bossName ~ ".png", true, true);
+			for each(string i in ref background) LoadTextureEx(i, true, true);
+	
+			if(GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false))
+			{
+				SetPlayerPower(POWER_MAX + 2);
+				SetPlayerSpell(6);
+			}
+			else
+			{
+				SetPlayerPower(0);
+				SetPlayerSpell(1);
+			}
+			
+			ObjEnemy_SetDamageRate(objBoss, 0, 0);
+			
+			ObjMove_SetDestAtFrame(objBoss, bossDestX, bossDestY, 60, LERP_DECELERATE);
+	
+			_RenderBackgroundF(objBoss, objScene, background, spellID);
+			
+			_RenderBossCircleF(objBoss, spellID);
+			_RenderBossDistortion(objBoss, objScene, spellID);
+			_RenderBossLifebarF(objBoss, objScene, GetPlayerObjectID(), spellID);
+			_RenderBossPortraitF
+			(
+				bossName, objScene,
+				rectPortraitX, rectPortraitY, rectTitleX, rectTitleY, 
+				offX, spellID
+			);
+			_RenderBossSpriteF(objBoss, bossName, spellID);
+			
+			_RenderCounters(spellID);
+			
+			_RenderSpellCutin
+			(
+				objBoss, objScene, bossName, background,
+				spellID, _spellNames, scoreOrg, 
+				colorA, colorB
+			);
+			
+			_RenderSpecial();
+			_HandleExtends();
+			
+			async
+			{
+				while(!ObjEnemyBossScene_GetInfo(objScene, INFO_IS_SPELL)) yield;
+				
+				ObjEnemy_SetDamageRate(objBoss, 100, 0);
+				_ManageBoss(objBoss, objScene, colorA, colorB);
+				_TrackPhase(objBoss, objScene);
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_SPELL_START);
+			}
+		}
+		
+		case(EV_ADJUST_SCROLL)
+		{
+			async
+			{
+				alternative(GetEventArgument(0))
+					case(0)
+					{
+						float iMax = 30;
+						for(int i = 0; i <= iMax; i++)
+						{
+							_scroll = Interpolate_Smooth(3, 1, i / iMax);
+							yield;
+						}
+					}
+					
+					case(1)
+					{
+						float iMax = 30;
+						for(int i = 0; i <= iMax; i++)
+						{
+							_scroll = Interpolate_Smooth(1, 0.3, i / iMax);
+							yield;
+						}
+					}
+					
+					case(2)
+					{
+						float iMax = 180;
+						for(int i = 0; i <= iMax; i++)
+						{
+							_scroll = Interpolate_Accelerate(0.3, 10, i / iMax);
+							yield;
+						}
+					}
+					
+					case(3)
+					{
+						float iMax = 60;
+						for(int i = 0; i <= iMax; i++)
+						{
+							_scroll = Interpolate_Smooth(10, 1, i / iMax);
+							yield;
+						}
+					}
+				}
+		}
+		
+		case(EV_SET_BOSS_ALPHA)
+		{
+			_bossAlpha = GetEventArgument(0);
+		}
+}
+
+@MainLoop 
+{
+	// Debug stuff
+	/*if(GetKeyState(KEY_I) == KEY_PUSH) _invincible = (_invincible) ? false : true;
+	if(GetKeyState(KEY_U) == KEY_PUSH) SetPlayerSpell(GetPlayerSpell() + 1);
+	if(GetKeyState(KEY_1) == KEY_PUSH) _slow = 10;
+	if(GetKeyState(KEY_2) == KEY_PUSH) _slow = 20;
+	if(GetKeyState(KEY_3) == KEY_PUSH) _slow = 30;
+	if(GetKeyState(KEY_4) == KEY_PUSH) _slow = 40;
+	if(GetKeyState(KEY_5) == KEY_PUSH) _slow = 50;
+	if(GetKeyState(KEY_6) == KEY_PUSH) _slow = 60;
+	
+	if(_invincible) SetPlayerInvincibilityFrame(20);
+	
+	if(_slow < 60) StartSlow(TARGET_ALL, _slow);
+	else StopSlow(TARGET_ALL);*/
+	
+	yield;
+}

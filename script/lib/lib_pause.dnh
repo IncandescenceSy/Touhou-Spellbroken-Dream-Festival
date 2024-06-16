@@ -1,0 +1,795 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Pause Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains functions specifically for the pause and similar menus
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains various image and primitive object manipulation functions
+#include "./lib_image.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Mask texture scrolling
+int _scroll = 0;
+
+// Menu option flashing
+int _flash = 0;
+
+// Currently selected menu option
+int _select = 0;
+
+// Confirmation menu option
+int _selectFinalize = 1;
+
+// Amount of frames the movement key has been held down for
+int _held = 0;
+
+// Has the confirmation menu been selected from
+bool _selected = false;
+
+// Angle of the pause back
+float _tilt = 0;
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Handles menu selection
+task _HandleSelection(int[] result_, bool[] confirm_, int selMax_, bool cancel_, bool isPause_)
+{
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, ((!isPause_ && _select == _cancel) || (isPause_ && _select == 0)) ? DIR_SFX_MENU_CANCEL : DIR_SFX_MENU_CONFIRM);
+			
+			if(!confirm_[_select])
+			{
+				yield;
+				SetScriptResult(result_[_select]);
+				CloseScript(GetOwnScriptID());
+				return;
+			}
+			else
+			{
+				_selected = HandleConfirmation(result_);
+				while(!_selected) yield;
+				_selected = false;
+			}
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PULL || GetVirtualKeyState(VK_PAUSE) == KEY_PULL)
+		{
+			if(!isPause_)
+			{
+				if(cancel_ || _select == _cancel)
+				{
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+					yield;
+					SetScriptResult(_result[_select]);
+					CloseScript(GetOwnScriptID());
+					return;
+				}
+				else
+				{
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+					_select = _cancel;
+				}
+			}
+			else
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+				yield;
+				SetScriptResult(RESULT_CANCEL);
+				CloseScript(GetOwnScriptID());
+				return;
+			}
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH || GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH || GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD || GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		else
+		{
+			_held = 0;
+		}
+		
+		if(GetKeyState(KEY_R) == KEY_PULL)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			yield;
+			SetScriptResult(RESULT_RETRY);
+			CloseScript(GetOwnScriptID());
+			return;
+		}
+		else if(GetKeyState(KEY_Q) == KEY_PULL)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			yield;
+			SetScriptResult(RESULT_END);
+			CloseScript(GetOwnScriptID());
+			return;
+		}
+		
+		if(_select < 0)       _select = selMax_;
+		if(_select > selMax_) _select = 0;
+		
+		yield;
+	}
+}
+
+// Renders background image
+task _RenderBackground()
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	int objBack = CreateSprite2D_Dest
+	(
+		RT0, RP_UI_VIS, BLEND_ALPHA,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	ObjShader_SetShaderF(objBack, DIR_SDR_PAUSE);
+	ObjShader_SetTechnique(objBack, TEC_PAUSE);
+	ObjShader_SetFloat(objBack, FLOAT_SDR_MISC, sdrMisc);
+	
+	// Counter variables
+	int intn = 0;
+		
+	float intnRender = 0;
+		
+	int frame = 0;
+		
+	// Causes it to interpolate darkening when you first pause
+	async
+	{
+		float iMax = 30;
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjShader_SetFloat(objBack, FLOAT_LIGHTNESS, Interpolate_Smooth(1, 0.33, i / iMax));
+			
+			yield;
+		}
+	}
+		
+	// Causes the blur effect to pulse, with a fade-in at the start
+	loop
+	{
+		if(sdrMisc)
+		{
+			ObjShader_SetFloat(objBack, FLOAT_INTN, min(sin(frame) / 25, intnRender));
+		
+			intnRender += 0.0025;	
+			frame++;
+		}
+			
+		// Global variable updates
+		_scroll++;
+		_flash += 2;
+			
+		yield;
+	}
+}
+
+// Renders pause back and star particles
+task _RenderPauseBack(float colR_, float colG_, float colB_)
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	bool prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+	
+	// Pause back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_BACK, (sdrMisc) ? RP_UI_PAUSE : RP_UI_VIS + 1, BLEND_ALPHA,
+		0, 0, 117, 384,
+		1, 1,
+		-100 * RES, 330 * RES
+	);
+	ObjRender_SetAngleZ(objBack, 0);
+	
+	int objMaskA;
+	int objPart;
+	int objMaskB;
+	
+	if(sdrMisc)
+	{
+		// Back mask texture
+		objMaskA = CreateSprite2D_Dest
+		(
+			DIR_IMG_EFF_FIRE, RP_UI_VIS + 1, BLEND_ALPHA,
+			0, 0, 960, 720,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);	
+		ObjShader_SetShaderF(objMaskA, DIR_SDR_MASK_ALPHA);
+		ObjShader_SetTechnique(objMaskA, TEC_MASK_MULT);
+		ObjShader_SetTexture(objMaskA, TEXTURE_MASK, RT1);
+		ObjShader_SetFloat(objMaskA, FLOAT_SCREEN_WIDTH, 1024);
+		ObjShader_SetFloat(objMaskA, FLOAT_SCREEN_HEIGHT, 1024);
+		ObjShader_SetFloat(objMaskA, FLOAT_OVERRIDE_ALPHA, 1);
+		ObjShader_SetFloat(objMaskA, FLOAT_ALPHA_MULT, 1);
+		ObjShader_SetVector(objMaskA, FLOAT_FILTER, colR_, colG_, colB_, 1);
+	}
+	else
+	{
+		ObjRender_SetColor(objBack, 255 * colR_, 255 * colG_, 255 * colB_);
+	}
+	
+	if(prtMisc)
+	{
+		// Star particles
+		objPart = CreateParticleList2D 
+		(
+			DIR_IMG_EFF_STAR,
+			0, 0, 256, 256,
+			BLEND_ALPHA, (sdrMisc) ? RP_UI_PAUSE : RP_UI_VIS + 1
+		);
+	}
+	
+	if(prtMisc && sdrMisc)
+	{
+		// Particle mask texture
+		objMaskB = CreateSprite2D_Dest
+		(
+			DIR_IMG_EFF_FIRE, RP_UI_VIS + 1, BLEND_ALPHA,
+			0, 0, 960, 720,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);	
+		ObjShader_SetShaderF(objMaskB, DIR_SDR_MASK_ALPHA);
+		ObjShader_SetTechnique(objMaskB, TEC_MASK_MULT);
+		ObjShader_SetTexture(objMaskB, TEXTURE_MASK, RT2);
+		ObjShader_SetFloat(objMaskB, FLOAT_SCREEN_WIDTH, 1024);
+		ObjShader_SetFloat(objMaskB, FLOAT_SCREEN_HEIGHT, 1024);
+		ObjShader_SetFloat(objMaskB, FLOAT_OVERRIDE_ALPHA, 1);
+		ObjShader_SetFloat(objMaskB, FLOAT_ALPHA_MULT, 1);
+		ObjShader_SetVector(objMaskB, FLOAT_FILTER, colR_, colG_, colB_, 1);
+	}
+	
+	// Pause back position
+	async
+	{
+		float iMax = 45;
+		for(int i = 1; i <= iMax; i++)
+		{
+			ObjRender_SetX(objBack, Interpolate_Smooth(-100 * RES, 120 * RES, i / iMax));
+			
+			yield;
+		}
+	}
+	
+	while(Obj_IsExists(objBack))
+	{	
+		// Pause back tilt
+		_tilt += (cos(_scroll) / 4);
+		ObjRender_SetAngleZ(objBack, _tilt);
+		
+		if(prtMisc)
+		{
+			// Particles
+			if(_scroll % 5 == 0)
+			{
+				async
+				{
+					float orgX = prand(20 * RES, SCREEN_WIDTH + (40 * RES));
+					float orgY = prand(SCREEN_HEIGHT + (25 * RES), SCREEN_HEIGHT + (35 * RES));
+					
+					float curX = orgX;
+					float curY = orgY;
+					
+					float destX = curX + prand(-40, 40);
+					float destY = prand(-60, -90);
+					
+					float angX = prand(0, 360);
+					float angY = prand(0, 360);
+					float angZ = prand(0, 360);
+					
+					float iMax = prand(460, 660);
+					for(int i = 1; i <= iMax; i++)
+					{
+						// Position
+						curX = Interpolate_Smooth(orgX, destX, i / iMax);
+						curY = Interpolate_Smooth(orgY, destY, i / iMax);
+						ObjParticleList_SetPosition(objPart, curX, curY, ID_INVALID);
+						
+						// Rotation
+						angX += prand(1, 2);
+						angY -= prand(1, 2);
+						angZ += prand(1, 2);
+						ObjParticleList_SetAngle(objPart, angX, angY, angZ);
+						
+						// Size
+						ObjParticleList_SetScale(objPart, 0.3);
+						
+						// Fade
+						ObjParticleList_SetAlpha(objPart, 255);
+						
+						// Tint
+						ObjParticleList_SetColor(objPart, 255 * colR_, 255 * colG_, 255 * colB_);
+						
+						ObjParticleList_AddInstance(objPart);
+						
+						yield;
+					}
+				}
+			}
+		}
+			
+		// Mask
+		if(sdrMisc)
+		{
+			ObjSprite2D_SetSourceRect(objMaskA, 0, - _scroll, 960, 720 - _scroll);
+			RenderToTextureB1(RT1, objBack, true);
+		}
+		
+		if(sdrMisc && prtMisc)
+		{
+			ObjSprite2D_SetSourceRect(objMaskB, 0, - _scroll, 960, 720 - _scroll);
+			RenderToTextureB1(RT2, objPart, true);
+		}
+		
+		yield;
+	}
+}
+
+// Renders menu title
+task _RenderTitle(int index_)
+{
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_TITLE, RP_UI_PAUSE, BLEND_ALPHA,
+		0, index_ * 100, 302, 100 + (index_ * 100),  
+		1, 1,
+		150 * RES, 260 * RES
+	);
+	
+	_WarpIn(objTitle, RT3, 45);
+}
+
+// Renders option graphics
+task _RenderMenuOption(int index_, int hue_, string target_)
+{
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_OPT, RP_UI_PAUSE, BLEND_ALPHA,
+		0, index_ * 47, 342, 47 + (index_ * 47),  
+		1, 1,
+		200 * RES, (300 * RES) + ((index_ % 3) * (40 * RES))
+	);
+	
+	_WarpIn(objOption, target_, 45);
+	
+	while(Obj_IsExists(objOption))
+	{
+		bool isSelection = _select == (index_ % 3);
+		
+		float intn = sin(_flash);
+		intn *= (intn > 0) ? 1 : -1;
+		ObjRender_SetColorHSV(objOption, hue_, isSelection ? intn * 255 : 0, 255);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), isSelection ? 275 * RES : 200 * RES, 0.2));
+		
+		yield;
+	}
+}
+
+// Renders spell hint
+task _RenderHint(int colR_, int colG_, int colB_)
+{
+	bool hint = GetAreaCommonData(AREA_SETTINGS, HINT, true);
+	bool down  = GetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, false);
+	bool pause = GetAreaCommonData(AREA_GAME, IS_GAME_PAUSED, false);
+	int spellID = GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID);
+	
+	int objFile = ObjFile_Create(OBJ_FILE_TEXT);
+	
+	string hintText;
+	if((hint || spellID == 64) && (down || pause))
+	{
+		ObjFile_Open(objFile, DIR_TXT_SPELLNAME);
+		hintText = SplitString(ObjFileT_GetLineText(objFile, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID) + 1), '\\')[1];
+	}
+	else
+	{
+		ObjFile_Open(objFile, DIR_TXT_VICTORY);
+		hintText = ObjFileT_GetLineText(objFile, prand_int(1, ObjFileT_GetLineCount(objFile)));
+	}
+	
+	Obj_Delete(objFile);
+	
+	int colorTop    = ColorARGBToHex(255, min(colR_ * 1.1, 255), min(colG_ * 1.1, 255), min(colB_ * 1.1, 255));
+	int colorBottom = ColorARGBToHex(255, max(colR_ * 0.9, 0), max(colG_ * 0.9, 0), max(colB_ * 0.9, 0));
+	
+	int objHint = CreateTextObject
+	(
+		hintText, FONT_KORURI, RP_UI_VIS + 2,
+		0, SCREEN_WIDTH + (20 * RES), 
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		colorTop, colorBottom, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objHint, true);
+	ObjText_SetSidePitch(objHint, -2);
+	ObjText_SetLinePitch(objHint, -2);
+	
+	float iMax = 45;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetY(objHint, Interpolate_Smooth(SCREEN_WIDTH + (20 * RES), 400 * RES, i / iMax));
+		yield;
+	}
+}
+
+function<bool> HandleConfirmation(result_)
+{
+	// Renders menu title
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_TITLE, RP_UI_PAUSE, BLEND_ALPHA,
+		0, 300, 302, 400,  
+		1, 1,
+		450 * RES, 260 * RES
+	);
+	
+	_WarpIn(objTitle, RT8, 20);
+	
+	// Renders pause back
+	_RenderConfirmBack();
+	
+	// Renders menu options
+	_RenderConfirmOption(0, RT9);
+	_RenderConfirmOption(1, RT10);
+	
+	// Handles selection
+	int selMax = 1;
+	
+	// Resets selection
+	_selectFinalize = 1;
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	for(int i = 0; !_selected; i++)
+	{
+		if(i >= 20 && GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			if(_selectFinalize == 0)
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+				SetScriptResult(result_[_select]);
+				CloseScript(GetOwnScriptID());
+			}
+			else
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			}
+			_selected = true;
+		}
+		if(i >= 20 && GetVirtualKeyState(VK_CANCEL) == KEY_PULL || GetVirtualKeyState(VK_PAUSE) == KEY_PULL)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			_selected = true;
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH || GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_selectFinalize--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH || GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_selectFinalize++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD || GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_selectFinalize--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_selectFinalize++;
+			}
+		}
+		else
+		{
+			_held = 0;
+		}
+		if(_selectFinalize < 0)      _selectFinalize = selMax;
+		if(_selectFinalize > selMax) _selectFinalize = 0;
+		
+		if(GetKeyState(KEY_R) == KEY_PULL)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+	
+			return RESULT_RETRY;
+		}
+		else if(GetKeyState(KEY_Q) == KEY_PULL)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			return RESULT_END;
+		}
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_SetRenderPriorityI(objTitle, RP_UI_PAUSE);
+	_WarpOut(objTitle, RT8, 20);
+	
+	async{wait(20);
+	Obj_Delete(objTitle);}
+	
+	return _selected;
+}
+
+task _RenderConfirmBack()
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	// Pause back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_BACK, (sdrMisc) ? RP_UI_PAUSE : RP_UI_VIS + 1, BLEND_ALPHA,
+		0, 0, 117, 384,
+		1, 1,
+		-100 * RES, 330 * RES
+	);
+	ObjRender_SetAngleZ(objBack, 0);
+	
+	int objMask;
+	
+	if(sdrMisc)
+	{
+		// Back mask texture
+		objMask = CreateSprite2D_Dest
+		(
+			DIR_IMG_EFF_FIRE, RP_UI_VIS + 1, BLEND_ALPHA,
+			0, 0, 960, 720,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);	
+		ObjShader_SetShaderF(objMask, DIR_SDR_MASK_ALPHA);
+		ObjShader_SetTechnique(objMask, TEC_MASK_MULT);
+		ObjShader_SetTexture(objMask, TEXTURE_MASK, RT11);
+		ObjShader_SetFloat(objMask, FLOAT_SCREEN_WIDTH, 1024);
+		ObjShader_SetFloat(objMask, FLOAT_SCREEN_HEIGHT, 1024);
+		ObjShader_SetFloat(objMask, FLOAT_OVERRIDE_ALPHA, 1);
+		ObjShader_SetFloat(objMask, FLOAT_ALPHA_MULT, 1);
+		ObjShader_SetVector(objMask, FLOAT_FILTER, 1, 0, 1, 1);
+	}
+	else
+	{
+		ObjRender_SetColor(objBack, 255 * 1, 255 * 0, 255 * 1);
+	}
+	
+	// Pause back position
+	async
+	{
+		// Moving onscreen
+		float iMax = 20;
+		for(int i = 1; i <= iMax; i++)
+		{
+			ObjRender_SetX(objBack, Interpolate_Smooth(-100 * RES, 400 * RES, i / iMax));
+			
+			yield;
+		}
+	}
+	
+	while(!_selected)
+	{	
+		// Pause back tilt
+		ObjRender_SetAngleZ(objBack, _tilt);
+		
+		if(sdrMisc)
+		{
+			// Scrolling
+			ObjSprite2D_SetSourceRect(objMask, 0, -_scroll, 960, 720 - _scroll);
+			
+			// Mask texture
+			RenderToTextureB1(RT11, objBack, true);
+		}
+		
+		yield;
+	}
+	
+	// Cleanup
+	float posX = ObjRender_GetX(objBack);
+	float iMax = 20;
+	for(int i = 1; i <= iMax; i++)
+	{
+		// Moving offscreen
+		ObjRender_SetX(objBack, Interpolate_Smooth(posX, -100 * RES, i / iMax));
+		
+		// Pause back tilt
+		ObjRender_SetAngleZ(objBack, ObjRender_GetAngleZ(objBack) + (sin(_scroll) / 4));
+		
+		if(sdrMisc)
+		{
+			// Scrolling
+			ObjSprite2D_SetSourceRect(objMask, 0, -_scroll, 960, 720 - _scroll);
+			
+			// Mask texture
+			RenderToTextureB1(RT11, objBack, true);
+		}
+		
+		yield;
+	}
+	
+	Obj_Delete(objBack);
+	if(sdrMisc) Obj_Delete(objMask);
+}
+
+task _RenderConfirmOption(index_, target_)
+{
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_PAUSE_OPT, RP_UI_PAUSE, BLEND_ALPHA,
+		0, 423 + (index_ * 47), 342, 470 + (index_ * 47),  
+		1, 1,
+		480 * RES, (300 * RES) + (index_ * (40 * RES))
+	);
+	
+	_WarpIn(objOption, target_, 20);
+	
+	while(!_selected)
+	{
+		bool isSelection = _selectFinalize == index_;
+		
+		float intn = sin(_flash);
+		intn *= (intn > 0) ? 1 : -1;
+		ObjRender_SetColorHSV(objOption, 280, isSelection ? intn * 255 : 0, 255);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), isSelection ? 555 * RES : 480 * RES, 0.2));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_SetRenderPriorityI(objOption, RP_UI_PAUSE);
+	_WarpOut(objOption, target_, 20);
+	
+	wait(20);
+	
+	Obj_Delete(objOption);
+}
+
+task _WarpIn(int obj_, string target_, int time_)
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	if(sdrMisc)
+	{
+		int objDist = CreateSprite2D_Dest
+		(
+			target_, RP_UI_VIS + 2, BLEND_ALPHA,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		ObjRender_SetAlpha(objDist, 0);
+		ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+		ObjShader_SetTechnique(objDist, TEC_DISTORT);
+			
+		// Counter variables
+		int  frame = 0;
+		float intn = 1;
+		float iMax = time_;
+			
+		// Spawning animation
+			
+		_FadeIn(objDist, time_ * 0.65);
+		
+		for(int i = 0; i <= iMax; i++)
+		{
+			RenderToTextureB1(target_, obj_, true);
+				
+			frame++;
+			ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+			
+			intn = Interpolate_Smooth(1, 0, i / iMax);
+			ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+			yield;
+		}
+		
+		// Cleanup
+		Obj_Delete(objDist);
+		Obj_SetRenderPriorityI(obj_, RP_UI_VIS + 2);
+	}
+	else
+	{
+		Obj_SetRenderPriorityI(obj_, RP_UI_VIS + 2);
+		_FadeIn(obj_, time_);
+	}
+	
+}
+
+task _WarpOut(int obj_, string target_, int time_)
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	if(sdrMisc)
+	{
+		int objDist = CreateSprite2D_Dest
+		(
+			target_, RP_UI_VIS + 2, BLEND_ALPHA,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		ObjRender_SetAlpha(objDist, 255);
+		ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+		ObjShader_SetTechnique(objDist, TEC_DISTORT);
+			
+		// Counter variables
+		int  frame = 0;
+		float intn = 0;
+		float iMax = time_;
+			
+		// Spawning animation
+			
+		_FadeOut(objDist, time_ * 0.65);
+		
+		for(int i = 0; i <= iMax; i++)
+		{
+			RenderToTextureB1(target_, obj_, true);
+				
+			frame++;
+			ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+			
+			intn = Interpolate_Smooth(0, 1, i / iMax);
+			ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+				
+			yield;
+		}
+		
+		// Cleanup
+		Obj_Delete(objDist);
+		Obj_SetRenderPriorityI(obj_, RP_UI_VIS + 2);
+	}
+	else
+	{
+		Obj_SetRenderPriorityI(obj_, RP_UI_VIS + 2);
+		_FadeOut(obj_, time_);
+	}
+}

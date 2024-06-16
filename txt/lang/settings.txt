@@ -1,0 +1,17 @@
+Press [f tc=(255, 255, 0) bc=(164, 164, 0)]Z[f tc=(255, 255, 255) bc=(128, 128, 128)] to save and exit. Press [f tc=(255, 255, 0) bc=(164, 164, 0)]X[f tc=(255, 255, 255) bc=(128, 128, 128)] to exit without saving.\On\Off
+Boss Distortion Aura\The warping effect applied to the background, boss lifebar, and boss position lines.
+Bullet Shadows\The shadows behind the bullets.
+Charge Effects\Boss and enemy charge animations.
+Boss Effects\The glowing trail and 3D circle behind the boss, as well as additional effects[r]exclusive to specific spells.
+Graze Effects\The particles and bullet coloring when you graze a shot.
+Laser Blocking Particles\The particles from blocking enemy lasers.
+Shot & Item Particles\The particles from shot deletion (both player and enemy), as well as item collection[r]particles, Reimu amulet trails, and bullet trails in some spells.
+Stage Background\The colored 3D grid.[r]If both background options are disabled, the game acts partially as if the boss distortion[r]aura is disabled, even if it is not.
+Spell Backgrounds\The boss-specific backgrounds that appear during spells.[r]If both background options are disabled, the game acts partially as if the boss distortion[r]aura is disabled, even if it is not.
+Miscellaneous Shader Effects\Effects applied to the main menu background, pause menu background, spell[r]background spawning effect, options, and particles, the spell cutin, and major[r]toasts (popups like "Spell Card Capture").
+Miscellaneous Particle Effects\The particles in enemy explosions, behind the spell name back while it moves, on the[r]pause menu, for familiar (regular enemy) trails, and minor toasts (point item score[r]popups and "New Hiscore!" popups).
+Spell Hints\The hints on the pause and defeat menus.[r]You must be quite the expert to disable this, huh?
+BGM Volume\The volume of the music, from 0% to 200%. Defaults to 100%.
+SFX Volume\The volume of the sound effects, from 0% to 200%. Defaults to 100%.
+Frame Opacity\The opacity of the frame border, from 0% to 100%. Defaults to 40%.
+Restore Defaults\Resets everything to its default state.

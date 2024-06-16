@@ -1,0 +1,435 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Shinki ///////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Shinki"]
+#Text["Shinki"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DRED;
+
+// Scale particles
+int objPart_ = CreateParticleList2D 
+(
+	DIR_IMG_SYS_SHOT_0,
+	216, 234, 234, 252,
+	BLEND_SUBTRACT, RP_FX_MED_H
+);
+
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, true);
+
+int _itr = 0;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 76);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SHINKI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 515, 600, 146, 87, 60, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(52000);
+		case(EV_REQUEST_TIMER) SetScriptResult(120);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_AURA, _objBoss, DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", _colorA, _colorB, 425, 154, 5, 1.75, -15);
+	_Glow();
+	if(_prtSht) _SideBullets();
+	
+	// Left
+	
+	_ManageEnemy(CENTER_X - 90, _enmY - 25, 1);
+	_ManageEnemy(CENTER_X - 120, _enmY + 25, 1);
+	_ManageEnemy(CENTER_X - 150, _enmY - 25, 1);
+	_ManageEnemy(CENTER_X - 180, _enmY + 25, 1);
+
+	// Right
+	
+	_ManageEnemy(CENTER_X + 90, _enmY - 25, -1);
+	_ManageEnemy(CENTER_X + 120, _enmY + 25, -1);
+	_ManageEnemy(CENTER_X + 150, _enmY - 25, -1);
+	_ManageEnemy(CENTER_X + 180, _enmY + 25, -1);
+	
+wait(60);
+	
+	int px = CENTER_X;
+	int py = -200;
+	int rad = 197;
+	float wvel = 0.3;
+	
+		for(int l = 0; ; l++)
+		{
+			// Rings
+			int wall = 6;
+			//float off = GetAngleToPlayer(_objBoss);
+			float angOff = 0;
+			//for(int i = 0; i <= stack; i++)
+			//{
+				int way = 30;
+				for(int j = 0; j <= way; j++)
+				{
+					for(int k = 0; k < wall; k++)
+					{
+						float ang = ((j * (360 / way))) + (k) + angOff;
+						ObjMove_SetAngularVelocity(CreateShot_Enemy(px + cos(ang) * rad, py + sin(ang) * rad, 0.5, ang, 0.02, 3.5, SHOT_DIAMOND_RED, 0), wvel);
+					}
+					angOff += 10;
+				}
+				wvel *= -1;
+			//}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(23);
+			
+			int life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+			
+			if(life < 46000)
+			{
+				_BubbleRing();
+			}
+			
+			if(life < 38000)
+			{
+				float wvel = 0.3;
+				// Rings
+				//int stack = 2;
+				loop(2)
+				{
+					float off = rand(0, 360);
+					way = 42;
+				//for(int i = 0; i <= stack; i++)
+				//{
+					for(int j = 0; j <= way; j++)
+					{
+						float ang = ((j * (360 / way))) + off;
+						ObjMove_SetAngularVelocity(CreateShot_Enemy(px + cos(ang) * rad, py + sin(ang) * rad, 0.5, (j * (360 / way)) + off, 0.02, 3.5, SHOT_LARGE_DIAMOND_INVERT_RED, 0), wvel);
+					}
+					wvel *= -1;
+				//}
+				
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				
+				wait(23);
+				
+				}
+			}
+			else{wait(46);}
+			
+			// Homing lasers
+			if(l % 3 == 0 && life < 32000)
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+				
+				_HomingLaser(0);
+			}
+		}
+}
+
+task _BubbleRing()
+{
+	float start = rand(0, 360);
+	int way = 14;
+	
+	_itr++;
+	int shot = (_itr % 2 == 0) ? SHOT_LARGE_INVERT_PURPLE : SHOT_BUBBLE_PURPLE;
+	
+	for(int i = 0; i < way; i++)
+	{
+		Obj_SetRenderPriorityI(CreateShot_Enemy(_enmX, _enmY, 0.15, start + (i * (360 / way)), 0.008, 3, shot, 30), RP_STG_SHOT - 1);
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+}
+
+task _ManageEnemy(float enmX, float enmY, int dir_)
+{
+	for(int i = 0; ; i++)
+	{
+		int lifeM = (50000 - ObjEnemy_GetInfo(_objBoss, INFO_LIFE)) / 18000;
+		
+		int objShot = CreateShot_Enemy(enmX, enmY, 0, 90 + ((sin(i * 3) * 8) * dir_) - (dir_ * lifeM), 0.025, 3, SHOT_SCALE_GREY, 25);
+		//ObjRender_SetBlendType(objShot, BLEND_SUBTRACT);
+		//Obj_SetRenderPriorityI(objShot, RP_FX_MED_H);
+		objShot = CreateShot_Enemy(enmX, enmY, 0, 270 + ((sin(i * 3) * 8) * dir_) - (dir_ * lifeM), 0.025, 3, SHOT_SCALE_GREY, 25);
+		//ObjRender_SetBlendType(objShot, BLEND_SUBTRACT);
+		//Obj_SetRenderPriorityI(objShot, RP_FX_MED_H);
+		
+		wait(6);
+	}
+}
+
+task _Glow()
+{
+	// Left
+	int glowB = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_B, RP_FX_MED_H - 2, BLEND_ADD_ARGB,
+		0, 0, 29, 1,
+		0, 0, 90, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowB, COLOR_RED);
+	
+	// Right
+	int glowD = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_C, RP_FX_MED_H - 2, BLEND_ADD_ARGB,
+		0, 0, 30, 1,
+		FRAME_WIDTH - 90, 0, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowD, COLOR_RED);
+	
+	float scale = 2;
+	float mult = 1; //0.6607929515;
+	
+	// The sun
+	int sun = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 300, 300,
+		0, 0,
+		CENTER_X, -200
+	);
+	//ObjRender_SetColor(sun, COLOR_RED);
+	
+	// The sun's glow
+	int glowS = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_WAVE, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 454, 454,
+		0, 0,
+		CENTER_X, -200
+	);
+	ObjRender_SetColor(glowS, COLOR_RED);
+	
+	_FadeIn(glowB, 45);
+	_FadeIn(glowD, 45);
+	
+	async
+	{
+		float iMax = 45;
+		for(int i = 0; i <= iMax; i++)
+		{
+			float scaleCur = Interpolate_Smooth(0, scale, i / iMax);
+			ObjRender_SetScaleXYZ(sun, scaleCur);
+			ObjRender_SetScaleXYZ(glowS, scaleCur * mult);
+			yield;
+		}
+		
+		for(int i = 0; ; i++)
+		{
+			ObjRender_SetScaleXYZ(glowS, (scale * mult) + (sin(i * 2) * 0.75));
+			yield;
+		}
+	}
+	
+	for(int i = 0; ; i++)
+	{
+		// Glow pulsation
+		ObjSprite2D_SetDestRect(glowB, 0, 0, 90 + (sin(i) * 45), FRAME_HEIGHT);
+		ObjSprite2D_SetDestRect(glowD, FRAME_WIDTH - (90 + (sin(i) * 45)), 0, FRAME_WIDTH, FRAME_HEIGHT);
+		
+		// Sun color
+		ObjRender_SetColorHSV(sun, 0, 60 + (sin(i) * 60), 255);
+		
+		yield;
+	}
+}
+
+task _SideBullets()
+{
+	for(int i = 0; ; i++)
+	{
+		loop(4)
+		{
+			_CreateScaleParticle(-10, 1, 0);
+			_CreateScaleParticle(FRAME_WIDTH + 10, -1, 180);
+		}
+		
+		yield;
+	}
+}
+
+task _CreateScaleParticle(int orgX, int dir_, int ang_)
+{
+	float orgY = prand(0, FRAME_HEIGHT);
+							
+	float posX = orgX;
+	float posY = orgY;
+										
+	float destX = posX + (dir_ * (prand(50, 75)));
+	float destY = posY;
+										
+	float scaleOrg = 1;
+	float scaleCur = scaleOrg;
+	
+	int delay = prand(38, 48);
+										
+	float iMax = delay + 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Position
+		posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+		posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+		ObjParticleList_SetPosition(objPart_, posX, posY, ID_INVALID);
+											
+		// Rotation
+		ObjParticleList_SetAngleZ(objPart_, ang_ + 90);
+											
+		// Size
+		scaleCur = scaleOrg;
+		
+		if(i > delay)
+		{
+			scaleCur = Interpolate_Smooth(scaleOrg, 0, (i - delay) / (iMax - delay));
+			ObjParticleList_SetScale(objPart_, scaleCur);
+		}
+
+		ObjParticleList_AddInstance(objPart_);
+											
+		yield;
+	}
+}
+
+/*
+task _SideBullets()
+{
+	for(int i = 0; ; i++)
+	{
+		loop(4)
+		{
+			int objShot = CreateShot_Enemy(-10, rand(-10, FRAME_HEIGHT + 10), rand(0, 0.5), 0, rand(0.02, 0.03), rand(2, 4), SHOT_SCALE_AQUA, 0);
+			ObjRender_SetBlendType(objShot, BLEND_SUBTRACT);
+			Obj_SetRenderPriorityI(objShot, RP_FX_MED_H - 1);
+			_Shrink(objShot, rand(25, 35));
+			objShot = CreateShot_Enemy(FRAME_WIDTH + 10, rand(-10, FRAME_HEIGHT + 10), rand(0, 0.5), 180, rand(0.02, 0.03), rand(2, 4), SHOT_SCALE_AQUA, 0);
+			ObjRender_SetBlendType(objShot, BLEND_SUBTRACT);
+			Obj_SetRenderPriorityI(objShot, RP_FX_MED_H - 1);
+			_Shrink(objShot, rand(25, 35));
+		}
+		
+		yield;
+	}
+}
+
+task _Shrink(int objComet_, int delay_)
+{
+	float scaleA = rand(1.35, 1.75);
+	ObjRender_SetScaleXYZ(objComet_, scaleA);
+	
+	wait(delay_);
+	
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Linear(scaleA, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objComet_, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objComet_, scale, scale);
+		yield;
+	}
+	
+	Obj_Delete(objComet_);
+}
+*/
+
+task _HomingLaser(int index_)
+{
+	int laser = CreateLaser_Curvy(_enmX, _enmY, 0.75, 90 + (index_ * 75), 0.055, 8, SHOT_CURVY_LASER_YELLOW, 60, 25, 0, 0);
+	
+	/*wait(75);
+	
+	float intn = 0.3;
+	
+	loop(170)
+	{
+		if(ObjMove_GetY(objLaser) < GetPlayerY())
+		{
+			float ang = NormalizeAngle(Interpolate_Smooth(NormalizeAngle(ObjMove_GetAngle(objLaser)), NormalizeAngle(GetAngleToPlayer(objLaser)), intn));
+			ObjMove_SetAngle(objLaser, ang);
+		}
+		
+		yield;
+	}*/
+	
+	wait(50);
+	
+	loop (150)
+	{
+        if (Obj_IsDeleted(laser)) break;
+        float angleL = ObjMove_GetAngle(laser);
+        float angleP = GetAngleToPlayer(laser);
+        float wvel = AngularDistance(angleL, angleP) > 0 ? 1.2 : -1.2;
+        ObjMove_SetAngularVelocity(laser, wvel);
+        yield;
+    }
+    ObjMove_SetAngularVelocity(laser, 0);
+}

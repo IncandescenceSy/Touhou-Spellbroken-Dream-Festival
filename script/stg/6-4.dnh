@@ -1,0 +1,260 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Remilia 2nd /////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Remilia 2nd"]
+#Text["Remilia 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DRED;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 49);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_REMILIA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 418, 600, 184, 109, 50, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(26000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	int dir = -1;
+	
+	loop
+	{
+		int way = 4; 
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+	
+		for(int i = 0; i < way; i++)
+		{
+			loop(2)
+			{
+				_ManageEnemy(CreateEnemy
+				(
+					1, 0, false, true,
+					COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+					_enmX, _enmY, _enmX, _enmY, 0
+				), i * (360 / way), 0.5 * dir);
+				
+				dir *= -1;
+			}
+		}
+		
+		wait(90);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+	
+		for(int i = 0; i < way; i++)
+		{
+			loop(2)
+			{
+				_ManageEnemyA(CreateEnemy
+				(
+					1, 0, false, true,
+					COLOR_GRAY, STANDARD_ENEMYSCALE, true, true,
+					_enmX, _enmY, _enmX, _enmY, 0
+				), i * (360 / way) + 45, 0.2 * dir, 6);
+				
+				dir *= -1;
+			}
+		}
+		
+		wait(90);
+		
+		way = 5;
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+	
+		for(int i = 0; i < way; i++)
+		{
+			loop(2)
+			{
+				_ManageEnemy(CreateEnemy
+				(
+					1, 0, false, true,
+					COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+					_enmX, _enmY, _enmX, _enmY, 0
+				), i * (360 / way) - 90, 0.5 * dir);
+				
+				dir *= -1;
+			}
+		}
+		
+		wait(90);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+	
+		for(int i = 0; i < way; i++)
+		{
+			loop(2)
+			{
+				_ManageEnemyA(CreateEnemy
+				(
+					1, 0, false, true,
+					COLOR_GRAY, STANDARD_ENEMYSCALE, true, true,
+					_enmX, _enmY, _enmX, _enmY, 0
+				), i * (360 / way) + 180, 0.2 * dir, 3);
+				
+				dir *= -1;
+			}
+		}
+		
+		wait(90);
+	}
+}
+
+task _ManageEnemy(int objEnemy_, float ang_, float wvel_)
+{
+	ObjMove_SetSpeed(objEnemy_, 0);
+	ObjMove_SetAcceleration(objEnemy_, 0.02);
+	ObjMove_SetMaxSpeed(objEnemy_, 2);
+	ObjMove_SetAngle(objEnemy_, ang_);
+	ObjMove_SetAngularVelocity(objEnemy_, wvel_);
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		if(i % 2 == 0){for(int j = -1; j <= 1; j += 2) ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, ObjMove_GetAngle(objEnemy_) + (90 * j), 0, 0, SHOT_LARGE_DIAMOND_RED, 25), 120, 0, NO_CHANGE, 0.02, 2.5, 0);}
+		
+		//ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, rand(0, 360), 0, 0, SHOT_DIAMOND_RED, 25), 150, 0, NO_CHANGE, 0.0175, 0, 2.5);
+		
+		wait(10);
+	}
+}
+
+task _ManageEnemyA(int objEnemy_, float ang_, float wvel_, int way_)
+{
+	ObjMove_SetSpeed(objEnemy_, 0);
+	ObjMove_SetAcceleration(objEnemy_, 0.015);
+	ObjMove_SetMaxSpeed(objEnemy_, 2.5);
+	ObjMove_SetAngle(objEnemy_, ang_);
+	ObjMove_SetAngularVelocity(objEnemy_, wvel_);
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		for(int i = 0; i < way_ * 2; i++)
+		{
+			if(i % 2 == 0){for(int j = -1; j <= 1; j += 2) ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, ObjMove_GetAngle(objEnemy_) + (90 * j), 0, 0, SHOT_LARGE_DIAMOND_GREY, 25), 120, 0, NO_CHANGE, 0.015, 2, 0);}
+			
+		//	ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, rand(0, 360), 0, 0, SHOT_DIAMOND_GREY, 25), 150, 0, NO_CHANGE, 0.0175, 0, 2.5);
+			
+			wait(3);
+		}
+		
+		wait(20);
+	}
+}
+
+task _ManageEnemyB(int objEnemy_, float ang_, float wvel_)
+{
+	ObjMove_SetSpeed(objEnemy_, 0);
+	ObjMove_SetAcceleration(objEnemy_, 0.02);
+	ObjMove_SetMaxSpeed(objEnemy_, 2);
+	ObjMove_SetAngle(objEnemy_, ang_);
+	ObjMove_SetAngularVelocity(objEnemy_, wvel_);
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		if(i % 2 == 0){ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, rand(0, 360), 0, 0, SHOT_LARGE_DIAMOND_RED, 25), 120, 0, NO_CHANGE, 0.02, 2.5, 0);}
+		
+		//ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, rand(0, 360), 0, 0, SHOT_DIAMOND_RED, 25), 150, 0, NO_CHANGE, 0.0175, 0, 2.5);
+		
+		wait(4);
+	}
+}
+
+task _ManageEnemyC(int objEnemy_, float ang_, float wvel_, int way_)
+{
+	ObjMove_SetSpeed(objEnemy_, 0);
+	ObjMove_SetAcceleration(objEnemy_, 0.015);
+	ObjMove_SetMaxSpeed(objEnemy_, 2.5);
+	ObjMove_SetAngle(objEnemy_, ang_);
+	ObjMove_SetAngularVelocity(objEnemy_, wvel_);
+	
+	while(Obj_IsExists(objEnemy_))
+	{
+		for(int i = 0; i < way_; i++)
+		{
+			ObjMove_AddPatternA2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0, rand(0, 360), 0, 0, SHOT_LARGE_DIAMOND_GREY, 25), 120, 0, NO_CHANGE, 0.015, 0, 2);
+			
+			wait(6);
+		}
+		
+		wait(13);
+	}
+}

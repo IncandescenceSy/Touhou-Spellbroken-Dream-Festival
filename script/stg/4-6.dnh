@@ -1,0 +1,246 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Misumaru 3rd /////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Misumaru 3rd"]
+#Text["Misumaru 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DRED;
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Decoy enemy for collision purposes
+int _objDecoy = CreateEnemy
+(
+	INT_MAX, 0, false, false,
+	false, 0, false, false,
+	-999999, -999999, -999999, -999999, 0
+);
+ObjEnemy_SetDamageRate(_objDecoy, 0, 0);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 33);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MISUMARU);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 327, 620, 171, 104, 70, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_PLAYER, EV_CHANGE_DEL_RP, RP_FX_MED + 2);
+	
+	// Pattern
+	_Pattern();
+	_Balls();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(20000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	ObjEnemy_SetIntersectionCircleToShot(_objBoss, _enmX, _enmY, 32);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	const int[] SHOTS = [SHOT_DROP_RED, SHOT_DROP_ORANGE, SHOT_DROP_YELLOW, SHOT_DROP_GREEN, SHOT_DROP_AQUA, SHOT_DROP_AZURE, SHOT_DROP_PURPLE, SHOT_DROP_MAGENTA];
+	
+	wait(120);
+	
+	_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+	
+	wait(155);
+	
+	async
+	{
+		wait(120);
+		ObjEnemy_SetDamageRate(_objBoss, 100, 0);
+	}
+	
+	// Top
+	loop(60)
+	{
+		loop(6) CreateShot_Enemy(rand(-30, FRAME_WIDTH + 30), -30, 5, rand(90 - 12, 90 + 12), 0.07, 7, SHOTS[prand_int(0, 7)], 0);
+	
+		yield;
+	}
+		
+	loop
+	{
+		// Top
+		loop(130)
+		{
+			loop(6) CreateShot_Enemy(rand(-30, FRAME_WIDTH + 30), -30, 5, rand(90 - 12, 90 + 12), 0.07, 7, SHOTS[prand_int(0, 7)], 0);
+		
+			yield;
+		}
+		
+		wait(30);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		// Right
+		loop(130)
+		{
+			loop(6) CreateShot_Enemy(FRAME_WIDTH + 30, rand(-30, FRAME_HEIGHT + 30), 0, rand(180 - 12, 180 + 12), 0.07, 7, SHOTS[prand_int(0, 7)], 0);
+		
+			yield;
+		}
+		
+		wait(30);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		// Bottom
+		loop(130)
+		{
+			loop(6) CreateShot_Enemy(rand(-30, FRAME_WIDTH + 30), FRAME_HEIGHT + 10, 0, rand(270 - 12, 270 + 12), 0.07, 7, SHOTS[prand_int(0, 7)], 0);
+		
+			yield;
+		}
+		
+		wait(30);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		// Left
+		loop(130)
+		{
+			loop(6) CreateShot_Enemy(-30, rand(-30, FRAME_HEIGHT + 30), 0, rand(0 - 12, 0 + 12), 0.07, 7, SHOTS[prand_int(0, 7)], 0);
+		
+			yield;
+		}
+		
+		wait(30);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+	}
+}
+
+task _Balls()
+{
+	const int[] SHOTS = [SHOT_YINYANG_RED, SHOT_YINYANG_YELLOW, SHOT_YINYANG_GREEN, SHOT_YINYANG_AQUA, SHOT_YINYANG_AZURE, SHOT_YINYANG_PURPLE];
+	
+	wait(60);
+	
+	loop
+	{
+		for(int i = 0; i <= 2; i++)
+		{
+			_ManageShot(CreateShot_Enemy(i * 60, FRAME_HEIGHT + 64, 0, 270, 0.005, 2.75, SHOTS[i], 0));
+			
+			wait(15);
+		}
+		
+		wait(25);
+		
+		for(int i = 0; i <= 2; i++)
+		{
+			_ManageShot(CreateShot_Enemy(FRAME_WIDTH - (i * 60), FRAME_HEIGHT + 64, 0, 270, 0.005, 2.75, SHOTS[i + 3], 0));
+			
+			wait(15);
+		}
+		
+		wait(25);
+		//_ManageShot(CreateShot_Enemy(rand(-64, FRAME_WIDTH + 64), FRAME_HEIGHT + 64, 0, rand(270 - 20, 270 + 20), 0.01, 2.75, SHOTS[prand_int(0, 7)], 0));
+		
+		//wait(rand_int(15, 18));
+	}
+}
+
+task _ManageShot(int objShot_)
+{
+	ObjShot_SetAutoDelete(objShot_, false);
+	Obj_SetRenderPriorityI(objShot_, RP_FX_MED + 1);
+	
+	for(int i = 0; Obj_IsExists(objShot_); i++)
+	{
+		if(i == 350) ObjShot_SetAutoDelete(objShot_, true);
+		
+		float shotX = ObjMove_GetX(objShot_);
+		float shotY = ObjMove_GetY(objShot_);
+		
+		ObjEnemy_SetIntersectionCircleToShot(_objDecoy, shotX, shotY, STANDARD_ENEMYHITBOX * 1.2);
+		
+		for each(int iShots in ref GetShotIdInCircleA2(shotX, shotY, 38, TARGET_ENEMY))
+		{
+			int graphic = ObjShot_GetImageID(iShots);
+			if(graphic < 1068)
+			{
+				if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(iShots), ObjMove_GetY(iShots)], GetShotDataInfoA1(graphic, TARGET_ENEMY, INFO_DELAY_COLOR));
+				Obj_Delete(iShots);
+			}
+		}
+		
+		yield;
+	}
+}

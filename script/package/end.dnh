@@ -1,0 +1,75 @@
+///////////////////////////////////////////////////////////////
+/////////////////////////// End Menu //////////////////////////
+///////////////////////////////////////////////////////////////
+
+// For when the game is over
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions specifically for the pause and similar menus
+#include "./../lib/lib_pause.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Package script ID
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+
+// If you defeated the enmY
+bool _isPlayerDown = GetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, true);
+
+// Script results
+int[]  _result  = IsReplay() ? [RESULT_END, RESULT_RETRY] : [_isPlayerDown ? RESULT_RETRY : RESULT_SAVE_REPLAY, RESULT_END, _isPlayerDown ? RESULT_SAVE_REPLAY : RESULT_RETRY]; 
+bool[] _confirm = [false, false, false];
+int _cancel = IsReplay() ? 0 : 1; 
+
+// Render targets
+string[] _target = [RT5, RT6, RT7];
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	SetInvalidRenderPriorityA1(RP_MIN, RP_UI_TOAST);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_PAUSE);
+	
+	// Handles menu selection
+	_HandleSelection(_result, _confirm, IsReplay() ? 1 : 2, false, false);
+	
+	// Renders background image
+	_RenderBackground();
+	
+	// Renders menu title
+	_RenderTitle(_isPlayerDown ? 2 : 1);
+	
+	// Renders pause back and star particles
+	float[] col = [_isPlayerDown ? 1 : 0, _isPlayerDown ? 0 : 1, 0];
+	_RenderPauseBack(col[0], col[1], col[2]);
+	
+	// Renders option graphics
+	int hue = _isPlayerDown ? 0 : 100;
+	int step = 6 / (2 - _isPlayerDown);
+	
+	if(!IsReplay()) for(int i = 0; i <= 2; i++) _RenderMenuOption(i + step, hue, _target[i]);
+	else for(int i = 0; i <= 1; i++) _RenderMenuOption(i + (_isPlayerDown ? 18 : 15), hue, _target[i]);
+	
+	// Renders spell hint
+	col = [_isPlayerDown ? 255 : 107, _isPlayerDown ? 81 : 223, _isPlayerDown ? 84 : 71];
+	_RenderHint(col[0], col[1], col[2]);
+}
+
+@MainLoop
+{	
+	yield;
+}

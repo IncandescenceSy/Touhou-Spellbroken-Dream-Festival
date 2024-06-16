@@ -1,0 +1,272 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Remilia 3rd /////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Remilia 3rd"]
+#Text["Remilia 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DRED;
+
+// Familiar ellipse
+int _rad = 0;
+int[] _center = [CENTER_X, CENTER_Y]; 
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Bubble trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_1,
+		3, 714, 69, 780,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 52);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_REMILIA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 418, 600, 184, 109, 50, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(23000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	SetShotAutoDeleteClip(96, 96, (96 + FRAME_WIDTH) - (RES * FRAME_WIDTH), (96 + FRAME_HEIGHT) - (RES * FRAME_HEIGHT));
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	int way = 10;
+	for(int i = 0; i <= way; i++)
+	{
+		_ManageEnemy(CreateEnemy
+		(
+			1, 0, false, true,
+			COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		), way, i);
+	}
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		_center[1] = Interpolate_Smooth(CENTER_Y, 60, i / iMax);
+		_rad = Interpolate_Smooth(0, 200, i / iMax);
+		
+		yield;
+	}
+	
+	wait(20);
+	
+	ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 60, 60, LERP_DECELERATE);
+	
+	wait(60);
+	
+	_CreateBubble(50, -11);
+	_CreateBubble(50, 11);
+	_CreateBubble(150, 0);
+	_CreateBubble(250, -22);
+	_CreateBubble(250, 22);
+	_CreateBubble(350, -9);
+	_CreateBubble(350, 9);
+	_CreateBubble(450, 0);
+	
+	wait(235);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	wait(65);
+	
+	loop
+	{
+		int life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		
+		// Aimed claws of lines
+		float ang = GetAngleToPlayer(_objBoss);
+		int stack = 6 - (life / 7000);
+		for(int i = 0; i <= stack; i++)
+		{
+			way = 5 - (life / 12000);
+			for(int j = -way; j <= way; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0.5 + (i * 0.35), ang + (j * 20), 0.025 + (i * 0.0085), 3 + (i * 0.75), SHOT_KNIFE_RED, 15);
+			}
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(45 + (life / 400));
+	}
+}
+
+task _ManageEnemy(int objEnemy_, int way_, float index_)
+{
+	for(int i = 0; ; i++)
+	{
+		ObjMove_SetPosition(objEnemy_, _center[0] + _rad * cos(index_ * (360 / way_)), _center[1] + (_rad / 5) * sin(index_ * (360 / way_)));
+		
+		if(i % 3 == 0) ObjMove_AddPatternB2(CreateShot_Enemy(ObjMove_GetX(objEnemy_), ObjMove_GetY(objEnemy_), 0.0001, 0, 0, 0, SHOT_SCALE_RED, 30), 0, 0.0001, -4, 0, 0.07, 0.0001, 15);
+		
+		index_ += 0.01;
+		
+		yield;
+	}
+}
+
+task _CreateBubble(int rad_, int ang_)
+{
+	int objShot = CreateShot_Enemy(0, 0, 0, 0, 0, 0, SHOT_BUBBLE_RED, 100, 1.25);
+	ObjShot_SetAutoDelete(objShot, false);
+	ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+	
+	const int RANGE = 35;
+	
+	ObjShot_SetIntersectionEnable(objShot, false);
+	
+	async
+	{
+		for(int i = 0; ; i++)
+		{
+			if(i == 160) ObjShot_SetIntersectionEnable(objShot, true);
+			
+			float shotX = ObjMove_GetX(objShot);
+			float shotY = ObjMove_GetY(objShot);
+			
+			// Bullets
+			if(i % 9 == 0 && i > 140) CreateShot_Enemy(shotX, shotY, 0.05, GetObjectDeltaAngle(objShot, _objBoss), 0.03, 2.5, SHOT_KNIFE_RED, 30);
+			
+			// Deletion
+			for each(int j in ref GetShotIdInCircleA2(shotX, shotY, 70, TARGET_ENEMY))
+			{
+				if(ObjShot_GetImageID(j) == SHOT_SCALE_RED)
+				{
+					if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(j), ObjMove_GetY(j)], GetShotDataInfoA1(SHOT_SCALE_RED, TARGET_ENEMY, INFO_DELAY_COLOR));
+					Obj_Delete(j);
+				}
+			}
+		
+			// Trail
+			if(_prtSht && i > 100 && i % 8 == 0)
+			{
+				async
+				{					
+					float posX = shotX;
+					float posY = shotY;
+					
+					float scaleOrg = 1.25;
+					float scaleCur = scaleOrg;
+					
+					float alphaOrg = 255;
+					float alphaCur = alphaOrg;
+					
+					float iMax = 60;
+					for(int i = 0; i <= iMax; i++)
+					{
+						// Color
+						ObjParticleList_SetColor(_objPartTrail, COLOR_DRED);
+									
+						// Position
+						ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+										
+						// Size
+						scaleCur = Interpolate_Smooth(scaleOrg, 1.65, i / iMax);
+						ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+						// Fade
+						alphaCur = Interpolate_Smooth(alphaOrg, 0, i / iMax);
+						ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+						ObjParticleList_AddInstance(_objPartTrail);
+						
+						yield;
+					}
+				}
+			}
+			
+			yield;
+		}
+	}
+	
+	for(float i = 0; ; i += 360 / 640)
+	{
+		float ang = sin(i) * RANGE + 90; 
+		
+		ObjMove_SetPosition(objShot, _enmX + rad_ * cos(ang + ang_), _enmY + rad_ * sin(ang + ang_));
+			
+		yield;
+	}
+}

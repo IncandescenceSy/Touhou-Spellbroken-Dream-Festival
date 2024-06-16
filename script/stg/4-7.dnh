@@ -1,0 +1,278 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Reimu ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Reimu"]
+#Text["Reimu"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DRED;
+
+// Line primitive
+int _arrLine = CreatePrimObject(RP_STG_SHADOW - 1, PRIMITIVE_LINESTRIP, ID_INVALID);
+	
+	
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 34);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_REIMU);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 350, 609, 178, 107, 72, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(35000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int way = 4;
+	
+	float off = rand(0, 1);
+	
+	ObjPrim_SetVertexCount(_arrLine, way + 1);
+	ObjRender_SetColor(_arrLine, COLOR_RED);
+	
+	for(int i = 0; i < way; i++)
+	{
+		_ManageEnemy(CreateEnemy
+		(
+			1, 0, false, true,
+			COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		), way, i, off);
+	}
+	
+	wait(45);
+	
+	loop(2)
+	{
+		wait(80);
+	
+		_RenderCharge(_enmX, _enmY, 2, _colorA, _colorB);
+		
+		wait(120);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(iShots))
+				case(SHOT_BILL_GREY)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 1.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_RED);
+				}
+				case(SHOT_BILL_RED)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 2.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_PURPLE);
+				}
+		}
+	}
+	
+	wait(45);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	for each(int iEnemies in ref GetAllEnemyID()) if(iEnemies != _objBoss) ObjEnemy_SetLife(iEnemies, 0);
+	
+	way = 5;
+	
+	off = rand(0, 1);
+	
+	ObjPrim_SetVertexCount(_arrLine, way + 1);
+	ObjRender_SetColor(_arrLine, COLOR_RED);
+	
+	for(int i = 0; i < way; i++)
+	{
+		_ManageEnemy(CreateEnemy
+		(
+			1, 0, false, true,
+			COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		), way, i, off);
+	}
+	
+	wait(45);
+	
+	while(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 15000)
+	{
+		wait(80);
+	
+		_RenderCharge(_enmX, _enmY, 2, _colorA, _colorB);
+		
+		wait(120);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(iShots))
+				case(SHOT_BILL_GREY)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 1.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_RED);
+				}
+				case(SHOT_BILL_RED)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 2.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_PURPLE);
+				}
+		}
+	}
+	
+	wait(120);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	for each(int iEnemies in ref GetAllEnemyID()) if(iEnemies != _objBoss) ObjEnemy_SetLife(iEnemies, 0);
+	
+	way = 10;
+	
+	off = rand(0, 1);
+	
+	ObjPrim_SetVertexCount(_arrLine, way + 1);
+	ObjRender_SetColor(_arrLine, COLOR_RED);
+	
+	for(int i = 0; i < way; i++)
+	{
+		_ManageEnemy(CreateEnemy
+		(
+			1, 0, false, true,
+			COLOR_RED, STANDARD_ENEMYSCALE, true, true,
+			_enmX, _enmY, _enmX, _enmY, 0
+		), way, i, off);
+	}
+	
+	_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+	wait(155);
+	
+	loop
+	{
+		wait(30);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(iShots))
+				case(SHOT_BILL_GREY)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 1.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_RED);
+				}
+				case(SHOT_BILL_RED)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 2.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_PURPLE);
+				}
+		}
+	}
+}
+
+task _ManageEnemy(int objEnemy_, int way_, int index_, float off_)
+{
+	float rad = 0;
+	float radMax = way_ <= 5 ? 150 : 100;
+	float ang = index_ + off_;
+	
+	for(int i = 0; Obj_IsExists(objEnemy_); i++)
+	{
+		ObjMove_SetPosition(objEnemy_, _enmX + rad * cos(ang * (360 / way_)), _enmY + rad * sin(ang * (360 / way_)));
+		
+		float enmX = ObjMove_GetX(objEnemy_);
+		float enmY = ObjMove_GetY(objEnemy_);
+		
+		ObjPrim_SetVertexPosition(_arrLine, index_, enmX, enmY, ID_INVALID);
+		if(index_ == 0) ObjPrim_SetVertexPosition(_arrLine, way_, enmX, enmY, ID_INVALID);
+		
+		if((way_ < 7 || i >= 100) && i % 15 == 0)
+		{
+			float ang = GetObjectDeltaAngle(objEnemy_, _objBoss);
+			for(int j = 0; j <= 1; j++) CreateShot_Enemy(enmX, enmY, 1.15, (ang + (j * 180)) + (i * 2), 0, 1.15, SHOT_BILL_GREY, 25);
+		}
+		
+		ang += 0.0035;
+		rad = sin(i / 4) * radMax;
+		
+		yield;
+	}
+}

@@ -1,0 +1,114 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Item Library ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains functions pertaining to items and bullet deletion effects
+
+
+/////////////////////// Library Content ///////////////////////
+	
+// Manipulates a deletion effect from canceling a bullet
+task _CreateDeletionEffect(float[] shotPos, int[] shotColor)
+{	
+	int iMax  = 512;
+	int iStep = 64;
+	for(let i = 0; i < iMax; i += 8)
+	{	
+		// Position
+		ObjParticleList_SetPosition(_objPartCancel, shotPos[0], shotPos[1], ID_INVALID);
+			
+		// Size
+		ObjParticleList_SetScale(_objPartCancel, 0.5, 0.5, ID_INVALID);
+	
+		// Color
+		ObjParticleList_SetColor(_objPartCancel, shotColor[0], shotColor[1], shotColor[2]);
+	
+		// Source rect
+		ObjParticleList_SetExtraData(_objPartCancel, floor(i / iStep), 0, ID_INVALID);
+			
+		ObjParticleList_AddInstance(_objPartCancel);
+			
+		yield;
+	}
+}
+	
+// Spawns a formation of point items
+task _SpawnPoints(float posX_, float posY_, int ang_)
+{
+	loop(20)
+	{
+		loop(3)
+		{
+			int itemPoint = CreateItemU1(ITEM_POINTS, posX_, posY_, 0);
+			ObjItem_SetRenderScoreEnable(itemPoint, false);
+			ObjMove_SetDestAtFrame(itemPoint, posX_ + (75 * cos(ang_)), posY_ + (75 * sin(ang_)), 75, LERP_DECELERATE);
+			_ControlItem(itemPoint, 0.75, 40, 30);
+			ang_ += 360 / 3;
+		}
+		ang_ += 360 / 20;
+		wait(5);
+	}
+}
+
+// Spawns a formation of power items
+task _SpawnPower(float posX_, float posY_, int ang_)
+{
+	loop(20)
+	{
+		loop(7)
+		{
+			int itemPower = CreateItemU1(GetPlayerPower() < POWER_MAX ? ITEM_POWERUP : ITEM_POINTS, posX_, posY_, 0);
+			ObjItem_SetRenderScoreEnable(itemPower, false);
+			ObjMove_SetDestAtFrame(itemPower, posX_ + (75 * cos(ang_)), posY_ + (75 * sin(ang_)), 75, LERP_DECELERATE);
+			_ControlItem(itemPower, 0.75, 20, 10);
+			ang_ += 360 / 7;
+		}
+		ang_ += 360 / 20;
+		wait(2);
+	}
+}
+
+// Manipulates the movement and spawning animation of an item
+task _ControlItem(int objItem_, float scaleDest_, float iMax_, int pause_)
+{
+	for(int i = 0; i <= iMax_; i++)
+	{
+		ObjRender_SetAngleZ(objItem_, Interpolate_Smooth(0, 360, i / iMax_));
+		ObjRender_SetScaleXYZ(objItem_, Interpolate_Smooth(0, scaleDest_, i / iMax_));
+		
+		yield;
+	}
+	
+	wait(pause_);
+	
+	ObjItem_SetDefinedMovePatternA1(objItem_, ITEM_MOVE_TOPLAYER);
+}
+
+task _SpawnDrop(float posX_, float posY_, float drop_)
+{
+	float ang = 0; //rand(0, 360);
+	
+	loop(4 * drop_)
+	{
+		int itemPoint = CreateItemU1(ITEM_POINTS, posX_, posY_, 0);
+		ObjItem_SetRenderScoreEnable(itemPoint, false);
+		ObjMove_SetDestAtFrame(itemPoint, posX_ + (75 * cos(ang)), posY_ + (75 * sin(ang)), 75, LERP_DECELERATE);
+		_ControlItem(itemPoint, 0.5, 25, 15);
+		//Obj_SetValueI(itemPoint, VAL_NOPRT, true);
+		ObjRender_SetAlpha(itemPoint, 120);
+		
+		ang += 360 / (4 * drop_);
+	}
+	
+	loop(6 * drop_)
+	{
+		int itemPower = CreateItemU1(GetPlayerPower() < POWER_MAX ? ITEM_POWERUP : ITEM_POINTS, posX_, posY_, 0);
+		ObjItem_SetRenderScoreEnable(itemPower, false);
+		ObjMove_SetDestAtFrame(itemPower, posX_ + (45 * cos(ang)), posY_ + (45 * sin(ang)), 45, LERP_DECELERATE);
+		_ControlItem(itemPower, 0.5, 25, 15);
+		//Obj_SetValueI(itemPower, VAL_NOPRT, true);
+		ObjRender_SetAlpha(itemPower, 120);
+		
+		ang += 360 / (5 * drop_);
+	}
+}

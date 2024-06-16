@@ -1,0 +1,125 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Kyouko 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Kyouko 3rd"]
+#Text["Kyouko 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DMINT;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 18);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KYOUKO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 459, 600, 187, 101, 30, _colorA, _colorB, CENTER_X, 125, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Reflect();
+	_Rings();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(12000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Reflect()
+{
+	int bossLife = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+	
+	for(int frame = 0; ; frame++)
+	{
+		int curLife = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+		if(curLife < bossLife)
+		{
+			CreateShot_Enemy(_enmX + rand(5, 60) * cos(rand(0, 360)), _enmY + rand(5, 60) * sin(rand(0, 360)), 0.25, GetAngleToPlayer(_objBoss), 0.025, 3.5, SHOT_ARROW_MINT, 25);
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		}
+		if(frame % 10 == 0) bossLife = curLife;
+		
+		yield;
+	}
+}
+
+task _Rings()
+{
+	wait(150);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int way = 46;
+	
+	loop
+	{
+		float off = rand(0, 360);
+		for(int i = 0; i <= way; i++)
+		{
+			bool isEven = i % 2 == 0;
+			CreateShot_Enemy(_enmX, _enmY, 0.5, (i * (360 / way)) + off, 0.015 + (0.02 * isEven), 2 + (1.5 * isEven), SHOT_BALL_RED, 25);
+		}
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(45);
+	}
+}

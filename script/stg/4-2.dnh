@@ -1,0 +1,156 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Misumaru 1st /////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Misumaru 1st"]
+#Text["Misumaru 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DRED;
+
+	
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 29);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MISUMARU);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 327, 620, 171, 104, 70, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(23000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	const int[][] SHOTS = [[SHOT_YINYANG_RED, SHOT_DROP_RED], [SHOT_YINYANG_ORANGE, SHOT_DROP_ORANGE], [SHOT_YINYANG_YELLOW, SHOT_DROP_YELLOW], [SHOT_YINYANG_GREEN, SHOT_DROP_GREEN], [SHOT_YINYANG_AQUA, SHOT_DROP_AQUA], [SHOT_YINYANG_AZURE, SHOT_DROP_AZURE], [SHOT_YINYANG_PURPLE, SHOT_DROP_PURPLE], [SHOT_YINYANG_MAGENTA, SHOT_DROP_MAGENTA]];
+	
+	int way = 20;
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		for(int i = 0; i <= 7; i++)
+		{
+			for(int j = 0; j <= way; j++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0, GetAngleToPlayer(_objBoss) + (j * (360 / way)), 0.01, 2.5, j % 5 == 0 ? SHOTS[i][0] : SHOTS[i][1], j % 5 == 0 ? 50 : 25, j % 5 == 0 ? 0.75 : 1);
+				if(j % 5 == 0) _ManageOrb(objShot, SHOTS[i][1]);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(190);
+		}
+	}
+}
+
+task _ManageOrb(int objOrb_, int graphic_)
+{
+	while(Obj_IsInArea(objOrb_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT)) yield;
+	
+	ObjMove_SetMaxSpeed(objOrb_, 0);
+	
+	wait(90);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	ObjMove_SetDestAtFrame(objOrb_, GetPlayerX(), GetPlayerY(), 120, LERP_ACCELERATE);
+	
+	wait(120);
+	
+	float posX = ObjMove_GetX(objOrb_);
+	float posY = ObjMove_GetY(objOrb_);
+	
+	int[] color = GetShotDataInfoA1(graphic_, TARGET_ENEMY, INFO_DELAY_COLOR);
+	int colorA  = ColorARGBToHex(255, color[0], color[1], color[2]);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BURST);
+	if(_effChr)
+	{
+		loop(10)
+		{
+			_RenderBurstParticle(posX, posY, colorA);
+		}
+	}
+	
+	int way = 17;
+	for(int i = 0; i <= way; i++) CreateShot_Enemy(posX, posY, 0, GetAngleToPlayer(_objBoss) + (i * (360 / way)), 0.01, 2.5, graphic_, 25);
+	
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0.75, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objOrb_, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objOrb_, scale, scale);
+		
+		yield;
+	}
+	
+	Obj_Delete(objOrb_);
+}

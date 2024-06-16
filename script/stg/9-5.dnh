@@ -1,0 +1,281 @@
+///////////////////////////////////////////////////////////////
+//////////////////////////// Reimu ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Reimu"]
+#Text["Reimu"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DRED;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 72);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_REIMU);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 350, 609, 178, 107, 72, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(60000);
+		case(EV_REQUEST_TIMER) SetScriptResult(120);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	int objShot = ObjPatternShot_Create();
+	ObjPatternShot_SetPatternType(objShot, PATTERN_POLYGON);
+	ObjPatternShot_SetShotType(objShot, OBJ_SHOT);
+	ObjPatternShot_SetParentObject(objShot, _objBoss);
+	ObjPatternShot_SetShotCount(objShot, 3, 9);
+	ObjPatternShot_SetSpeed(objShot, 3, 1);
+	ObjPatternShot_SetAngle(objShot, 30, 1);
+	ObjPatternShot_SetShootRadius(objShot, 0);
+	ObjPatternShot_SetDelay(objShot, 0);
+	ObjPatternShot_SetGraphic(objShot, SHOT_BILL_GREY);
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+
+	wait(65);
+	
+	int way = 3;
+	int[] lasers = [];
+	float off = rand(0, 360);
+	int ang = -1;
+	
+	while(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 55000)
+	{
+		for(int j = 0; j < 4; j++)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			for(int i = 0; i < way; i++)
+			{
+				lasers ~= [CreateLaser_Curvy(_enmX, _enmY, 1, i * (360 / way) + off, 0.02, 5, SHOT_CURVY_LASER_RED, 50, 18, 0.25 * ang, 0)];
+			}
+			
+			ang *= -1;
+			
+			wait(35);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			for each(int iLasers in ref lasers)
+			{
+				ObjPatternShot_SetBasePoint(objShot, ObjMove_GetX(iLasers), ObjMove_GetY(iLasers));
+				ObjPatternShot_SetAngle(objShot, ObjMove_GetAngle(iLasers), 1);
+				ObjPatternShot_Fire(objShot);
+			}
+			lasers = [];
+			
+			wait(40);
+		}
+		
+		way = min(way + 1, 5);
+		off += 25;
+	}
+	
+	wait(45);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	_AimedShot();
+	for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+	{
+		alternative(ObjShot_GetImageID(iShots))
+			case(SHOT_BILL_GREY)
+			{
+				ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+				ObjMove_SetSpeed(iShots, 1.5);
+				ObjShot_SetGraphic(iShots, SHOT_BILL_RED);
+			}
+			case(SHOT_BILL_RED)
+			{
+				ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+				ObjMove_SetSpeed(iShots, 2.5);
+				ObjShot_SetGraphic(iShots, SHOT_BILL_PURPLE);
+			}
+	}
+	
+	while(ObjEnemy_GetInfo(_objBoss, INFO_LIFE) > 25000)
+	{
+		for(int j = 0; j < 4; j++)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			for(int i = 0; i < way; i++)
+			{
+				lasers ~= [CreateLaser_Curvy(_enmX, _enmY, 1, i * (360 / way) + off, 0.02, 5, SHOT_CURVY_LASER_RED, 50, 18, 0.25 * ang, 0)];
+			}
+			
+			ang *= -1;
+			
+			wait(35);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			for each(int iLasers in ref lasers)
+			{
+				ObjPatternShot_SetBasePoint(objShot, ObjMove_GetX(iLasers), ObjMove_GetY(iLasers));
+				ObjPatternShot_SetAngle(objShot, ObjMove_GetAngle(iLasers), 1);
+				ObjPatternShot_Fire(objShot);
+			}
+			lasers = [];
+			
+			wait(35);
+		}
+		
+		way = min(way + 1, 7);
+		off += 25;
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		_AimedShot();
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(iShots))
+				case(SHOT_BILL_GREY)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 1.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_RED);
+				}
+				case(SHOT_BILL_RED)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 2.5);
+					ObjShot_SetGraphic(iShots, SHOT_BILL_PURPLE);
+				}
+		}
+	}
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		for(int j = 0; j < 4; j++)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+			for(int i = 0; i < way; i++)
+			{
+				_ManageLaser(CreateLaser_Curvy(_enmX, _enmY, 1, i * (360 / way) + off, 0.02, 5, SHOT_CURVY_LASER_RED, 50, 18, 0.25 * ang, 0));
+			}
+			
+			ang *= -1;
+			
+			wait(50);
+		}
+		
+		way = min(way + 1, 9);
+		off += 25;
+
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		_AimedShot();		
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			alternative(ObjShot_GetImageID(iShots))
+				case(SHOT_KUNAI_GREY)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 1.5);
+					ObjShot_SetGraphic(iShots, SHOT_KUNAI_RED);
+				}
+				case(SHOT_KUNAI_RED)
+				{
+					ObjMove_SetAngle(iShots, ObjMove_GetAngle(iShots) + 180);
+					ObjMove_SetSpeed(iShots, 2.5);
+					ObjShot_SetGraphic(iShots, SHOT_KUNAI_PURPLE);
+				}
+		}
+	}
+}
+
+task _ManageLaser(int objShot_)
+{
+	for(int i = 0; Obj_IsExists(objShot_); i++)
+	{
+		CreateShot_Enemy(ObjMove_GetX(objShot_), ObjMove_GetY(objShot_), 0, rand(0, 360), 0.015, 2.5, SHOT_KUNAI_GREY, 10);
+		
+		wait(rand_int(9, 15));
+	}
+}
+
+task _AimedShot()
+{
+	for(int i = -2; i <= 2; i++)
+	{
+		CreateShot_Enemy(_enmX, _enmY, 1, GetAngleToPlayer(_objBoss) + (i * 5), 0.02, 3, SHOT_YING_YANG_BLUE, 20);
+	}
+}

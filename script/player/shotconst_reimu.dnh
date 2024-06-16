@@ -1,0 +1,15 @@
+///////////////////////////////////////////////////////////////
+///////////////////// Reimu Shot Constants ////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains constant names for bullets used by Reimu and loads her shotdata
+
+local
+{
+	// Loads data when this script is included
+	LoadPlayerShotData(DIR ~ "/script/player/shotdata_reimu.dnh");
+}
+
+const int AMULET_TRAILED_RED = 1; // Basic red amulet with a blue trail
+const int AMULET_SQUARE_BLUE = 2; // Blue homing amulet
+const int PERSUASION_NEEDLE  = 3;  // Persuasion needle

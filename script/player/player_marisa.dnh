@@ -1,0 +1,955 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Player Marisa ///////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+
+#TouhouDanmakufu[Player]
+#ID["marisa"]
+#Title["Marisa"]
+#ReplayName["Marisa"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions that will return various values
+#include "./../lib/lib_logic.dnh"
+
+// This library contains all general variables and functions that are shared between player scripts
+#include "./../lib/lib_player.dnh"
+
+// This library contains constant names for bullets used by Reimu and loads her shotdata
+#include "./shotconst_marisa.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Script ID
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+const int _ID_SYSTEM  = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_SYSTEM, ID_INVALID);
+
+// Particle list for shot deletion effects
+int _objPartDeletion = CreateParticleList2D
+(
+	DIR_IMG_PL_SHOT_PLAYER_MARISA,
+	0, 0, 32, 32,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+ObjShader_SetShaderF(_objPartDeletion, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartDeletion, TEC_RENDER);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_X, 32 / 256);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_Y, 32 / 64);
+
+// Particle list for graze particle effects and laser collision effects
+int _objPartGraze = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+
+// Option scale and color
+float _optScale = 1;
+int[] _optCol = [255, 255, 255];
+int _optPri = RP_STG_PLR + 3;
+
+// Option color interpolation time
+float _time = 0.15;
+
+// Effect cut settings
+bool _effGrz = GetAreaCommonData(AREA_SETTINGS, EFF_GRZ, 1);
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Laser endpoint render priority
+int _endPri = RP_STG_PLR;
+
+// Laser colors
+int[] _laserColA;
+int[] _laserColB;
+int[] _laserColC;
+int[] _laserColD;
+
+// Is the player bombing
+bool _spell = false;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_PLAYER, GetOwnScriptID());
+	
+	// Setup basics
+	_RenderPlayerSprite(DIR_IMG_PL_SPRITE_PLAYER_MARISA);
+	_RenderPlayerPortrait();
+	ObjPlayer_AddIntersectionCircleA1(_objPlayer, 0, 0, 0.7, 18);
+	SetPlayerSpeed(5.2, 2.3);
+	
+	// Setup options
+	_Options();
+}
+
+@Event
+{
+	alternative(GetEventType())
+	
+		case(EV_HIT)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_HIT);
+			
+			if(GetPlayerSpell() == 0)
+			{
+				for each(int i in ref GetAllEnemyID()) ObjEnemy_SetDamageRate(i, 0, 0);
+				_RenderPlayerExplosion(GetPlayerX(), GetPlayerY(), COLOR_BLUE, COLOR_DBLUE);
+				SetPlayerRebirthPosition(GetPlayerX(), GetPlayerY());
+				NotifyEvent(_ID_SYSTEM, EV_SAVE_DATA, 1, 0, 1, false);
+				SetForbidPlayerShot(true);
+				ObjMove_SetProcessMovement(_objPlayer, false);
+				SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, true);
+				async
+				{
+					loop(30)
+					{
+						StopSlow(TARGET_ALL);
+						yield;
+					}
+				}
+			}
+			else
+			{
+				NotifyEventOwn(EV_REQUEST_SPELL, ID_INVALID);
+			}
+		}
+		
+		case(EV_PLAYER_REBIRTH)
+		{
+			SetPlayerInvincibilityFrame(200);
+		}
+		
+		case(EV_GRAZE)
+		{	
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_GRAZE);
+			
+			if(_effGrz)
+			{
+				int[] grazedShots = GetEventArgument(1);
+				
+				for each(int i in ref grazedShots)
+				{
+					int[] grazedBulletColor = GetShotDataInfoA1(ObjShot_GetImageID(i), TARGET_ENEMY, INFO_DELAY_COLOR);
+					if(Obj_GetValueDI(i, VAL_GRZCOL, true)) _ColorGrazedShot(i, ObjRender_GetColor(i), grazedBulletColor);
+					_CreateParticle_Graze(grazedBulletColor);
+				}
+			}
+		}
+		
+		case(EV_REQUEST_SPELL)
+		{
+			if(_spell || GetPlayerSpell() == 0)
+			{
+				SetScriptResult(false);
+			}
+			else
+			{
+				SetScriptResult(true);
+				SetPlayerSpell(GetPlayerSpell() - 1); 
+				_Bomb(COLOR_RED);
+				_spell = true;
+			}
+		}
+		
+		case(EV_DELETE_SHOT_PLAYER)
+		{
+			int objShot  = GetEventArgument(0);
+			int objEnemy = GetEventArgument(3);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) < (Obj_GetValueDI(objEnemy, VAL_MAXLIFE, ID_INVALID) / 6.66666)) ? DIR_SFX_DAMAGE_LOWHEALTH : DIR_SFX_DAMAGE_NORMAL);
+			
+			if(ObjEnemy_GetInfo(objEnemy, INFO_DAMAGE_RATE_SHOT) != 0)
+			{
+				AddScore(max(1, ((1800 - GetObjectDistance(_objPlayer, objShot) * 3.5) / 100)) * (ObjShot_GetDamage(objShot) * 20000));
+			}
+			
+			if(_prtSht)
+			{
+				int[] shotPos   = GetEventArgument(1);
+				int   shotType  = GetEventArgument(2);
+					
+				alternative(shotType)
+					case(MISSILE_BLUE)
+					{
+						async
+						{
+							// Animation
+							for(int i = 0; i <= 2; i++)
+							{
+								for(int j = 0; j <= 4; j++)
+								{	
+									// Position
+									ObjParticleList_SetPosition(_objPartDeletion, shotPos[0], shotPos[1] - (j + (i * 8)), ID_INVALID);
+									
+									// Size
+									ObjParticleList_SetScale(_objPartDeletion, 1, 1, 1);	
+									
+									// Fade
+									ObjParticleList_SetAlpha(_objPartDeletion, 96 - ((j * 4) * i));
+									
+									// Angle
+									ObjParticleList_SetAngleZ(_objPartDeletion, 0);
+									
+									// Color
+									ObjParticleList_SetColor(_objPartDeletion, 255, 220, 220);
+									
+									// Source rect
+									ObjParticleList_SetExtraData(_objPartDeletion, i, 0, 1);
+									
+									ObjParticleList_AddInstance(_objPartDeletion);
+									
+									yield;
+								}
+							}
+						}
+					}
+					case(MISSILE_MAGIC)
+					{
+						NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_MISSILEHIT);
+						async
+						{
+							shotPos = [shotPos[0] + prand(-30, 30), shotPos[1] + prand(-30, 30)];
+							
+							for(int i = 0; i <= 7; i++)
+							{
+								loop(2)
+								{
+									// Position
+									ObjParticleList_SetPosition(_objPartDeletion, shotPos[0], shotPos[1], ID_INVALID);
+										
+									// Size
+									ObjParticleList_SetScale(_objPartDeletion, 1, 1, 1);	
+										
+									// Fade
+									ObjParticleList_SetAlpha(_objPartDeletion, 96);
+									
+									// Angle
+									ObjParticleList_SetAngleZ(_objPartDeletion, 0);
+										
+									// Color
+									ObjParticleList_SetColor(_objPartDeletion, 255, 220, 220);
+										
+									// Source rect
+									ObjParticleList_SetExtraData(_objPartDeletion, i, 1, 1);
+										
+									ObjParticleList_AddInstance(_objPartDeletion);
+										
+									yield;
+								}
+							}
+						}
+					}
+				}
+		}
+		
+		case(EV_KILL_PLAYER)
+		{
+			KillPlayer();
+		}
+		
+		case(EV_CONTROL_OPTIONS)
+		{
+			float  scale = GetEventArgument(0);
+			int[] col   = GetEventArgument(1);
+			int   pri   = GetEventArgument(2);			
+			
+			_optScale = scale;
+			_optCol   = col;
+			_optPri   = pri;
+			
+			_shotScale = scale;
+			_shotCol   = GetEventArgument(3);
+			_shotPri   = pri;
+			
+			_laserColA = col;
+			_laserColB = col;
+			_laserColC = col;
+			_laserColD = col;
+		}
+		
+		case(EV_RECOLOR_WHILE_BOSS_LIVES)
+		{
+			int[] col     = GetEventArgument(0);
+			int   objBoss = GetEventArgument(1);
+			
+			_time = 1;
+			
+			_optCol = col;
+			ObjRender_SetColor(_objPlayer, col[0], col[1], col[2]);
+			
+			async
+			{
+				yield;
+				_time = 0.15;
+				
+				while(Obj_IsExists(objBoss)) yield;
+				_time = 1;
+				_optCol = [255, 255, 255];
+				ObjRender_SetColor(_objPlayer, 255, 255, 255);
+				ObjRender_SetScaleXYZ(_objPlayer, 1);
+			}
+		}
+		
+		case(EV_CHANGE_DEL_RP)
+		{
+			int pri =  GetEventArgument(0);
+			
+			Obj_SetRenderPriorityI(_objPartDeletion, pri);
+			//Obj_SetRenderPriorityI(_objPartGraze, pri);
+			//_endPri = pri;
+		}
+}
+
+@MainLoop
+{
+	if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+	{
+		// Main shot
+		if(_shotTimer % 5 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_SHOOT);
+			CreateShot_Player(GetPlayerX() + 6, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, MISSILE_BLUE);
+			CreateShot_Player(GetPlayerX() - 6, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, MISSILE_BLUE);
+		}
+	}
+		
+	_shotTimer++;
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _CreateOption(float posX_, float posY_, int mve_)
+{
+	// Setup option
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_OPT_PLAYER_MARISA, RP_STG_PLR + 3, BLEND_ALPHA,
+		0, 0, 14, 14,
+		1, 1,
+		0, 0
+	);
+	
+	// Initialize position
+	if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + (posX_ * mve_), GetPlayerY() + posY_, ID_INVALID);
+	}
+	else
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + ((posX_ / 1.5) * -mve_), GetPlayerY() - posY_, ID_INVALID);
+	}
+	
+	// Create lasers
+	_CreateLaser(posX_, posY_, mve_);
+	
+	// Counter variable
+	int z = 0;
+	
+	loop
+	{
+		// Move option
+		if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH) // Unfocused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), GetPlayerX() + (posX_ * mve_), 0.35), Interpolate_Linear(ObjRender_GetY(objOption), GetPlayerY() + posY_, 0.35), ID_INVALID); 
+		}
+		else // Focused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), GetPlayerX() + ((posX_ / 1.5) * -mve_), 0.35), Interpolate_Linear(ObjRender_GetY(objOption), GetPlayerY() - posY_, 0.35), ID_INVALID); 
+		}
+		
+		// Scale
+		float scale = Interpolate_Smooth(ObjRender_GetScaleX(objOption), _optScale, 0.15);
+		ObjRender_SetScaleXYZ(objOption, scale, scale, ID_INVALID);
+		
+		// Color
+		int[] col = ObjRender_GetColor(objOption);
+		ObjRender_SetColor(objOption, Interpolate_Smooth(col[0], _optCol[0], _time), Interpolate_Smooth(col[1], _optCol[1], _time), Interpolate_Smooth(col[2], _optCol[2], _time));
+		
+		// Priority
+		Obj_SetRenderPriorityI(objOption, _optPri);
+		
+		// Player shot
+		if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+		{
+			// Option shot
+			
+			// Magic missiles
+			if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_HOLD || GetVirtualKeyState(VK_SLOWMOVE) == KEY_PUSH && _shotTimer % 10 == 0) // Focused
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_MISSILESHOOT);
+				CreateShot_Player(ObjRender_GetX(objOption), ObjRender_GetY(objOption) - 8, 4, 270, 0.05, 7, 37, 1, MISSILE_MAGIC);
+			}
+		}
+		ObjRender_SetAngleZ(objOption, z);
+		z += 1 * mve_;
+		
+		if(_delOpt)
+		{
+			Obj_Delete(objOption);
+			return;
+		}
+		
+		yield;
+	}
+}
+
+task _CreateLaser(posX_, posY_, mve_)
+{
+	// Constants
+	const int LASER_SPEED      = 40;
+	const int LASER_LENGTH_MAX = 512;
+	const int LASER_DAMAGE     = 5;
+	
+	const int[] PARTICLE_COLORS = [COLOR_AQUA, COLOR_AZURE, COLOR_BLUE, COLOR_DBLUE, COLOR_INDIGO, COLOR_PURPLE, COLOR_DPURPLE];
+
+	const int[] RGB_COLOR_AZURE   = ColorHexToARGB(COLOR_AZURE, COLOR_PERMUTE_RGB);
+	const int[] RGB_COLOR_BLUE    = ColorHexToARGB(COLOR_BLUE, COLOR_PERMUTE_RGB);
+	const int[] RGB_COLOR_PURPLE  = ColorHexToARGB(COLOR_PURPLE, COLOR_PERMUTE_RGB);
+	const int[] RGB_COLOR_DPURPLE = ColorHexToARGB(COLOR_DPURPLE, COLOR_PERMUTE_RGB);
+	
+	_laserColA = RGB_COLOR_BLUE;
+	_laserColB = RGB_COLOR_DPURPLE;
+	_laserColC = RGB_COLOR_AZURE;
+	_laserColD = RGB_COLOR_PURPLE;
+	
+	// Variables
+	
+	float laserStartX = GetPlayerX() + (posX_ * mve_);
+	float laserStartY = GetPlayerY() + posY_;
+	
+	float laserEndX;
+	float laserEndY;
+
+	float laserLength = 0;
+	float laserScale  = 1;
+	
+	float laserAng = 270 - ((posX_ / 4) * mve_);
+	
+	int targetAlpha = 0;
+	
+	// Sprite
+	int laserSpriteA = CreateSprite2D_Dest
+	(
+		DIR_IMG_PL_LASER_PLAYER_MARISA, RP_STG_PLR, BLEND_ADD_ARGB,
+		0, 0, 256, 16,
+		0, 0, 256, 16
+	);
+	int laserSpriteB = CreateSprite2D_Dest
+	(
+		DIR_IMG_PL_LASER_PLAYER_MARISA, RP_STG_PLR, BLEND_ADD_ARGB,
+		0, 0, 256, 16,
+		0, 0, 256, 16
+	);
+	
+	// Start and end points
+	int pointStartA = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_LASER_END, RP_STG_PLR, BLEND_ADD_ARGB,
+		0, 0, 256, 256,
+		0, 0,
+		0, 0
+	);
+	int pointStartB = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_LASER_END, RP_STG_PLR, BLEND_ALPHA,
+		0, 0, 256, 256,
+		0, 0,
+		0, 0
+	);
+	
+	int pointEndA = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_LASER_END, RP_STG_PLR, BLEND_ADD_ARGB,
+		0, 0, 256, 256,
+		0, 0,
+		0, 0
+	);
+	int pointEndB = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_LASER_END, RP_STG_PLR, BLEND_ALPHA,
+		0, 0, 256, 256,
+		0, 0,
+		0, 0
+	);
+	
+	// Counters
+	int frame = 0;
+	int z = 0;
+	
+	/*
+	// Manage laser positions
+	async
+	{
+		loop
+		{
+			// Unfocused
+			if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + (posX_ * mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() + posY_, 0.35);
+			}
+			// Focused
+			else 
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + ((posX_ / 1.5) * -mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() - posY_, 0.35);
+			}
+			
+			// Shooting unfocused
+			if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot() && GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+			{
+				laserScale = Interpolate_Linear(laserScale, 1, 0.1);
+			}
+			// Not shooting
+			else
+			{
+				laserScale = Interpolate_Linear(laserScale, 0, 0.1);
+			}
+			
+			laserEndX = laserStartX + (laserLength * cos(laserAng));
+			laserEndY = laserStartY + (laserLength * sin(laserAng));
+			
+			ObjSprite2D_SetSourceRect(laserSpriteA, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetSourceRect(laserSpriteB, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetDestRect(laserSpriteA, 0, -8, laserLength, 8);
+			ObjSprite2D_SetDestRect(laserSpriteB, 0, -8, laserLength, 8);
+			
+			ObjRender_SetPosition(laserSpriteA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(laserSpriteB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointEndA, laserEndX, laserEndY, ID_INVALID);
+			ObjRender_SetPosition(pointEndB, laserEndX, laserEndY, ID_INVALID);
+			
+			ObjRender_SetAngleZ(laserSpriteA, laserAng);
+			ObjRender_SetAngleZ(laserSpriteB, laserAng);
+			ObjRender_SetAngleZ(pointStartA, z);
+			ObjRender_SetAngleZ(pointStartB, z);
+			ObjRender_SetAngleZ(pointEndA, z);
+			ObjRender_SetAngleZ(pointEndB, z);
+			
+			ObjRender_SetScaleY(laserSpriteA, laserScale);
+			ObjRender_SetScaleY(laserSpriteB, laserScale);
+			ObjRender_SetScaleXYZ(pointStartA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointStartB, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndB, (laserScale / 10) + (sin(frame * 4) / 50));
+			
+			float curAlpha = ObjRender_GetAlpha(laserSpriteB);
+			if(curAlpha <= 20) targetAlpha = 255;
+			else if(curAlpha >= 240) targetAlpha = 0;
+			ObjRender_SetAlpha(laserSpriteB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointStartB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointEndB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			
+			//Obj_SetRenderPriorityI(pointStartA, _endPri);
+			//Obj_SetRenderPriorityI(pointStartB, _endPri);
+			Obj_SetRenderPriorityI(pointEndA, _endPri);
+			Obj_SetRenderPriorityI(pointEndB, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteA, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteB, _endPri);
+			
+			frame++;
+			z += 1 * mve_;
+			
+			if(_delOpt)
+			{
+				Obj_Delete(laserSpriteA);
+				Obj_Delete(laserSpriteB);
+				Obj_Delete(pointStartA);
+				Obj_Delete(pointStartB);
+				Obj_Delete(pointEndA);
+				Obj_Delete(pointEndB);
+				return;
+			}
+		
+			yield;
+		}
+	}*/
+	
+	loop
+	{
+		laserLength = 0;
+		
+		// Unfocused
+			if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + (posX_ * mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() + posY_, 0.35);
+			}
+			// Focused
+			else 
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + ((posX_ / 1.5) * -mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() - posY_, 0.35);
+			}
+			
+		laserScale = Interpolate_Linear(laserScale, 0, 0.1);
+		
+		laserEndX = laserStartX + (laserLength * cos(laserAng));
+			laserEndY = laserStartY + (laserLength * sin(laserAng));
+			
+			ObjSprite2D_SetSourceRect(laserSpriteA, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetSourceRect(laserSpriteB, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetDestRect(laserSpriteA, 0, -8, laserLength, 8);
+			ObjSprite2D_SetDestRect(laserSpriteB, 0, -8, laserLength, 8);
+			
+			ObjRender_SetPosition(laserSpriteA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(laserSpriteB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointEndA, laserEndX, laserEndY, ID_INVALID);
+			ObjRender_SetPosition(pointEndB, laserEndX, laserEndY, ID_INVALID);
+			
+			ObjRender_SetAngleZ(laserSpriteA, laserAng);
+			ObjRender_SetAngleZ(laserSpriteB, laserAng);
+			ObjRender_SetAngleZ(pointStartA, z);
+			ObjRender_SetAngleZ(pointStartB, z);
+			ObjRender_SetAngleZ(pointEndA, z);
+			ObjRender_SetAngleZ(pointEndB, z);
+			
+			ObjRender_SetScaleY(laserSpriteA, laserScale);
+			ObjRender_SetScaleY(laserSpriteB, laserScale);
+			ObjRender_SetScaleXYZ(pointStartA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointStartB, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndB, (laserScale / 10) + (sin(frame * 4) / 50));
+			
+			float curAlpha = ObjRender_GetAlpha(laserSpriteB);
+			if(curAlpha <= 20) targetAlpha = 255;
+			else if(curAlpha >= 240) targetAlpha = 0;
+			ObjRender_SetAlpha(laserSpriteB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointStartB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointEndB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			
+			//Obj_SetRenderPriorityI(pointStartA, _endPri);
+			//Obj_SetRenderPriorityI(pointStartB, _endPri);
+			Obj_SetRenderPriorityI(pointEndA, _endPri);
+			Obj_SetRenderPriorityI(pointEndB, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteA, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteB, _endPri);
+			
+			frame++;
+			z += 1 * mve_;
+			
+			if(_delOpt)
+			{
+				Obj_Delete(laserSpriteA);
+				Obj_Delete(laserSpriteB);
+				Obj_Delete(pointStartA);
+				Obj_Delete(pointStartB);
+				Obj_Delete(pointEndA);
+				Obj_Delete(pointEndB);
+				return;
+			}
+			
+		// Shooting unfocused
+		while(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot() && GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+		{
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_LASER);
+			
+			laserLength = min(laserLength + LASER_SPEED, LASER_LENGTH_MAX);
+			
+			int closestEnemy = ID_INVALID;
+			
+			// Find the closest enemy and truncate laser length
+			local
+			{
+				bool laserInside = false;
+				
+				for each(int curEnemy in ref GetIntersectionRegistedEnemyID())
+				{
+					for each(float[] hitbox in ref ObjEnemy_GetIntersectionCircleListToShot(curEnemy))
+					{
+						float colX   = hitbox[0];
+						float colY   = hitbox[1];
+						float colRad = hitbox[2];
+						float colRadSq = colRad * colRad;
+						
+						if(IsIntersected_Line_Circle(laserStartX, laserStartY, laserEndX, laserEndY, laserScale, colX, colY, colRad))
+						{
+							float dX = colX - laserStartX;
+							float dY = colY - laserStartY;
+							
+							// Inside enemy
+							if(distancesq(0, 0, dX, dY) <= colRadSq)
+							{
+								closestEnemy = curEnemy;
+								laserLength = 0;
+								laserInside = true;
+								break;
+							}
+							
+							// Outside enemy
+							else
+							{
+								float vX = cos(laserAng);
+								float vY = sin(laserAng);
+								
+								float w = dX * vY - dY * vX;
+								float l = dX * vX + dY * vY;
+								float h = sqrt(colRadSq - w * w);
+								
+								float enemyDist = l - h;
+								
+								if(enemyDist < laserLength)
+								{
+									closestEnemy = curEnemy;
+									laserLength = max(0, enemyDist);
+								}
+							}
+						}
+					}
+					if(laserInside) break;
+				}
+			}
+		
+			if(closestEnemy != ID_INVALID)
+			{
+				float closestEnemyLife = ObjEnemy_GetInfo(closestEnemy, INFO_LIFE);
+				
+				if(closestEnemyLife > 0)
+				{
+					int rateDmg = ObjEnemy_GetInfo(closestEnemy, INFO_DAMAGE_RATE_SHOT);
+					ObjEnemy_SetLife(closestEnemy, max(closestEnemyLife - (LASER_DAMAGE * (rateDmg / 100)), 0));
+					if(rateDmg > 0) AddScore(max(1, ((1800 - GetObjectDistance(_objPlayer, closestEnemy) * 3.5) / 100 )) * (LASER_DAMAGE * 20000));
+				}
+				
+				
+				// Deletion particle effect
+				if(_prtSht)
+				{
+					async
+					{
+						float rad = prand(30, 50);
+		
+						float orgX = laserEndX;
+						float orgY = laserEndY;
+						
+						float posX = orgX;
+						float posY = orgY;
+						
+						float destX = posX + (rad * cos(prand(0, 360))); 
+						float destY = posY + (rad * sin(prand(0, 360))); 
+						
+						float angX = prand(0, 180);
+						float angY = prand(0, 180);
+						
+						float scaleOrg = prand(0.15, 0.2);
+						float scaleCur = scaleOrg;
+						
+						float alphaOrg = 0;
+						float alphaCur = alphaOrg;
+						
+						int color = PARTICLE_COLORS[prand_int(0, length(PARTICLE_COLORS) - 1)];
+						
+						float iMax = 60;
+						for(int i = 0; i <= iMax; i++)
+						{
+							// Color
+							ObjParticleList_SetColor(_objPartGraze, color);
+						
+							// Position
+							posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+							posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+							ObjParticleList_SetPosition(_objPartGraze, posX, posY, ID_INVALID);
+							
+							// Rotation
+							angX += prand(1, 2);
+							angY -= prand(1, 2);
+							ObjParticleList_SetAngle(_objPartGraze, angX, angY, (angX * angY) / 100);
+							
+							// Size
+							scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+							ObjParticleList_SetScale(_objPartGraze, scaleCur);
+							
+							// Fade
+							alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+							ObjParticleList_SetAlpha(_objPartGraze, alphaCur);
+							
+							ObjParticleList_AddInstance(_objPartGraze);
+							
+							yield;
+						}
+					}
+				}
+			}
+			
+			// Color the start / end points and lasers if they are colliding with an enmY
+			
+			int[] colorCur  = ObjRender_GetColor(pointStartA);
+			int[] colorDest = (closestEnemy == ID_INVALID) ? _laserColC : _laserColD;
+			
+			ObjRender_SetColor(pointStartA, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			ObjRender_SetColor(pointEndA, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			
+			colorCur  = ObjRender_GetColor(pointStartB);
+			colorDest = (closestEnemy == ID_INVALID) ? _laserColA : _laserColB;
+			
+			ObjRender_SetColor(pointStartB, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			ObjRender_SetColor(pointEndB, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			
+			colorCur  = ObjRender_GetColor(laserSpriteA);
+			colorDest = (closestEnemy == ID_INVALID) ? _laserColC : _laserColD;
+			
+			ObjRender_SetColor(laserSpriteA, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			ObjRender_SetColor(laserSpriteB, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			
+			yield;
+			
+			// Unfocused
+			if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + (posX_ * mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() + posY_, 0.35);
+			}
+			// Focused
+			else 
+			{
+				laserStartX = Interpolate_Linear(laserStartX, GetPlayerX() + ((posX_ / 1.5) * -mve_), 0.35);
+				laserStartY = Interpolate_Linear(laserStartY, GetPlayerY() - posY_, 0.35);
+			}
+			
+			laserScale = Interpolate_Linear(laserScale, 1, 0.1);
+			
+			laserEndX = laserStartX + (laserLength * cos(laserAng));
+			laserEndY = laserStartY + (laserLength * sin(laserAng));
+			
+			ObjSprite2D_SetSourceRect(laserSpriteA, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetSourceRect(laserSpriteB, -(frame * 3), 0, laserLength + -(frame * 3), 16);
+			ObjSprite2D_SetDestRect(laserSpriteA, 0, -8, laserLength, 8);
+			ObjSprite2D_SetDestRect(laserSpriteB, 0, -8, laserLength, 8);
+			
+			ObjRender_SetPosition(laserSpriteA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(laserSpriteB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartA, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointStartB, laserStartX, laserStartY, ID_INVALID);
+			ObjRender_SetPosition(pointEndA, laserEndX, laserEndY, ID_INVALID);
+			ObjRender_SetPosition(pointEndB, laserEndX, laserEndY, ID_INVALID);
+			
+			ObjRender_SetAngleZ(laserSpriteA, laserAng);
+			ObjRender_SetAngleZ(laserSpriteB, laserAng);
+			ObjRender_SetAngleZ(pointStartA, z);
+			ObjRender_SetAngleZ(pointStartB, z);
+			ObjRender_SetAngleZ(pointEndA, z);
+			ObjRender_SetAngleZ(pointEndB, z);
+			
+			ObjRender_SetScaleY(laserSpriteA, laserScale);
+			ObjRender_SetScaleY(laserSpriteB, laserScale);
+			ObjRender_SetScaleXYZ(pointStartA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointStartB, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndA, (laserScale / 10) + (sin(frame * 4) / 50));
+			ObjRender_SetScaleXYZ(pointEndB, (laserScale / 10) + (sin(frame * 4) / 50));
+			
+			float curAlpha = ObjRender_GetAlpha(laserSpriteB);
+			if(curAlpha <= 20) targetAlpha = 255;
+			else if(curAlpha >= 240) targetAlpha = 0;
+			ObjRender_SetAlpha(laserSpriteB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointStartB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			ObjRender_SetAlpha(pointEndB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+			
+			//Obj_SetRenderPriorityI(pointStartA, _endPri);
+			//Obj_SetRenderPriorityI(pointStartB, _endPri);
+			Obj_SetRenderPriorityI(pointEndA, _endPri);
+			Obj_SetRenderPriorityI(pointEndB, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteA, _endPri);
+			Obj_SetRenderPriorityI(laserSpriteB, _endPri);
+			
+			frame++;
+			z += 1 * mve_;
+			
+			if(_delOpt)
+			{
+				Obj_Delete(laserSpriteA);
+				Obj_Delete(laserSpriteB);
+				Obj_Delete(pointStartA);
+				Obj_Delete(pointStartB);
+				Obj_Delete(pointEndA);
+				Obj_Delete(pointEndB);
+				return;
+			}
+		}
+		
+		if(_delOpt)
+		{
+			Obj_Delete(laserSpriteA);
+			Obj_Delete(laserSpriteB);
+			Obj_Delete(pointStartA);
+			Obj_Delete(pointStartB);
+			Obj_Delete(pointEndA);
+			Obj_Delete(pointEndB);
+			return;
+		}
+		
+		yield;
+	}
+}
+
+// Creates the player portrait and title on the side of the screen
+task _RenderPlayerPortrait()
+{	
+	bool frame = GetAreaCommonData(AREA_SETTINGS, FRAME, 40) > 0;
+	
+	// Portrait
+	int objPortrait;
+	
+	if(frame)
+	{
+		objPortrait = CreateSprite2D_Pos
+		(
+			DIR_IMG_CHAR_PORTRAIT_MARISA, RP_UI_FRAME + 1, BLEND_ALPHA,
+			0, 0, 355, 609,
+			1, 1,
+			-160 * RES, SCREEN_HEIGHT / 2
+		);
+	}
+	
+	// Title back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_SYS_TITLE_BACK, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 148, 400,
+		1, 1,
+		FRAME_LEFT / 2, SCREEN_HEIGHT + (110 * RES)
+	);
+	ObjRender_SetColor(objBack, COLOR_BLUE);
+		
+	// Title
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_TITLE_PLAYER_MARISA, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 186, 104,
+		1, 1,
+		FRAME_LEFT / 2, -50 * RES
+	);
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		if(frame) ObjRender_SetX(objPortrait, Interpolate_Smooth(-160 * RES, (FRAME_LEFT / 2) + (10 * RES), i / iMax));
+		ObjRender_SetY(objBack, Interpolate_Smooth(SCREEN_HEIGHT + (110 * RES), SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		ObjRender_SetY(objTitle, Interpolate_Smooth(-50 * RES, SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		
+		yield;
+	}
+}

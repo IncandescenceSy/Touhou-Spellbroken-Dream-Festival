@@ -1,0 +1,21 @@
+Achieved\Not Yet\Locked Achievement
+The Beginning?\Open the game for the first time.
+Scholarly Inclination\View the manual.
+First Light\Play any scene.
+Bullet Dodger\Capture any scene.
+Stage One Clear\Capture all scenes in stage one.
+Stage Two Clear\Capture all scenes in stage two.
+Stage Three Clear\Capture all scenes in stage three.
+Stage Four Clear\Capture all scenes in stage four.
+Stage Five Clear\Capture all scenes in stage five.
+Stage Six Clear\Capture all scenes in stage six.
+Extra Stage Clear\Capture all scenes in the extra stage.
+Smiles and Tears\Clear scene 8-1...
+Dream of Hope\Capture scene 8-1.
+Seven Souls\Capture scene 2-3 without ever entering the barrier.
+Mercy...sort of\Capture scene 2-8 without destroying any familiars.
+Paper Dragon\Capture scene 4-1 without ever moving up or down.
+Twinkle Twinkle\Earn a star in every scene.
+The Beginning.\Obtain every other maingame achievement.
+Eternal Festival\Capture all scenes in the afterparty stage.
+Forever Shining\Earn a star in every scene in the afterparty stage.

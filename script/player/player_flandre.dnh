@@ -1,0 +1,1080 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Player Flandre //////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+
+#TouhouDanmakufu[Player]
+#ID["flandre"]
+#Title["Flandre"]
+#ReplayName["Flandre"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains functions that will return various values
+#include "./../lib/lib_logic.dnh"
+
+// This library contains all general variables and functions that are shared between player scripts
+#include "./../lib/lib_player.dnh"
+
+// This library contains constant names for bullets used by Reimu and loads her shotdata
+#include "./shotconst_flandre.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Script IDs
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+const int _ID_SYSTEM  = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_SYSTEM, ID_INVALID);
+
+// Particle list for shot deletion effects
+int _objPartDeletion = CreateParticleList2D
+(
+	DIR_IMG_PL_SHOT_PLAYER_FLANDRE,
+	0, 0, 17, 17,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+ObjShader_SetShaderF(_objPartDeletion, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartDeletion, TEC_RENDER);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_X, 13 / 66);
+ObjShader_SetFloat(_objPartDeletion, FLOAT_STEP_Y, 38 / 38);
+
+// Particle list for graze particle effects
+int _objPartGraze = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_STG_PLR + 4
+);
+
+// Option scale and color
+float _optScale = 1;
+int[] _optCol = [255, 255, 255];
+int _optPri = RP_STG_PLR + 3;
+
+// Option color interpolation time
+float _time = 0.15;
+
+// Effect cut settings
+bool _effGrz = GetAreaCommonData(AREA_SETTINGS, EFF_GRZ, 1);
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+int _volSFX = GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100) / 2;
+
+// Is the player bombing
+bool _spell = false;
+
+// Are you unfocusing
+bool _unf = true;
+
+// How long have you been unfocused
+int _unfFrame = 0;
+
+// Charge shot charge level
+int _charge = 0;
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_PLAYER, GetOwnScriptID());
+	
+	// Setup basics
+	_RenderPlayerSprite(DIR_IMG_PL_SPRITE_PLAYER_FLANDRE);
+	_RenderPlayerPortrait();
+	ObjPlayer_AddIntersectionCircleA1(_objPlayer, 0, 0, 0.5, 18);
+	SetPlayerSpeed(5.5, 1.95);
+	
+	// Setup options
+	for(int i = 0; i < 7; i++)
+	{
+		_CreateOption(i, ID_INVALID, ID_INVALID);
+	}
+	
+	// Charge shot
+	_Fireball();
+}
+
+@Event
+{
+	alternative(GetEventType())
+	
+		case(EV_HIT)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_HIT);
+			
+			if(GetPlayerSpell() == 0)
+			{
+				for each(int i in ref GetAllEnemyID()) ObjEnemy_SetDamageRate(i, 0, 0);
+				_RenderPlayerExplosion(GetPlayerX(), GetPlayerY(), COLOR_RED, COLOR_DRED);
+				SetPlayerRebirthPosition(GetPlayerX(), GetPlayerY());
+				NotifyEvent(_ID_SYSTEM, EV_SAVE_DATA, 1, 0, 1, false);
+				SetForbidPlayerShot(true);
+				ObjMove_SetProcessMovement(_objPlayer, false);
+				SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, true);
+				async
+				{
+					loop(30)
+					{
+						StopSlow(TARGET_ALL);
+						yield;
+					}
+				}
+			}
+			else
+			{
+				NotifyEventOwn(EV_REQUEST_SPELL, ID_INVALID);
+			}
+		}
+		
+		case(EV_PLAYER_REBIRTH)
+		{
+			SetPlayerInvincibilityFrame(200);
+		}
+		
+		case(EV_GRAZE)
+		{	
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_GRAZE);
+			
+			if(_effGrz)
+			{
+				int[] grazedShots = GetEventArgument(1);
+				
+				for each(int i in ref grazedShots)
+				{
+					int[] grazedBulletColor = GetShotDataInfoA1(ObjShot_GetImageID(i), TARGET_ENEMY, INFO_DELAY_COLOR);
+					if(Obj_GetValueDI(i, VAL_GRZCOL, true)) _ColorGrazedShot(i, ObjRender_GetColor(i), grazedBulletColor);
+					_CreateParticle_Graze(grazedBulletColor);
+				}
+			}
+		}
+		
+		case(EV_REQUEST_SPELL)
+		{
+			if(_spell || GetPlayerSpell() == 0)
+			{
+				SetScriptResult(false);
+			}
+			else
+			{
+				SetScriptResult(true);
+				SetPlayerSpell(GetPlayerSpell() - 1); 
+				_Bomb(COLOR_RED);
+				_spell = true;
+			}
+		}
+		
+		case(EV_DELETE_SHOT_PLAYER)
+		{
+			int objShot  = GetEventArgument(0);
+			int objEnemy = GetEventArgument(3);
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, (ObjEnemy_GetInfo(objEnemy, INFO_LIFE) < (Obj_GetValueDI(objEnemy, VAL_MAXLIFE, ID_INVALID) / 6.66666)) ? DIR_SFX_DAMAGE_LOWHEALTH : DIR_SFX_DAMAGE_NORMAL);
+			
+			if(ObjEnemy_GetInfo(objEnemy, INFO_DAMAGE_RATE_SHOT) != 0)
+			{
+				AddScore(max(1, ((1800 - GetObjectDistance(_objPlayer, objEnemy) * 3.5) / 100)) * (ObjShot_GetDamage(objShot) * 20000));
+			}
+			
+			if(_prtSht)
+			{
+				int[] shotPos   = GetEventArgument(1);
+				int   shotType  = GetEventArgument(2);
+					
+				alternative(shotType)
+					case(MAIN_SHOT)
+					{
+						async
+						{
+							// Animation
+							for(int i = 0; i <= 4; i++)
+							{
+								for(int j = 0; j <= 4; j++)
+								{	
+									// Position
+									ObjParticleList_SetPosition(_objPartDeletion, shotPos[0] + 2.2, shotPos[1] - (j + (i * 8)), ID_INVALID);
+									
+									// Size
+									ObjParticleList_SetScale(_objPartDeletion, 1.3, 1.3, 1);	
+									
+									// Fade
+									ObjParticleList_SetAlpha(_objPartDeletion, 96 - ((j * 4) * i));
+									
+									// Angle
+									ObjParticleList_SetAngleZ(_objPartDeletion, 0);
+									
+									// Color
+									ObjParticleList_SetColor(_objPartDeletion, 255, 220, 220);
+									
+									// Source rect
+									ObjParticleList_SetExtraData(_objPartDeletion, i, 0, 1);
+									
+									ObjParticleList_AddInstance(_objPartDeletion);
+									
+									yield;
+								}
+							}
+						}
+					}
+				}
+		}
+		
+		case(EV_KILL_PLAYER)
+		{
+			KillPlayer();
+		}
+		
+		case(EV_CONTROL_OPTIONS)
+		{
+			float scale = GetEventArgument(0);
+			int  pri   = GetEventArgument(2);
+			int  col   = GetEventArgument(3);
+			
+			_optScale = scale;
+			_optCol   = GetEventArgument(1);
+			_optPri   = pri;
+			
+			_shotScale = scale;
+			_shotCol   = col;
+			_shotPri   = pri;
+		}
+		
+		case(EV_RECOLOR_WHILE_BOSS_LIVES)
+		{
+			int[] col     = GetEventArgument(0);
+			int   objBoss = GetEventArgument(1);
+			
+			_time = 1;
+			
+			_optCol = col;
+			ObjRender_SetColor(_objPlayer, col[0], col[1], col[2]);
+			
+			async
+			{
+				yield;
+				_time = 0.15;
+				
+				while(Obj_IsExists(objBoss)) yield;
+				_time = 1;
+				_optCol = [255, 255, 255];
+				ObjRender_SetColor(_objPlayer, 255, 255, 255);
+				ObjRender_SetScaleXYZ(_objPlayer, 1);
+			}
+		}
+		
+		case(EV_CHANGE_DEL_RP)
+		{
+			Obj_SetRenderPriorityI(_objPartDeletion, GetEventArgument(0));
+		}
+}
+
+@MainLoop
+{
+	if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+	{
+		// Main shot
+		if(_shotTimer % 5 == 0)
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_SHOOT);
+			CreateShot_Player(GetPlayerX() + 6, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, MAIN_SHOT);
+			CreateShot_Player(GetPlayerX() - 6, GetPlayerY() - 8, 20, 270, 0, 20, 11, 1, MAIN_SHOT);
+		}
+	}
+	
+	if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_PULL) // Letting go of focus
+	{
+		_unf = true;
+	}
+	else if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_FREE) // Focusing
+	{
+		_unf = false;
+		_unfFrame = 0;
+	}
+	
+	if(_unf) _unfFrame++;
+	else _unfFrame = 0;
+	
+		
+	_shotTimer++;
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _CreateOption(int index_, int invalid_, int invalid2_)
+{
+	// Setup option
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PL_OPT_PLAYER_FLANDRE, RP_STG_PLR, BLEND_ALPHA,
+		0, 0, 31, 42,
+		1, 1,
+		0, 0
+	);
+	ObjRender_SetAlpha(objOption, 170);
+	
+	// Color
+	int[] color = Interpolate_Linear(ColorHexToARGB([COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_BLUE, COLOR_PURPLE][index_], COLOR_PERMUTE_RGB), [255, 255, 255], 0.35);
+	ObjRender_SetColor(objOption, color[0], color[1], color[2]);
+	
+	int rad = 45 + (sin(0) * 10);
+	int ang = index_ * (360 / 7);
+	int posX = -45 + (index_ * 15);
+	int posY = [-24, -12, 0, 24, 0, -12, -24][index_];
+	
+	float plX = ID_INVALID;
+	float plY = ID_INVALID;
+	
+	_CreateLaser(objOption, index_);
+	
+	// Initialize position
+	if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH)
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + (rad * cos(ang)), GetPlayerY() + (rad * sin(ang)), ID_INVALID); 
+		ObjRender_SetAngleZ(objOption, ang + 90);
+	}
+	else
+	{
+		ObjRender_SetPosition(objOption, GetPlayerX() + posX, GetPlayerY() + posY, ID_INVALID); 
+		ObjRender_SetAngleZ(objOption, 0);
+	}
+	
+	for(int i = 0; ; i++)
+	{
+		// Animation
+		int frame = floor(i / 10);
+		ObjSprite2D_SetSourceRect(objOption, frame * 31, 0, frame * 31 + 31, 42);
+		
+		rad = 45 + (sin(i) * 10);
+		
+		float angZ = ObjRender_GetAngleZ(objOption);
+		
+		// Move option
+		if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH) // Unfocused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), GetPlayerX() + (rad * cos(ang + i)), 0.35), Interpolate_Linear(ObjRender_GetY(objOption), GetPlayerY() + (rad * sin(ang + i)), 0.35), ID_INVALID); 
+			ObjRender_SetAngleZ(objOption, Interpolate_Smooth(angZ, angZ + AngularDistance(angZ, ang + i + 90), 0.35));
+		}
+		else if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_PUSH) // Focusing
+		{
+			plX = GetPlayerX();
+			plY = GetPlayerY();
+		}
+		else if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_HOLD) // Focused
+		{
+			ObjRender_SetPosition(objOption, Interpolate_Linear(ObjRender_GetX(objOption), plX + posX, 0.35), Interpolate_Linear(ObjRender_GetY(objOption), plY + posY, 0.35), ID_INVALID); 
+			ObjRender_SetAngleZ(objOption, Interpolate_Smooth(angZ, angZ + AngularDistance(angZ, 0), 0.35));
+		}
+		
+		// Scale
+		/*float scale = Interpolate_Smooth(ObjRender_GetScaleX(objOption), _optScale, 0.15);
+		ObjRender_SetScaleXYZ(objOption, scale, scale, ID_INVALID);
+		
+		// Color
+		int[] col = ObjRender_GetColor(objOption);
+		ObjRender_SetColor(objOption, Interpolate_Smooth(col[0], _optCol[0], _time), Interpolate_Smooth(col[1], _optCol[1], _time), Interpolate_Smooth(col[2], _optCol[2], _time));
+		
+		// Priority
+		Obj_SetRenderPriorityI(objOption, _optPri);*/
+		
+		// Player shot
+		if(GetVirtualKeyState(VK_SHOT) != KEY_FREE && IsPermitPlayerShot()) // Shooting
+		{
+			// Option shot
+			
+			// Unfocused
+			if(GetVirtualKeyState(VK_SLOWMOVE) != KEY_HOLD && GetVirtualKeyState(VK_SLOWMOVE) != KEY_PUSH && _shotTimer % 13 == 0) // Unfocused
+			{
+				// to-do
+			}
+			
+			// Focused
+			else if(GetVirtualKeyState(VK_SLOWMOVE) == KEY_HOLD || GetVirtualKeyState(VK_SLOWMOVE) == KEY_PUSH && _shotTimer % 3 == 0) // Focused
+			{
+				// to-do
+			}
+		}
+		
+		if(_delOpt)
+		{
+			Obj_Delete(objOption);
+			return;
+		}
+		
+		yield;
+	}
+}
+
+task _CreateLaser(int objOption_, int index_)
+{
+	// Constants
+	const int LASER_SPEED      = 40;
+	const int laserLength      = 512;
+	
+	const int COLOR = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_BLUE, COLOR_PURPLE][index_];
+
+	const int[] RGB_COLOR = Interpolate_Linear(ColorHexToARGB(COLOR, COLOR_PERMUTE_RGB), [255, 255, 255], 0.35);
+	
+	int[] colorCur  = RGB_COLOR;
+	int[] colorDest = colorCur;
+	
+	// Variables
+	float laserStartX = ObjRender_GetX(objOption_);
+	float laserStartY = ObjRender_GetY(objOption_);
+
+	float laserScale = 0;
+	
+	float laserX = ObjRender_GetX(objOption_);
+	float laserY = ObjRender_GetY(objOption_);
+	
+	float laserAng = ObjRender_GetAngleZ(objOption_) - 90;
+	
+	int targetAlpha = 0;
+	
+	// Sprite
+	int laserSpriteA = CreateSprite2D_Dest
+	(
+		DIR_IMG_PL_LASER_PLAYER_FLANDRE, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 256, 15,
+		0, 0, 256, 15
+	);
+	ObjRender_SetAlpha(laserSpriteA, 140);
+	
+	int laserSpriteB = CreateSprite2D_Dest
+	(
+		DIR_IMG_PL_LASER_PLAYER_FLANDRE, RP_STG_PLR - 1, BLEND_ADD_ARGB,
+		0, 0, 256, 15,
+		0, 0, 256, 15
+	);
+	
+	// Counter variable
+	int frame = 0;
+	
+	loop
+	{	
+		ObjSprite2D_SetSourceRect(laserSpriteA, -(frame * 6), 0, laserLength + -(frame * 6), 16);
+		ObjSprite2D_SetSourceRect(laserSpriteB, -(frame * 6), 0, laserLength + -(frame * 6), 16);
+		ObjSprite2D_SetDestRect(laserSpriteA, 0, -8, laserLength, 8);
+		ObjSprite2D_SetDestRect(laserSpriteB, 0, -8, laserLength, 8);
+		
+		laserX = ObjRender_GetX(objOption_);
+		laserY = ObjRender_GetY(objOption_);
+	
+		ObjRender_SetPosition(laserSpriteA, laserX, laserY, ID_INVALID);
+		ObjRender_SetPosition(laserSpriteB, laserX, laserY, ID_INVALID);
+			
+		laserAng = ObjRender_GetAngleZ(objOption_) - 90;
+		
+		ObjRender_SetAngleZ(laserSpriteA, laserAng);
+		ObjRender_SetAngleZ(laserSpriteB, laserAng);
+			
+		ObjRender_SetScaleY(laserSpriteA, laserScale);
+		ObjRender_SetScaleY(laserSpriteB, laserScale);
+			
+		float curAlpha = ObjRender_GetAlpha(laserSpriteB);
+		if(curAlpha <= 20) targetAlpha = 140;
+		else if(curAlpha >= 125) targetAlpha = 0;
+		ObjRender_SetAlpha(laserSpriteB, Interpolate_Smooth(curAlpha, targetAlpha, 0.25));
+		
+		if((GetVirtualKeyState(VK_SHOT) == KEY_PUSH || GetVirtualKeyState(VK_SHOT) == KEY_HOLD) && IsPermitPlayerShot())
+		{
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_LASER);
+			
+			laserScale = Interpolate_Linear(laserScale, 2, 0.25);
+			
+			bool contact = IsContact(laserX, laserY, laserAng, laserLength, COLOR);
+			
+			colorCur  = ObjRender_GetColor(laserSpriteA);
+			colorDest = (contact) ? RGB_COLOR / 8 : RGB_COLOR / 2;
+			
+			ObjRender_SetColor(laserSpriteA, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+			ObjRender_SetColor(laserSpriteB, Interpolate_Smooth(colorCur[0], colorDest[0], 0.2), Interpolate_Smooth(colorCur[1], colorDest[1], 0.2), Interpolate_Smooth(colorCur[2], colorDest[2], 0.2));
+		}
+		else
+		{
+			laserScale = Interpolate_Linear(laserScale, 0, 0.25);
+		}
+		
+		frame++;
+		
+		yield;
+	}
+}
+
+// Is the laser touching an enemy?
+function<bool> IsContact(float laserStartX_, float laserStartY_, float laserAng_, float laserLength_, int color_)
+{
+	bool isContact = false;
+	
+	float laserEndX = laserStartX_ + (laserLength_ * cos(laserAng_));
+	float laserEndY = laserStartY_ + (laserLength_ * sin(laserAng_));
+	
+	float damage;
+	if(_unfFrame > 30 && GetVirtualKeyState(VK_SLOWMOVE) == KEY_FREE) damage = 10.75;
+	else damage = 1.375;
+	
+	for each(int curEnemy in ref GetIntersectionRegistedEnemyID())
+	{
+		for each(float[] hitbox in ref ObjEnemy_GetIntersectionCircleListToShot(curEnemy))
+		{
+			float colX   = hitbox[0];
+			float colY   = hitbox[1];
+			float colRad = hitbox[2];
+			float colRadSq = colRad * colRad;
+						
+			if(IsIntersected_Line_Circle(laserStartX_, laserStartY_, laserEndX, laserEndY, 2, colX, colY, colRad))
+			{
+				isContact = true;
+				
+				float curEnemyLife = ObjEnemy_GetInfo(curEnemy, INFO_LIFE);
+				
+				if(curEnemyLife > 0)
+				{
+					int rateDmg = ObjEnemy_GetInfo(curEnemy, INFO_DAMAGE_RATE_SHOT);
+					ObjEnemy_SetLife(curEnemy, max(curEnemyLife - (damage * (rateDmg / 100)), 0));
+					if(rateDmg > 0) AddScore(max(1, ((1800 - GetObjectDistance(_objPlayer, curEnemy) * 3.5) / 100 )) * (damage * 20000));
+					
+					NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, (curEnemyLife < (Obj_GetValueDI(curEnemy, VAL_MAXLIFE, ID_INVALID) / 6.66666)) ? DIR_SFX_DAMAGE_LOWHEALTH : DIR_SFX_DAMAGE_NORMAL);
+					
+					_Particle(curEnemy, color_);
+				}
+			}
+		}
+	}
+	
+	return isContact;
+}
+
+// Laser contact particle
+task _Particle(int curEnemy_, int color_)
+{
+	// Deletion particle effect
+				if(_prtSht)
+				{
+					async
+					{
+						float rad = prand(90, 130);
+		
+						float orgX = ObjMove_GetX(curEnemy_);
+						float orgY = ObjMove_GetY(curEnemy_);
+						
+						float posX = orgX;
+						float posY = orgY;
+						
+						float destX = posX + (rad * cos(prand(0, 360))); 
+						float destY = posY + (rad * sin(prand(0, 360))); 
+						
+						float angX = prand(0, 180);
+						float angY = prand(0, 180);
+						
+						float scaleOrg = prand(0.15, 0.2);
+						float scaleCur = scaleOrg;
+						
+						float alphaOrg = 0;
+						float alphaCur = alphaOrg;
+						
+						int color = color_;
+						
+						float iMax = 60;
+						for(int i = 0; i <= iMax; i++)
+						{
+							// Color
+							ObjParticleList_SetColor(_objPartGraze, color);
+						
+							// Position
+							posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+							posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+							ObjParticleList_SetPosition(_objPartGraze, posX, posY, ID_INVALID);
+							
+							// Rotation
+							angX += prand(1, 2);
+							angY -= prand(1, 2);
+							ObjParticleList_SetAngle(_objPartGraze, angX, angY, (angX * angY) / 100);
+							
+							// Size
+							scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+							ObjParticleList_SetScale(_objPartGraze, scaleCur);
+							
+							// Fade
+							alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+							ObjParticleList_SetAlpha(_objPartGraze, alphaCur);
+							
+							ObjParticleList_AddInstance(_objPartGraze);
+							
+							yield;
+						}
+					}
+				}
+}
+
+// Creates the player portrait and title on the side of the screen
+task _RenderPlayerPortrait()
+{	
+	bool frame = GetAreaCommonData(AREA_SETTINGS, FRAME, 40) > 0;
+	
+	// Portrait
+	int objPortrait;
+	
+	if(frame)
+	{
+		objPortrait = CreateSprite2D_Pos
+		(
+			DIR_IMG_CHAR_PORTRAIT_FLANDRE, RP_UI_FRAME + 1, BLEND_ALPHA,
+			0, 0, 500, 632,
+			1, 1,
+			-160 * RES, SCREEN_HEIGHT / 2
+		);
+	}
+	
+	// Title back
+	int objBack = CreateSprite2D_Pos
+	(
+		DIR_IMG_SYS_TITLE_BACK, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 148, 400,
+		1, 1,
+		FRAME_LEFT / 2, SCREEN_HEIGHT + (110 * RES)
+	);
+		
+	// Title
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_CHAR_TITLE_FLANDRE, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 192, 113,
+		1, 1,
+		FRAME_LEFT / 2, -50 * RES
+	);
+	
+	// Hue shift shader
+	int objShader = ObjShader_Create();
+	ObjShader_SetShaderF(objShader, DIR_SDR_HUESHIFT);
+	ObjShader_SetTechnique(objShader, TEC_HUESHIFT);
+	ObjShader_SetShaderO(objTitle, objShader);
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		if(frame) ObjRender_SetX(objPortrait, Interpolate_Smooth(-160 * RES, (FRAME_LEFT / 2) + 10, i / iMax));
+		ObjRender_SetY(objBack, Interpolate_Smooth(SCREEN_HEIGHT + (110 * RES), SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		ObjRender_SetY(objTitle, Interpolate_Smooth(-50 * RES, SCREEN_HEIGHT - (SCREEN_HEIGHT / 2.2), i / iMax));
+		ObjRender_SetColorHSV(objBack, i, 255, 255);
+		
+		ObjShader_SetFloat(objShader, FLOAT_HUE, i / 20);
+		
+		yield;
+	}
+	
+	for(int i = 90; ; i++)
+	{
+		ObjRender_SetColorHSV(objBack, i, 255, 255);
+	
+		ObjShader_SetFloat(objShader, FLOAT_HUE, i / 20);
+		
+		yield;
+	}
+}
+
+// Charge shot
+task _Fireball()
+{
+	const float CHARGE_MAX = 240;
+	const float MOVE_TIME  = 20;
+	const float DAMAGE     = 5000;
+	
+	bool launch = false;
+	bool isRed = true;
+	
+	int cooldown = 0;
+	
+	float baseX = GetPlayerX(), baseY = GetPlayerY();
+	
+	// Render
+	int objFire = ObjPrim_Create(OBJ_SPRITE_LIST_2D);
+	Obj_SetRenderPriorityI(objFire, RP_STG_PLR);
+	ObjPrim_SetTexture(objFire, DIR_IMG_EFF_FIRE_AURA);
+	ObjSpriteList2D_SetSourceRect(objFire, 0, 0, 128, 128);
+	ObjSpriteList2D_SetDestRect(objFire, 0, 0, 0, 0);
+	ObjSpriteList2D_SetAutoClearVertexCount(objFire, true);
+	ObjRender_SetBlendType(objFire, BLEND_ADD_ARGB);
+	ObjShader_SetShaderF(objFire, DIR_SDR_FIRE);
+	ObjShader_SetTexture(objFire, TEXTURE_MASK, DIR_IMG_EFF_NOISE);
+	ObjShader_SetTechnique(objFire, TEC_FIRE);
+	
+	int objExpl = ObjPrim_Create(OBJ_SPRITE_LIST_2D);
+	Obj_SetRenderPriorityI(objExpl, RP_STG_PLR);
+	ObjPrim_SetTexture(objExpl, DIR_IMG_EFF_NOISE);
+	ObjSpriteList2D_SetSourceRect(objExpl, 0, 0, 512, 512);
+	ObjSpriteList2D_SetDestCenter(objExpl);
+	ObjSpriteList2D_SetAutoClearVertexCount(objExpl, true);
+	ObjRender_SetBlendType(objExpl, BLEND_ADD_ARGB);
+	ObjShader_SetShaderF(objExpl, DIR_SDR_FIRE);
+	ObjShader_SetTechnique(objExpl, TEC_EXPL);
+	ObjRender_SetScaleXYZ(objExpl, 0);
+	Obj_SetVisible(objExpl, false);
+					
+	int objCharge = ObjSound_Create;
+	ObjSound_SetSoundDivision(objCharge, SOUND_SE);
+	ObjSound_SetResumeEnable(objCharge, false);
+	ObjSound_Load(objCharge, DIR_SFX_PLAYER_LASER);
+	ObjSound_SetVolumeRate(objCharge, _volSFX);
+
+	for(int iFrame = 0; ; iFrame++)
+	{	 
+		if(!launch)
+		{
+			baseX = GetPlayerX();
+			baseY = GetPlayerY();
+		}
+		
+		// Charge
+		if(!launch && ((GetVirtualKeyState(VK_SHOT) == KEY_PUSH || GetVirtualKeyState(VK_SHOT) == KEY_HOLD) && GetVirtualKeyState(VK_BOMB) != KEY_PUSH) && IsPermitPlayerShot())
+		{
+			if(cooldown <= 0 && _charge < CHARGE_MAX)
+			{
+				_charge++;
+				
+				ObjSound_Load(objCharge, DIR_SFX_PLAYER_LASER);
+				ObjSound_SetVolumeRate(objCharge, _volSFX);
+				ObjSound_SetFrequency(objCharge, Interpolate_Linear(15000, 44100, _charge / CHARGE_MAX));
+				ObjSound_Play(objCharge);
+				
+				if(_charge == CHARGE_MAX)
+				{
+					ObjSound_Load(objCharge, DIR_SFX_FREEZE);
+					ObjSound_SetVolumeRate(objCharge, _volSFX);
+					ObjSound_SetFrequency(objCharge, 30000);
+					ObjSound_Play(objCharge);
+					isRed = false;
+				}
+			}
+			else if(cooldown > 0)
+			{
+				cooldown -= 1;
+			}
+		}
+		else if((GetVirtualKeyState(VK_SHOT) == KEY_PULL || GetVirtualKeyState(VK_BOMB) == KEY_PUSH) && IsPermitPlayerShot())
+		{
+			if(_charge == CHARGE_MAX)
+			{
+				// Launch fireball
+				local
+				{
+					launch = true;
+					
+					float destY = -60;
+					float curY = baseY;
+					
+					bool hit = false;
+					
+					for(int i = 0; i < MOVE_TIME; i++)
+					{	
+						baseY = Interpolate_Smooth(curY, destY, i / MOVE_TIME);
+						
+						_RenderFire(baseX, baseY, iFrame + i, objFire, CHARGE_MAX, false);
+						
+						int nearEnm = GetNearestEnemy(objFire);
+						if(nearEnm != ID_INVALID && GetObjectDistance(objFire, nearEnm) < 35)
+						{
+							if(i < 10) NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_FIRESHOOT);
+							hit = true;
+							break;
+						}
+						
+						yield;
+						
+						if(i == 10) NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PLAYER_FIRESHOOT);
+					}
+					
+					if(hit)
+					{
+						for each(int curEnemy in ref GetIntersectionRegistedEnemyID())
+						{
+							float enmDist = GetObjectDistance(objFire, curEnemy);
+							
+							if(enmDist <= 90)
+							{
+								int rateDmg = ObjEnemy_GetInfo(curEnemy, INFO_DAMAGE_RATE_SHOT);
+								int curEnemyLife = ObjEnemy_GetInfo(curEnemy, INFO_LIFE);
+								ObjEnemy_SetLife(curEnemy, max(curEnemyLife - (DAMAGE * (rateDmg / 100)), 0));
+								if(rateDmg > 0) AddScore(max(1, ((1800 - enmDist * 3.5) / 100 )) * (DAMAGE * 20000));
+							}
+						}
+						
+						NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_PHASE);
+						
+						if(_prtSht)
+						{
+							loop(100)
+							{
+								_RenderFireExplosionParticle(baseX, baseY);
+								_RenderFireExplosionParticle(baseX, baseY);
+							}
+						}
+						
+						launch = false;
+						
+						_RenderExplosion(objExpl, baseX, baseY);
+						
+						float iMax = 20;
+						for(int i = 0; i <= iMax; i++)
+						{
+							_charge = Interpolate_Smooth(CHARGE_MAX, 0, i / iMax);
+							
+							_RenderFire(baseX, baseY, iFrame + MOVE_TIME + i, objFire, CHARGE_MAX, false);
+							
+							yield;
+						}
+					}
+					else
+					{
+						wait(30);
+					
+						launch = false;
+						_charge = 0;
+					}
+					
+					cooldown = -60;
+				}
+			}
+			else
+			{
+				loop(5)
+				{
+					iFrame++;
+					_RenderFire(baseX, baseY, iFrame, objFire, CHARGE_MAX, isRed);
+					yield;
+				}
+				
+				if((GetVirtualKeyState(VK_SHOT) != KEY_PUSH &&  GetVirtualKeyState(VK_SHOT) != KEY_HOLD && GetVirtualKeyState(VK_BOMB) != KEY_PUSH && GetVirtualKeyState(VK_BOMB) != KEY_HOLD)){_charge = 0;}
+				
+				//NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			}
+			
+			isRed = true;
+		}
+		
+		// Render
+        _RenderFire(baseX, baseY, iFrame, objFire, CHARGE_MAX, isRed);
+		
+		cooldown--;
+		
+		yield;
+    }
+}
+
+task _RenderFire(float baseX, float baseY, int iFrame, int objFire, float CHARGE_MAX, bool isRed)
+{
+		async
+        {
+			float plX = baseX, plY = baseY;
+			 
+            float scaleX = 1 + 0.125 * cos(iFrame * M_PI);
+            float scaleY = 1.25 + 0.125 * sin(iFrame * M_PI);
+			
+            for(float i = 1, j = 0; i > 0; i -= 1 / 30, j += 1 / 5)
+			{
+                float lerp = i * j;
+                ObjRender_SetAlpha(objFire, 125 * lerp);
+                ObjRender_SetScaleXYZ(objFire, scaleX * lerp, scaleY * lerp, 0);
+                ObjRender_SetPosition(objFire, plX, plY, 0);
+                ObjSpriteList2D_AddVertex(objFire);
+				
+				yield;
+            }
+        }
+		
+		ObjSpriteList2D_SetDestRect(objFire, min(0, -48 * 1 * (_charge / CHARGE_MAX)), min(0, -60 * 1 * (_charge / CHARGE_MAX)), max(0, 48 * 1 * (_charge / CHARGE_MAX)), max(0, 36 * 1 * (_charge / CHARGE_MAX)));
+		
+		ObjShader_SetFloat(objFire, FLOAT_FRAME, iFrame);
+		ObjShader_SetFloat(objFire, FLOAT_CHARGE, isRed);
+}
+
+task _RenderExplosion(int objExpl_, float baseX_, float baseY_)
+{
+	Obj_SetVisible(objExpl_, true);
+	ObjRender_SetPosition(objExpl_, baseX_, baseY_, ID_INVALID);
+	
+	float iMax = 8;
+	for(int i = 0; i <= iMax; i++)
+	{
+		//ObjRender_SetScaleXYZ(objExpl_, Interpolate_Smooth(0, 1, i / iMax));
+		
+		if(i == 5) _RenderScreenShake(4, 3);
+		
+		async
+        {
+			float plX = baseX_, plY = baseY_;
+			 
+            float scaleX = Interpolate_Smooth(0, 0.65, i / iMax);
+            float scaleY = Interpolate_Smooth(0, 0.65, i / iMax);
+			
+            for(float i = 1, j = 0; i > 0; i -= 1 / 30, j += 1 / 5)
+			{
+                float lerp = i * j;
+                ObjRender_SetAlpha(objExpl_, 125 * lerp);
+                ObjRender_SetScaleXYZ(objExpl_, scaleX * lerp, scaleY * lerp, 0);
+                ObjRender_SetPosition(objExpl_, plX, plY, 0);
+                ObjSpriteList2D_AddVertex(objExpl_);
+				
+				yield;
+            }
+        }
+		
+		ObjShader_SetFloat(objExpl_, FLOAT_FRAME, i);
+		
+		yield;
+	}
+	
+	iMax = 6;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetAlpha(objExpl_, Interpolate_Smooth(255, 0, i / iMax));
+		
+		async
+        {
+			float plX = baseX_, plY = baseY_;
+			 
+            float scaleX = Interpolate_Smooth(0.65, 0, i / iMax);
+            float scaleY = Interpolate_Smooth(0.65, 0, i / iMax);
+			
+            for(float i = 1, j = 0; i > 0; i -= 1 / 30, j += 1 / 5)
+			{
+                float lerp = i * j;
+                ObjRender_SetAlpha(objExpl_, 125 * lerp);
+                ObjRender_SetScaleXYZ(objExpl_, scaleX * lerp, scaleY * lerp, 0);
+                ObjRender_SetPosition(objExpl_, plX, plY, 0);
+                ObjSpriteList2D_AddVertex(objExpl_);
+				
+				yield;
+            }
+        }
+		
+		ObjShader_SetFloat(objExpl_, FLOAT_FRAME, i + 6);
+		
+		yield;
+	}
+	
+	wait(30);
+	
+	ObjRender_SetScaleXYZ(objExpl_, 0);
+	ObjRender_SetAlpha(objExpl_, 255);
+	Obj_SetVisible(objExpl_, false);
+}
+
+task _RenderScreenShake(int time_, int intn_)
+{
+	loop(time_)
+	{
+		Set2DCameraFocusX(CENTER_X + prand(-100 * sin(intn_), 100 * sin(intn_)));
+		Set2DCameraFocusY(CENTER_Y + prand(-100 * sin(intn_), 100 * sin(intn_)));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Set2DCameraFocusX(CENTER_X);
+    Set2DCameraFocusY(CENTER_Y);
+}
+
+task _RenderFireExplosionParticle(float posX_, float posY_)
+{
+	float rad = prand(150, 200);
+	
+	float initX = posX_;
+	float initY = posY_;
+	
+	float destX = posX_ + (rad * cos(prand(0, 360)));
+	float destY = posY_ + (rad * sin(prand(0, 360)));
+	
+	float angX = prand(0, 180);
+	float angY = prand(0, 180);
+	float angZ = prand(0, 180);
+	
+	float scaleOrg = 0.15 / RES;
+	float scaleCur = scaleOrg;
+	
+	float initAlpha = 0;
+	float curAlpha  = initAlpha;
+	
+	int color = [COLOR_AQUA, COLOR_AZURE, COLOR_BLUE][prand_int(0, 2)];
+	
+	float iMax = 40;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Color
+		ObjParticleList_SetColor(_objPartGraze, color);
+	
+		// Position
+		posX_ = Interpolate_Accelerate(initX, destX, i / iMax);
+		posY_ = Interpolate_Accelerate(initY, destY, i / iMax);
+		ObjParticleList_SetPosition(_objPartGraze, posX_, posY_, ID_INVALID);
+		
+		// Rotation
+		angX += prand(1, 2);
+		angY -= prand(1, 2);
+		angZ += prand(-3, 3);
+		ObjParticleList_SetAngle(_objPartGraze, angX, angY, angZ);
+		
+		// Size
+		if(i >= 20) scaleCur = Interpolate_Smooth(scaleOrg, 0, (i - 20) / (iMax - 20));
+		ObjParticleList_SetScale(_objPartGraze, scaleCur, scaleCur, ID_INVALID);
+		
+		// Fade
+		curAlpha = Interpolate_Smooth(initAlpha, 255, i / iMax);
+		ObjParticleList_SetAlpha(_objPartGraze, curAlpha);
+		
+		ObjParticleList_AddInstance(_objPartGraze);
+		
+		yield;
+	}
+}
+
+/*task _Fireball()
+{
+	int objFire = ObjPrim_Create(OBJ_SPRITE_LIST_2D);
+	Obj_SetRenderPriorityI(objFire, RP_STG_PLR);
+	ObjPrim_SetTexture(objFire, DIR_IMG_EFF_FIRE_AURA);
+	ObjSpriteList2D_SetSourceRect(objFire, 0, 0, 128, 128);
+	ObjSpriteList2D_SetDestRect(objFire, -48, -60, 48, 36);
+	ObjSpriteList2D_SetAutoClearVertexCount(objFire, true);
+	ObjRender_SetBlendType(objFire, BLEND_ADD_ARGB);
+	ObjShader_SetShaderF(objFire, DIR_SDR_FIRE);
+	ObjShader_SetTexture(objFire, TEXTURE_MASK, DIR_IMG_EFF_NOISE);
+	ObjShader_SetTechnique(objFire, TEC_FIRE);
+	
+	for(int iFrame = 0; ; iFrame++)
+	{	   
+        async
+        {
+			float plX = GetPlayerX(), plY = GetPlayerY();
+			 
+            float scaleX = 1 + 0.125 * cos(iFrame * M_PI);
+            float scaleY = 1.25 + 0.125 * sin(iFrame * M_PI);
+			
+            for(float i = 1, j = 0; i > 0; i -= 1 / 30, j += 1 / 5)
+			{
+                float lerp = i * j;
+                ObjRender_SetAlpha(objFire, 125 * lerp);
+                ObjRender_SetScaleXYZ(objFire, scaleX * lerp, scaleY * lerp, 0);
+                ObjRender_SetPosition(objFire, plX, plY, 0);
+                ObjSpriteList2D_AddVertex(objFire);
+				
+                yield;
+            }
+        }
+		
+		ObjShader_SetFloat(objFire, FLOAT_FRAME, iFrame);
+		
+		yield;
+    }
+}*/

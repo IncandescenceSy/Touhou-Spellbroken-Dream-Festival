@@ -1,0 +1,281 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Koishi 3rd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Koishi 3rd"]
+#Text["Koishi 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DGREEN;
+
+// Bullets
+int[] _shots = [];
+
+	
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 61);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KOISHI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	ObjMove_SetPosition(_objBoss, CENTER_X, -100);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 396, 620, 192, 111, 67, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+	_Invincin();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(31000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Invincin()
+{
+	wait(120);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 0, 0);
+	
+	wait(120);
+	
+	ObjEnemy_SetDamageRate(_objBoss, 100, 0);
+}
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	// Opening rectangular wave
+	for(int i = -20; i <= FRAME_WIDTH + 20; i += (FRAME_WIDTH + 40) / 5)
+	{
+		for(int j = -20; j <= FRAME_HEIGHT + 20; j += (FRAME_WIDTH + 40) / 5)
+		{
+			_CreateStar(i, j);
+		}
+	}
+	RoseExplode();
+
+	loop
+	{
+		// Ring wave
+		wait(20);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		int iMax = 5;
+		for(int i = 0; i < iMax; i++)
+		{
+			int way = 20 + (i * 4);
+			float spd = 1.5 + i;
+			for(int j = 0; j < way; j++) _shots ~= [CreateShot_Enemy(_enmX, _enmY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25)];
+		}
+		RoseExplode();
+	
+		// Curvy wave
+		wait(20);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		iMax = 5;
+		for(int i = 0; i < iMax; i += 2)
+		{
+			int way = 13 + (i * 3);
+			float spd = 1.4 + i;
+			for(int j = 0; j < way; j++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25);
+				ObjMove_SetAngularVelocity(objShot, 0.15 * i);
+				_shots ~= [objShot];
+			}
+		}
+		for(int i = 1; i < iMax; i += 2)
+		{
+			int way = 13 + (i * 3);
+			float spd = 1.4 + i;
+			for(int j = 0; j < way; j++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25);
+				ObjMove_SetAngularVelocity(objShot, -0.15 * i);
+				_shots ~= [objShot];
+			}
+		}
+		RoseExplode();
+		
+		// Crisscrossy wave
+		wait(20);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		iMax = 5;
+		for(int i = 0; i < iMax; i += 2)
+		{
+			int way = 18 + (i * 2);
+			float spd = 1.2 + (i * 0.85);
+			for(int j = 0; j < way; j++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25);
+				ObjMove_SetAngularVelocity(objShot, 0.15 * i);
+				_shots ~= [objShot];
+				objShot = CreateShot_Enemy(_enmX, _enmY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25);
+				ObjMove_SetAngularVelocity(objShot, -0.15 * i);
+				_shots ~= [objShot];
+			}
+		}
+		RoseExplode();
+		
+		// Radial ring wave
+		wait(20);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		iMax = 4;
+		for(int i = 0; i < iMax; i++)
+		{
+			float ang = i * (360 / iMax);
+			int posX = _enmX + cos(ang) * 80;
+			int posY = _enmY + sin(ang) * 80;
+			
+			int way = 18;
+			float spd = 4;
+			
+			for(int j = 0; j < way; j++) _shots ~= [CreateShot_Enemy(posX, posY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25)];
+			
+			ang += 45;
+			
+			posX = _enmX + cos(ang) * 160;
+			posY = _enmY + sin(ang) * 160;
+			
+			spd = 3;
+			
+			for(int j = 0; j < way; j++) _shots ~= [CreateShot_Enemy(posX, posY, spd, j * (360 / way) + (i * (360 / 4)), -(spd / 145), 0, SHOT_BALL_RED, 25)];
+		}
+		RoseExplode();
+	}
+}
+
+task _CreateStar(float destX_, float destY_)
+{
+	int objStar = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_BALL_RED, 30);
+	
+	ObjMove_SetDestAtFrame(objStar, destX_, destY_, 145, LERP_DECELERATE);
+	
+	_shots ~= [objStar];
+	
+	/*loop
+	{
+		ObjMove_SetPosition(objStar, Interpolate_Smooth(ObjMove_GetX(objStar), _enmX, 0.015), Interpolate_Smooth(ObjMove_GetY(objStar), _enmY, 0.015));
+		
+		yield;
+	}*/
+}
+
+task _CreateRose(float posX_, float posY_)
+{
+	int objRose = CreateShot_Enemy(posX_, posY_, 0, 0, 0, 0, SHOT_ROSE, 35);
+	
+	wait(50);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+			{	
+		float scale = Interpolate_Smooth(1, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objRose, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objRose, scale, scale);
+				
+		yield;
+	}
+	
+	Obj_Delete(objRose);
+}
+
+function<void> RoseExplode()
+{
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+	
+	wait(80);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	for each(int iShots in ref _shots) _CreateRose(ObjMove_GetX(iShots), ObjMove_GetY(iShots));
+	
+	wait(70);
+	
+	for each(int iShots in ref _shots)
+	{
+		ObjMove_SetDestAtFrame(iShots, _enmX, _enmY, 60, LERP_SMOOTH);
+		ObjShot_SetDeleteFrame(iShots, 60);
+	}
+	
+	_shots = [];
+}

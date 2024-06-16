@@ -1,0 +1,996 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Patchouli //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Patchouli"]
+#Text["Patchouli"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DPURPLE;
+
+// Element types
+const int _TYPE_FIRE      = 0;
+const int _TYPE_ICE       = 1;
+const int _TYPE_LIGHTNING = 2;
+const int _TYPE_NONE      = 3;
+
+// Phases
+const int _PHASE_FIRE      = 0;
+const int _PHASE_ICE       = 1;
+const int _PHASE_LIGHTNING = 2;
+const int _PHASE_NONE      = 3;
+int _phase = _PHASE_NONE;
+
+bool _sdrDist = GetAreaCommonData(AREA_SETTINGS, SDR_DIST, 1);
+bool _bgSpell = GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1);
+
+// Is there a hitbox
+bool _hitbox = false;
+
+// Screen slurp shader
+int _objSlurp = CreateSprite2D_Dest
+(
+	RT6, RP_MAX - 1, BLEND_ALPHA,
+	0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+	0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+);
+ObjShader_SetShaderF(_objSlurp, DIR_SDR_SLURP);
+ObjShader_SetTechnique(_objSlurp, TEC_SLURP);
+ObjShader_SetFloat(_objSlurp, FLOAT_INTN, 0);
+Obj_SetVisible(_objSlurp, false);
+ 
+// Are miscellaneous shaders enabled
+bool _sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 67);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_PATCHOULI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_BG_BACK_FIRE, DIR_IMG_BG_BACK_ICE, DIR_IMG_BG_BACK_LIGHTNING, DIR_IMG_BG_BACK_CRYSTAL]);
+	
+	//NotifyEvent(_ID_SYSTEM, EV_SET_LIFEBAR_ALPHA, 0);
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 403, 600, 174, 132, 70, _colorA, _colorB, CENTER_X, CENTER_Y - 60, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+	_Hitbox();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(60000);
+		case(EV_REQUEST_TIMER) SetScriptResult(180);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	_hitbox = true;
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	// Fire
+	
+	int objFire = CreateCrystal(_TYPE_FIRE, _enmX, _enmY, _enmX, _enmY - 100, 30, RP_STG_ENM + 2);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objFire), ObjRender_GetY(objFire), 1, COLOR_RED, COLOR_RED);
+	
+	wait(65);
+	
+	CrystalShot(_TYPE_FIRE, objFire);
+	//_CrystalLaser(objFire, [SHOT_FIREBALL_ORANGE, SHOT_BUBBLE_RED, SHOT_LARGE_RED, SHOT_BALL_RED, SHOT_DIAMOND_RED, SHOT_LARGE_DIAMOND_RED], COLOR_RED, 180, 130);
+	
+	ObjRender_SetDestAtFrame(objFire, CENTER_X, CENTER_Y, 30);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objFire), ObjRender_GetY(objFire), 1, COLOR_RED, COLOR_RED);
+	
+	wait(65);
+	
+	_hitbox = false;
+	
+	ChangePhase(_PHASE_FIRE, _TYPE_FIRE);
+	
+	while(GetObjectDistance(_objPlayer, objFire) > 40) yield;
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+	
+	Obj_Delete(objFire);
+	
+	ChangePhase(_PHASE_NONE, _TYPE_NONE);
+	
+	// Ice 
+	
+	_hitbox = true;
+	
+	int objIce = CreateCrystal(_TYPE_ICE, _enmX, _enmY, _enmX, _enmY - 100, 30, RP_STG_ENM + 2);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objIce), ObjRender_GetY(objFire), 1, COLOR_BLUE, COLOR_BLUE);
+	
+	wait(65);
+	
+	CrystalShot(_TYPE_ICE, objIce);
+	//_CrystalLaser(objIce, [SHOT_ICE_AQUA, SHOT_BUBBLE_BLUE, SHOT_LARGE_BLUE, SHOT_BALL_BLUE, SHOT_DIAMOND_BLUE, SHOT_LARGE_DIAMOND_BLUE], COLOR_BLUE, 180, 130);
+
+	ObjRender_SetDestAtFrame(objIce, CENTER_X, CENTER_Y, 30);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objIce), ObjRender_GetY(objIce), 1, COLOR_BLUE, COLOR_BLUE);
+	
+	wait(65);
+	
+	_hitbox = false;
+	
+	ChangePhase(_PHASE_ICE, _TYPE_NONE);
+	
+	while(GetObjectDistance(_objPlayer, objIce) > 40) yield;
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+	
+	Obj_Delete(objIce);
+	
+	ChangePhase(_PHASE_NONE, _TYPE_NONE);
+	
+	// Lightning
+	
+	_hitbox = true;
+	
+	int objLight = CreateCrystal(_TYPE_LIGHTNING, _enmX, _enmY, _enmX, _enmY - 100, 30, RP_STG_ENM + 2);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objLight), ObjRender_GetY(objLight), 1, COLOR_YELLOW, COLOR_YELLOW);
+	
+	wait(65);
+	
+	CrystalShot(_TYPE_LIGHTNING, objLight);
+	//_CrystalLaser(objLight, [SHOT_ORB_YELLOW, SHOT_BUBBLE_YELLOW, SHOT_LARGE_YELLOW, SHOT_BALL_YELLOW, SHOT_DIAMOND_YELLOW, SHOT_LARGE_DIAMOND_YELLOW], COLOR_YELLOW, 180, 130);
+	
+	ObjRender_SetDestAtFrame(objLight, CENTER_X, CENTER_Y, 30);
+	
+	wait(30);
+	
+	_RenderCharge(ObjRender_GetX(objLight), ObjRender_GetY(objLight), 1, COLOR_YELLOW, COLOR_YELLOW);
+	
+	wait(65);
+	
+	_hitbox = false;
+	
+	ChangePhase(_PHASE_LIGHTNING, _TYPE_NONE);
+	
+	while(GetObjectDistance(_objPlayer, objLight) > 40) yield;
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_FREEZE);
+	
+	Obj_Delete(objLight);
+	
+	ChangePhase(_PHASE_NONE, _TYPE_NONE);
+	
+	// Final phase
+	
+	_hitbox = true;
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	objFire = CreateCrystal(_TYPE_FIRE, _enmX, _enmY, _enmX - 120, _enmY - 30, 30, RP_STG_ENM + 2);
+	objIce = CreateCrystal(_TYPE_ICE, _enmX, _enmY, _enmX, _enmY - 120, 30, RP_STG_ENM + 2);
+	objLight = CreateCrystal(_TYPE_LIGHTNING, _enmX, _enmY, _enmX + 120, _enmY - 30, 30, RP_STG_ENM + 2);
+	
+	wait(30);
+	
+	loop
+	{
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		_RenderCharge(ObjRender_GetX(objFire), ObjRender_GetY(objFire), 1, COLOR_RED, COLOR_RED);
+		_RenderCharge(ObjRender_GetX(objIce), ObjRender_GetY(objIce), 1, COLOR_BLUE, COLOR_BLUE);
+		_RenderCharge(ObjRender_GetX(objLight), ObjRender_GetY(objLight), 1, COLOR_YELLOW, COLOR_YELLOW);
+	
+		wait(65);
+		
+		_CrystalLaser(objFire, [SHOT_FIREBALL_ORANGE, SHOT_BUBBLE_RED, SHOT_LARGE_RED, SHOT_BALL_RED, SHOT_DIAMOND_RED, SHOT_LARGE_DIAMOND_RED], COLOR_RED, 120, 260);
+		_CrystalLaser(objIce, [SHOT_ICE_AQUA, SHOT_BUBBLE_BLUE, SHOT_LARGE_BLUE, SHOT_BALL_BLUE, SHOT_DIAMOND_BLUE, SHOT_LARGE_DIAMOND_BLUE], COLOR_BLUE, 120, 260);
+		_CrystalLaser(objLight, [SHOT_ORB_YELLOW, SHOT_BUBBLE_YELLOW, SHOT_LARGE_YELLOW, SHOT_BALL_YELLOW, SHOT_DIAMOND_YELLOW, SHOT_LARGE_DIAMOND_YELLOW], COLOR_YELLOW, 120, 260);
+		
+		wait(120);
+		
+		_CrystalShotA(objFire, SHOT_FIREBALL_RED, COLOR_RED, 240);
+		_CrystalShotA(objIce, SHOT_ICE_BLUE, COLOR_BLUE, 240);
+		_CrystalShotA(objLight, SHOT_LIGHTNING, COLOR_YELLOW, 240);
+		
+		wait(260);
+	}
+}
+
+task _Hitbox()
+{
+	const int RADIUS_HITBOX = 32;
+	
+	loop
+	{
+		if(_hitbox)
+		{
+			ObjEnemy_SetIntersectionCircleToShot(_objBoss, ObjMove_GetX(_objBoss), ObjMove_GetY(_objBoss), RADIUS_HITBOX);
+			ObjEnemy_SetIntersectionCircleToPlayer(_objBoss, ObjMove_GetX(_objBoss), ObjMove_GetY(_objBoss), RADIUS_HITBOX / 2);
+		}
+			
+		yield;
+	}
+}
+
+function<void> ChangePhase(int phase_, int type_)
+{
+	ObjMove_SetProcessMovement(_objPlayer, false);
+	
+	SetPlayerInvincibilityFrame(60);
+	
+	_phase = phase_;
+	
+	int objDark;
+	//int objCrystal;
+	
+	if(_sdrMisc)
+	{
+		//if(type_ != _TYPE_NONE) objCrystal = CreateCrystal(type_, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 0, RP_MAX);
+		
+		Obj_SetVisible(_objSlurp, true);
+		
+		float iMax = 30;
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjShader_SetFloat(_objSlurp, FLOAT_INTN, Interpolate_Smooth(0, 600, i / iMax));
+			
+			SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME + 4);
+			RenderToTextureA1(RT6, RP_UI_VIS, RP_UI_FRAME + 4, true);
+			
+			yield;
+		}
+	}
+	else
+	{
+		objDark = CreateSprite2D_NoTexture_Dest_RGB
+		(
+			RP_MAX, BLEND_ALPHA,
+			0, 0, 1, 1,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			COLOR_BLACK
+		);
+		
+		_FadeIn(objDark, 30);
+		
+		wait(30);
+	}
+	
+	if(phase_ != _PHASE_NONE)
+	{
+		_RenderCrystalBackground(phase_);
+		_CreateMaze(phase_);
+		ObjMove_SetPosition(_objBoss, INT_MIN, INT_MIN);
+	}
+	else
+	{
+		ObjMove_SetPosition(_objBoss, CENTER_X, CENTER_Y - 60);
+	}
+	
+	int off = [32, 48, 16, 32][phase_];
+	ObjMove_SetPosition(_objPlayer, CENTER_X, FRAME_HEIGHT - off);
+	
+	if(_sdrMisc)
+	{
+		float iMax = 30;
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjShader_SetFloat(_objSlurp, FLOAT_INTN, Interpolate_Smooth(600, 0, i / iMax));
+			
+			SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME + 4);
+			RenderToTextureA1(RT6, RP_UI_VIS, RP_UI_FRAME + 4, true);
+			
+			yield;
+		}
+		
+		ClearInvalidRenderPriority();
+		SetInvalidRenderPriorityA1(RP_MIN, RP_UI_TOAST);
+		
+		//if(type_ != _TYPE_NONE) Obj_Delete(objCrystal);
+		
+		Obj_SetVisible(_objSlurp, false);
+	}
+	else
+	{
+		_FadeOut(objDark, 30);
+		
+		wait(30);
+		
+		Obj_Delete(objDark);
+	}
+	
+	ObjMove_SetProcessMovement(_objPlayer, true);
+	
+	if(phase_ != _PHASE_NONE)
+	{
+		_RenderGet();
+	}
+}
+
+function<void> CrystalShot(int type_, int obj_)
+{
+	float enmX = ObjRender_GetX(obj_);
+	float enmY = ObjRender_GetY(obj_);
+			
+	alternative(type_)
+		case(_TYPE_FIRE)
+		{
+			// 210 frames
+			//loop(5)
+			{
+				float off = rand(0, 360);
+				int way = 8;
+				int way2 = 10;
+				int stack = 7;
+					for(int j = 0; j < stack * 2; j += 2)
+					{
+						for(int k = 0; k < way2; k++)
+						{
+							for(int i = 0; i < way; i++)
+							{
+								ObjMove_AddPatternA2(CreateShot_Enemy(enmX, enmY, 1, i * (360 / way), 0.02 + (0.02 * j), 1 + (1 * j), SHOT_FIREBALL_RED, 15), 30, NO_CHANGE, off + (k * 360 / way2) + (j * 360 / stack), 0.035 + (0.02 * j), 3.5, 0);
+							}
+							
+							NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+				
+							wait(3);
+						}
+					}
+				
+				//NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+				
+				//wait(30);
+			}
+			
+			wait(45);
+		}
+		case(_TYPE_ICE)
+		{
+			// 210 frames
+			int objShot = ObjPatternShot_Create();
+			ObjPatternShot_SetPatternType(objShot, PATTERN_POLYGON);
+			ObjPatternShot_SetShotType(objShot, OBJ_SHOT);
+			ObjPatternShot_SetParentObject(objShot, obj_);
+			ObjPatternShot_SetShotCount(objShot, 5, 8);
+			ObjPatternShot_SetSpeed(objShot, 3, 1);
+			ObjPatternShot_SetAngle(objShot, 30, 1);
+			ObjPatternShot_SetShootRadius(objShot, 0);
+			ObjPatternShot_SetDelay(objShot, 0);
+			ObjPatternShot_SetBasePoint(objShot, enmX, enmY);
+			
+			int[] shots = [ID_INVALID, SHOT_ICE_BLUE, SHOT_ICE_AQUA];
+			
+			int iMax = 15;
+			for(int i = 1; i < iMax; i++)
+			{
+				for(int k = -1; k <= 1; k += 2)
+				{
+					ObjPatternShot_SetAngle(objShot, 0 + ((i * 3) * k), 1);
+					ObjPatternShot_SetGraphic(objShot, shots[k]);
+					ObjPatternShot_Fire(objShot);
+				}
+				
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				
+				wait(15);
+			}
+			
+			Obj_Delete(objShot);
+			
+			wait(60);
+		}
+		case(_TYPE_LIGHTNING)
+		{
+			// 240 frames
+			int objShot = ObjPatternShot_Create();
+			ObjPatternShot_SetPatternType(objShot, PATTERN_POLYGON);
+			ObjPatternShot_SetShotType(objShot, OBJ_SHOT);
+			ObjPatternShot_SetParentObject(objShot, obj_);
+			ObjPatternShot_SetShotCount(objShot, 4, 17);
+			ObjPatternShot_SetSpeed(objShot, 4, 1);
+			ObjPatternShot_SetShootRadius(objShot, 0);
+			ObjPatternShot_SetDelay(objShot, 0);
+			ObjPatternShot_SetBasePoint(objShot, enmX, enmY);
+			ObjPatternShot_SetGraphic(objShot, SHOT_DOT_INVERT_YELLOW);
+			
+			for(int l = 0; l <= 1; l++)
+			{
+				int way = 12;
+					loop(2)
+					{
+						for(int k = -1; k <= 1; k += 2)
+						{
+							float off = rand(0, 360);
+							for(int j = 0; j < way; j++)
+							{
+								CreateLaser_Curvy(enmX, enmY, 0, j * (360 / way) + off, 0.05, 3, SHOT_LIGHTNING, 35, 10, 0.2 * k, 0);
+							}
+							
+							NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+						
+							wait(15);
+							
+							ObjPatternShot_SetAngle(objShot, rand(0, 360), 1);
+							ObjPatternShot_Fire(objShot);
+							
+							NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+						
+							wait(15);
+						}
+					}
+			}
+			
+			Obj_Delete(objShot);
+			
+			wait(60);
+		}
+}
+
+task _Rotate(int obj_, float ang_, int dir_)
+{
+	for(int i = 0; Obj_IsExists(obj_); i++)
+	{
+		ObjStLaser_SetAngle(obj_, ang_ + (i / 2) * dir_);
+		
+		yield;
+	}
+}
+
+task _CrystalLaser(int obj_, int[] shots_, int color_, int time_, int timeA_)
+{
+	int[] colorRGB = ColorHexToARGB(color_, COLOR_PERMUTE_RGB);
+	colorRGB = [Interpolate_Linear(colorRGB[0], 255, 0.5), Interpolate_Linear(colorRGB[1], 255, 0.5), Interpolate_Linear(colorRGB[2], 255, 0.5)];
+	
+	float enmX = ObjRender_GetX(obj_);
+	float enmY = ObjRender_GetY(obj_);
+	
+	float ang = GetAngleToPlayer(obj_);
+	
+	int way = 20;
+	int rad = 50;
+	
+	int objLine = CreatePrimObject(RP_FX_MED_H, PRIMITIVE_LINELIST, way * 2);
+	ObjRender_SetColor(objLine, colorRGB[0], colorRGB[1], colorRGB[2]);
+	
+	
+	for(int i = 0; i < way; i++)
+	{
+		async
+		{
+			float ang2 = i * (360 / way);
+			
+			int curVert = i * 2;
+			
+			int len = 0;
+			
+			for(int j = 0; j <= 180; j++)
+			{
+				if(j <= 20) len = Interpolate_Smooth(0, 512, j / 20);
+				
+				float posX = enmX + (rad * cos(ang2 + j));
+				float posY = enmY + ((rad * sin(ang2 + j)) * 0.35);
+				
+				float[] pos = Rotate2D(posX, posY, ang + 90, enmX, enmY);
+				
+				ObjPrim_SetVertexPosition(objLine, curVert, pos[0], pos[1], ID_INVALID);
+				ObjPrim_SetVertexPosition(objLine, curVert + 1, pos[0] + (len * cos(ang)), pos[1] + (len * sin(ang)), ID_INVALID);
+				
+				yield;
+			}
+		}
+	}
+	
+	wait(time_);
+	
+	for(int i = 0; i < way; i++)
+	{
+		async
+		{
+			int objLaser = CreateLaser_Straight(100, 100, 90, 512, 10, timeA_, SHOT_LIGHTNING, 1, color_);
+			ObjRender_SetBlendType(objLaser, BLEND_ADD_ARGB);
+			
+			float ang2 = i * (360 / way);
+			
+			for(int j = 180; j <= 180 + timeA_; j++)
+			{	
+				float posX = enmX + (rad * cos(ang2 + j));
+				float posY = enmY + ((rad * sin(ang2 + j)) * 0.35);
+				
+				float[] pos = Rotate2D(posX, posY, ang + 90, enmX, enmY);
+				
+				ObjMove_SetPosition(objLaser, pos[0], pos[1]);
+				ObjStLaser_SetAngle(objLaser, ang);
+				
+				yield;
+			}
+		}
+	}
+	
+	Obj_Delete(objLine);
+	
+	wait(5);
+	
+	_RenderScreenShake(5, 5);
+	
+	wait(5);
+	
+	_RenderScreenShake(120, 1);
+	/*_FadeOut(objLine, 15);
+	
+	for(int i = 0; i < timeA_; i++)
+	{
+		if(i == 5) _RenderScreenShake(5, 5);
+		else if(i == 10) _RenderScreenShake(120, 1);
+		else if(i == 15) Obj_Delete(objLine);
+		
+		loop(10)
+		{
+			float ang2 = rand_int(0, 40) * (360 / 40);
+			
+			float posX = enmX + (rad * cos(ang2));
+			float posY = enmY + ((rad * sin(ang2)) * 0.35);
+			
+			int objShot = CreateShot_Enemy(posX, posY, 2, ang, 0.5, 10, shots_[rand_int(0, 5)], 3);
+			ObjRender_SetBlendType(objShot, BLEND_MULTIPLY);
+			ObjRender_SetColor(objShot, color_);
+			Obj_SetRenderPriorityI(objShot, RP_STG_SHOT_N);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		yield;
+	}*/
+}
+
+task _CrystalShotA(int obj_, int shot_, int color_, float time_)
+{
+	int[] colorRGB = ColorHexToARGB(color_, COLOR_PERMUTE_RGB);
+	
+	int way = 15;
+	
+	for(int i = 0; i < time_; i += 25)
+	{
+		float enmX = ObjRender_GetX(obj_) + rand(-30, 30);
+		float enmY = ObjRender_GetY(obj_) + rand(-30, 30);
+
+		float lerp = (i / time_) / 2;
+		
+		int[] col = [Interpolate_Linear(255, colorRGB[0], lerp), Interpolate_Linear(255, colorRGB[1], lerp), Interpolate_Linear(255, colorRGB[2], lerp)];
+		
+		float off = rand(0, 360);
+		
+		for(int j = 0; j < way; j++)
+		{
+			if(shot_ != SHOT_LIGHTNING) ObjRender_SetColor(CreateShot_Enemy(enmX, enmY, 0, off + (j * (360 / way)), 0.015, 2.5, shot_, 5), col[0], col[1], col[2]);
+			else ObjRender_SetColor(CreateLaser_Loose(enmX, enmY, 0, off + (j * (360 / way)), 0.015, 2.5, shot_, 60, 14, 0), col[0], col[1], col[2]);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(25);
+	}
+}
+
+// Creates a crystal
+function<int> CreateCrystal(int type_, float initX_, float initY_, float destX_, float destY_, float moveTime_, int rp_)
+{
+	int objCrystal = ObjShader_Create();
+	ObjRender_SetPosition(objCrystal, initX_, initY_, ID_INVALID);
+	ObjRender_SetDestAtFrame(objCrystal, destX_, destY_, moveTime_);
+	_RenderCrystalSprite(objCrystal, type_, rp_);
+	
+	return objCrystal;
+}
+
+task _RenderCrystalSprite(int objBoss_, int type_, int rp_)
+{
+	bool prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+	
+	int colorA_ = [COLOR_RED, COLOR_BLUE, COLOR_YELLOW][type_];
+	int[] colorA = ColorHexToARGB(colorA_, COLOR_PERMUTE_RGB);
+	
+	const int SPRITE_SIZE = 128;
+	
+	int rectIdle = 0;
+	int rectMove = 0;
+	int bossAura;
+	
+	int bossLife = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+	
+	// Main sprite
+	int bossSprite = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_ELEMENT_CRYSTAL, rp_, BLEND_ALPHA,
+		40 * type_, 0, 40 + 40 * type_, 71,
+		1, 1,
+		ObjMove_GetX(objBoss_), ObjMove_GetY(objBoss_)
+	);
+	
+	for(int i = 0; Obj_IsExists(objBoss_); i++)
+	{	
+		if(i <= 30)
+		{
+			ObjRender_SetScaleXYZ(bossSprite, Interpolate_Smooth(0, 1, i / 30));
+		}
+		
+		// The boss flashes if it's being shot
+		int curLife = ObjEnemy_GetInfo(objBoss_, INFO_LIFE);
+		if(curLife < bossLife)
+		{
+			ObjRender_SetColor(bossSprite, Interpolate_Smooth(255, colorA[0], absolute(sin(i * 15))), Interpolate_Smooth(255, colorA[1], absolute(sin(i * 15))), Interpolate_Smooth(255, colorA[2], absolute(sin(i * 15))));
+		}
+		else
+		{
+			int[] col = ObjRender_GetColor(bossSprite);
+			ObjRender_SetColor(bossSprite, Interpolate_Smooth(col[0], 255, 0.3), Interpolate_Smooth(col[1], 255, 0.3), Interpolate_Smooth(col[2], 255, 0.3));
+		}
+		
+		if(i % 30 == 0) bossLife = curLife;
+		
+		// Create a new aura texture every 5 frames
+		if(prtMisc && i >= 30 && i % 5 == 0)
+		{
+			bossAura = CreateSprite2D_Pos
+			(
+				DIR_IMG_EFF_ELEMENT_CRYSTAL, rp_ - 1, BLEND_ADD_ARGB,
+				40 * type_, 0, 40 + 40 * type_, 71,
+				1, 1,
+				ObjRender_GetX(objBoss_), ObjRender_GetY(objBoss_)
+			);
+			ObjRender_SetColor(bossAura, colorA_);
+		}
+		
+		// Attach the sprite and flash to the boss
+		ObjRender_SetPosition(bossSprite, ObjRender_GetX(objBoss_), ObjRender_GetY(objBoss_), ID_INVALID);
+		
+		// Passes the now-set aura off to its animation
+		if(prtMisc && i >= 30 && i % 5 == 0) _AnimateAuraC(bossAura);
+		
+		// Tilt the sprite
+		ObjRender_SetAngleZ(bossSprite, 15 * sin(i));
+		
+		yield;
+	}
+	
+	// Sprite shrinking animation
+	float iMax = 30;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetScaleXYZ(bossSprite, Interpolate_Smooth(1, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(bossSprite);
+}
+
+// Animates the glowing outline of the boss' sprite
+task _AnimateAuraC(int bossAura_)
+{
+	float initY = ObjRender_GetY(bossAura_);
+	
+	float iMax = 50;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetScaleXYZ(bossAura_, Interpolate_Smooth(0.75, 0, i / iMax));
+		ObjRender_SetY(bossAura_, Interpolate_Smooth(initY - 10, initY - 80, i / iMax));
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(bossAura_);
+}
+
+task _RenderCrystalBackground(int phase_)
+{
+	if(!_bgSpell) return;
+	
+	int rp1 = RP_FX_LOW + 4;
+	
+	int objBack = CreateSprite2D_Dest
+	(
+		DIR_IMG_BG_BACK_CRYSTAL, rp1, BLEND_ALPHA,
+		0, 0, 960, 720,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	ObjRender_SetColor(objBack, [COLOR_RED, COLOR_BLUE, COLOR_YELLOW][phase_]);
+	
+	// Clouds scrolling upwards
+	int objCloud = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+		0, 0, 960, 720,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+					
+	int objBackA = CreateSprite2D_Dest
+	(
+		[DIR_IMG_BG_BACK_FIRE, DIR_IMG_BG_BACK_ICE, DIR_IMG_BG_BACK_LIGHTNING][phase_], rp1, BLEND_ADD_ARGB,
+		0, 0, 960, 720,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		rp1, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	ObjRender_SetAlpha(objDark, 120);
+	
+	for(int i = 0, j = 0; j <= 30; i++)
+	{
+		// Scrolls the graphics
+		ObjSprite2D_SetSourceRect(objBack, i, i, 960 + i, 720 + i);
+		ObjSprite2D_SetSourceRect(objCloud, 0, i, 960, 720 + i);
+		ObjSprite2D_SetSourceRect(objBackA, -i, -i, 960 - i, 720 - i);
+		
+		if(_phase != phase_) j++;
+		
+		yield;
+	}
+	
+	Obj_Delete(objBack);
+	Obj_Delete(objCloud);
+	Obj_Delete(objBackA);
+	Obj_Delete(objDark);
+}
+
+task _RenderGet()
+{	
+	int objText = CreateTextObject
+	(
+		GET, FONT_KOUZANBRUSH, RP_FX_MED_H,
+		CENTER_X, CENTER_Y - (13 * RES),
+		45 * RES, 0, ALIGNMENT_CENTER,
+		BORDER_FULL, 3,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	//ObjText_SetVerticalAlignment(objText, ALIGNMENT_CENTER);
+		
+	int off = 0;
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0, 1, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		//ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(i * 8)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 20; i <= 20 + 80; i++)
+	{	
+		//ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(i * 8)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 20 + 80; i <= (20 + 80) + iMax; i++)
+	{
+		float scale = Interpolate_Smooth(1, 0, (i - (20 + 80)) / iMax);
+		
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		//ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(i * 8)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+
+	Obj_Delete(objText);
+}
+
+task _CreateMaze(int phase_)
+{	
+	int shot = [SHOT_BALL_RED, SHOT_BALL_BLUE, SHOT_BALL_YELLOW][phase_];
+	int shotA = [SHOT_DROP_RED, SHOT_ICE_BLUE, SHOT_STAR_YELLOW][phase_];
+	int shotB = [SHOT_BUBBLE_RED, SHOT_BUBBLE_BLUE, SHOT_BUBBLE_YELLOW][phase_];
+	
+	int way = [9, 13, 9][phase_];
+	int wayA = 100;
+	
+	float[][] arrPoint = [];
+
+	float dRad = [70, 870, 1500][phase_]; // how much the rad increases each iteration (divided by cur radius)
+	float dAng = [400, 6000, 10000][phase_]; // how much the angle increases each iteration (divided by cur radius)
+	float maxRad = 300;
+	float vertCount = [1, 15, 25][phase_];
+	int dir = [1, -1, 1][phase_];
+	for (float r = sqrt(dRad), a = 0; r <= maxRad;) {
+		r += dRad / r;
+		a += dir * (dAng / r);
+		arrPoint ~= [[r * cos(a), r * sin(a)]];
+	}
+
+	for (int i = 0; i < length(arrPoint) - 1; i++) {
+		for (int j = 0; j < vertCount; j++) {
+			float[] xy = Interpolate_Linear(arrPoint[i], arrPoint[i + 1], j / vertCount);
+			int objShot = CreateShot_Enemy(CENTER_X + xy[0], CENTER_Y + xy[1], 0, 0, 0, 0, shot, 0);
+			Obj_GetValueDI(objShot, VAL_DELEFF, false);
+			ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+		}
+	}
+	
+	int[] ring = [];
+	for(int i = 0; i < wayA; i++)
+	{
+		int rad = 300;
+		
+		float posX = CENTER_X + (rad * cos(i * (360 / wayA)));
+		float posY = CENTER_Y + (rad * sin(i * (360 / wayA)));
+		
+		int objShot = CreateShot_Enemy(posX, posY, 0, 0, 0, 0, shotB, 0);
+		Obj_GetValueDI(objShot, VAL_DELEFF, false);
+		ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+		ObjShot_SetAutoDelete(objShot, false);
+		
+		ring ~= [objShot];
+	}
+	
+	int objPattern;
+	
+	if(phase_ == _PHASE_ICE)
+	{
+		objPattern = ObjPatternShot_Create();
+		ObjPatternShot_SetPatternType(objPattern, PATTERN_POLYGON);
+		ObjPatternShot_SetShotType(objPattern, OBJ_SHOT);
+		ObjPatternShot_SetShotCount(objPattern, 3, 3);
+		ObjPatternShot_SetSpeed(objPattern, 0.4, 1);
+		ObjPatternShot_SetAngle(objPattern, 30, 1);
+		ObjPatternShot_SetShootRadius(objPattern, 0);
+		ObjPatternShot_SetDelay(objPattern, 0);
+		ObjPatternShot_SetBasePoint(objPattern, CENTER_X, CENTER_Y);
+		ObjPatternShot_SetGraphic(objPattern, shotA);
+		//ObjPatternShot_AddTransform(objPattern, TRANSFORM_TO_SPEED_ANGLE, 90, 2, NO_CHANGE);
+	}
+	
+	for(int i = 0; _phase == phase_; i++)
+	{
+		if(i <= 1200)
+		{
+			for each(int j, int iShots in ref ring)
+			{
+				int rad = Interpolate_Linear(300, 0, i / 1200);
+			
+				float posX = CENTER_X + (rad * cos(j * (360 / wayA)));
+				float posY = CENTER_Y + (rad * sin(j * (360 / wayA)));
+				
+				ObjMove_SetPosition(iShots, posX, posY);
+			}
+		}
+		
+		if(i % 60 == 0)
+		{
+			float off = i * 0.7;
+			
+			alternative(phase_)
+				case(_PHASE_FIRE)
+				{
+					for(int j = 0; j < way; j++)
+					{
+						float ang = j * (360 / way) + off;
+						CreateShot_Enemy(CENTER_X, CENTER_Y, 0, ang, 0.025, 2.5, shotA, 0);
+					}
+				}
+				
+				case(_PHASE_ICE)
+				{
+					ObjPatternShot_SetAngle(objPattern, off, 1);
+					int[] shots = ObjPatternShot_FireReturn(objPattern);
+					
+					for each(int iShots in ref shots)
+					{
+						float speed = ObjMove_GetSpeed(iShots);
+						
+						ObjMove_SetAcceleration(iShots, speed / 15);
+						ObjMove_SetMaxSpeed(iShots, speed * 4);
+					}
+				}
+				
+				case(_PHASE_LIGHTNING)
+				{
+					for(int j = 0; j < way; j++)
+					{
+						float ang = j * (360 / way) + off;
+						CreateShot_Enemy(CENTER_X, CENTER_Y, rand(0.1, 0.3), ang, 0.025 + rand(0.008, 0.02), 2.5 + rand(1, 2), shotA, 0);
+					}
+				}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}
+		
+		yield;
+	}
+	
+	wait(30);
+	
+	DeleteShotAll(TYPE_ALL, TYPE_IMMEDIATE);
+	
+	if(_phase == _PHASE_ICE) Obj_Delete(objPattern);
+}

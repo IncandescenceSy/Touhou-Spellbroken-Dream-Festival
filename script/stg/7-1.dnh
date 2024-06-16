@@ -1,0 +1,221 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Koishi 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Koishi 1st"]
+#Text["Koishi 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DGREEN;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 55);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_KOISHI);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 396, 620, 192, 111, 67, _colorA, _colorB, CENTER_X, 110, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(22000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);	
+		
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(65);
+	
+	const int[][] SHOTS = 
+	[
+		[SHOT_KNIFE_PURPLE, SHOT_KNIFE_GREEN],
+		[SHOT_DIAMOND_GREEN, SHOT_DIAMOND_PURPLE],
+		[SHOT_KUNAI_PURPLE, SHOT_KUNAI_GREEN]
+	];
+	
+	for(int lp = 0; ; lp++) 
+	{
+		ObjMove_SetDestAtFrame(_objBoss, GetPlayerX(), GetPlayerY(), 70, LERP_DECELERATE);
+		
+		wait(70);
+		
+		// Aimed claws of lines
+		loop(3)
+		{
+			float ang = GetAngleToPlayer(_objBoss);
+			int stack = 6 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 11000);
+			for(int i = 0; i <= stack; i++)
+			{
+				int way = 5 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 11000);
+				for(int j = -way; j <= way; j++)
+				{
+					_FadeShot(CreateShot_Enemy(_enmX, _enmY, 0.5 + (i * 0.35), ang + (j * 7), 0.025 + (i * 0.0085), 3 + (i * 0.75), SHOTS[0][lp % 2], 15));
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(30);
+		}
+		
+		wait(15);	
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		ObjMove_SetDestAtFrame(_objBoss, GetPlayerX(), GetPlayerY(), 70, LERP_DECELERATE);
+		
+		wait(70);
+		
+		// Rings
+		loop(2)
+		{
+			int stack = 5;
+			float off = GetAngleToPlayer(_objBoss);
+			float wvel = 0.2;
+			for(int i = 0; i <= stack; i++)
+			{
+				int way = 40 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 1000);
+				for(int j = 0; j <= way; j++)
+				{
+					int objShot = CreateShot_Enemy(_enmX, _enmY, 0.35 + (i / 6), (j * (360 / way)) + off, 0.04 + (i / 400) , 1.5 + (i / 2.5), SHOTS[1][lp % 2], 20);
+					ObjMove_SetAngularVelocity(objShot, wvel);
+					_FadeShot(objShot);
+				}
+				wvel *= -1;
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(30);	
+		
+			_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+			wait(65);
+			
+			ObjMove_SetDestAtFrame(_objBoss, GetPlayerX(), GetPlayerY(), 70, LERP_DECELERATE);
+		
+			wait(70);
+		}
+		
+		// Spirals of rings
+		int way = 15 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 3500);
+		int way2 = 15 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 3300);
+		for(int i = 0; i <= way; i++)
+		{
+			float rad = i * 10;
+			for(int j = 0; j <= 1; j++)
+			{
+				float ang = (i * (360 / way)) + (j * 180);
+				for(int k = 0; k < way2; k++)
+				{
+					_FadeShotA(CreateShot_Enemy(_enmX + rad * cos(ang), _enmY + rad * sin(ang), 0, k * (360 / way2), 0.04 + (i / 400) , 1.5 + (i / 2.5), SHOTS[2][lp % 2], 20));
+				}
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(10);
+		}
+		
+		wait(30);	
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+	}
+}
+
+task _FadeShot(int objShot_)
+{
+	wait(30);
+	
+	float iMax = 105;
+	for(int i = 0; i <= iMax && Obj_IsExists(objShot_); i++)
+	{
+		ObjRender_SetAlpha(objShot_, Interpolate_Smooth(255, 0, i / iMax));
+		
+		yield;
+	}
+	
+	Obj_SetVisible(objShot_, false);
+}
+
+task _FadeShotA(int objShot_)
+{
+	wait(30);
+	
+	float iMax = 140;
+	for(int i = 0; i <= iMax && Obj_IsExists(objShot_); i++)
+	{
+		ObjRender_SetAlpha(objShot_, Interpolate_Smooth(255, 0, i / iMax));
+		
+		yield;
+	}
+	
+	Obj_SetVisible(objShot_, false);
+}

@@ -1,0 +1,168 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Doremy 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Doremy 1st"]
+#Text["Doremy 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PINK;
+int _colorB = COLOR_DINDIGO;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 20);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_DOREMY);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 389, 640, 178, 107, 60, _colorA, _colorB, CENTER_X, 180, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+	_Lasers();
+	_Aimed();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(28000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	int way = 2;
+	int iMax = 190;
+	
+	loop
+	{
+		for(int i = 0; i <= iMax; i++)
+		{
+			if(i % 40 == 0)
+			{
+				for(int j = -way; j <= way; j++)
+				{
+					CreateShot_Enemy(CENTER_X + (sin(i * 2) * CENTER_X), FRAME_HEIGHT + 20, 0, 250 + (j * 15), 0.0045, 1.15, SHOT_RICE_INVERT_BLUE, 0);
+					CreateShot_Enemy(CENTER_X - (sin(i * 2) * CENTER_X), FRAME_HEIGHT + 20, 0, 290 + (j * 15), 0.0045, 1.15, SHOT_RICE_INVERT_PURPLE, 0);
+				}
+			}
+			
+			yield;
+		}
+	}
+}
+
+task _Lasers()
+{
+	wait(210);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		int div = FRAME_WIDTH / (rand(5, 8));
+		int iMax = FRAME_WIDTH / div;
+	
+		for(int i = 1; i <= iMax; i++)
+		{
+			CreateLaser_Loose(FRAME_WIDTH - (i * div), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_BLUE, 100, 18, 0);
+			CreateLaser_Loose(0 + (i * div), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_PURPLE, 100, 18, 0);
+			
+			wait(25);
+		}
+		
+		for(int i = iMax; i > 0; i--)
+		{
+			CreateLaser_Loose(FRAME_WIDTH - (i * div), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_BLUE, 100, 18, 0);
+			CreateLaser_Loose(0 + (i * div), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_PURPLE, 100, 18, 0);
+			
+			wait(20);
+		}
+	}
+}
+
+task _Aimed()
+{
+	wait(360);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		CreateLaser_Loose(GetPlayerX(), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_BLUE, 80, 14, 0);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		wait(130);
+		
+		CreateLaser_Loose(GetPlayerX(), FRAME_HEIGHT + 20, 1, 270, 0.01, 2.5, SHOT_CURVY_LASER_PURPLE, 80, 14, 0);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		wait(130);
+	}
+}

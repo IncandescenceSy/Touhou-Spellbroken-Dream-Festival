@@ -1,0 +1,2002 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// System Library ///////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains the tasks that the system script uses to render the UI elements, handle game mechanics, and so on
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./lib_create.dnh"
+
+// This library contains various image and primitive object manipulation functions
+#include "./lib_image.dnh"
+
+// This library contains functions that will return various values
+#include "./lib_logic.dnh"
+
+
+/////////////////////// Library Content ///////////////////////
+
+// Starts all of the tasks and sets all of the parameters necessary for basic game function
+task _SysInit()
+{
+	if(IsReplay())
+	{
+		// Information that will need to be remembered by replays
+		LoadCommonDataAreaFromReplayFile(AREA_REPLAY);
+		
+		// You can speed the game up during replays
+		SetSkipModeKey(KEY_LCONTROL);
+	}
+	else
+	{
+		// Information that will need to be remembered by replays
+		SaveCommonDataAreaToReplayFile(AREA_REPLAY);
+		
+		// You can't speed the game up if it's not a replay
+		SetSkipModeKey(KEY_INVALID);
+	}
+	
+	// Various scripts that control various aspects of the game
+	SetPauseScriptPath(DIR_PKG_PAUSE);                 // Pausing the game
+    SetEndSceneScriptPath(DIR_PKG_END);                // The end of the game
+    SetReplaySaveSceneScriptPath(DIR_PKG_REPLAY_SAVE); // Saving a replay
+	StartItemScript(DIR_SYS_ITEM_SCRIPT);              // Items
+	
+	// Prepares the playing field
+	SetStgFrame(FRAME_LEFT, FRAME_TOP, FRAME_RIGHT, FRAME_BOTTOM, RP_STG_MIN, RP_STG_MAX);
+	Set2DCameraFocusX(FRAME_WIDTH / 2);
+	Set2DCameraFocusY(FRAME_HEIGHT / 2);
+	Set2DCameraRatio(RES);
+	yield;
+	SetPlayerClip(6, 6, FRAME_WIDTH - 6, FRAME_HEIGHT - 6);
+	SetShotAutoDeleteClip(32, 32, (32 + FRAME_WIDTH) - (RES * FRAME_WIDTH), (32 + FRAME_HEIGHT) - (RES * FRAME_HEIGHT));
+	
+	// Prepares the player
+	SetPlayerDownStateFrame(0);
+	SetPlayerIntersectionEraseShot(false);
+	SetPlayerItemScope(70);
+	SetPlayerStateEndEnable(false);
+	
+	// Prepares shots
+	SetShotRenderPriorityI(RP_STG_SHOT);
+	
+	// Prepares items
+	SetItemRenderPriorityI(RP_STG_ITEM);
+	SetItemAutoDeleteClip(96, 96, -96, -96);
+	SetDefaultBonusItemEnable(false);
+	
+	// Prepares the 3D camera
+	SetCameraFocusX(0);
+	SetCameraFocusY(0);
+	SetCameraFocusZ(0);
+	SetCameraRadius(250);
+	SetCameraElevationAngle(230);
+	SetCameraAzimuthAngle(86);
+	
+	// Version number text
+	int objVer = CreateTextObject
+	(
+		GAME_VERSION, FONT_KOUZANBRUSH, RP_UI_MISC,
+		0, SCREEN_HEIGHT - (18 * RES), 
+		14 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.34 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objVer, true);
+	ObjText_SetSidePitch(objVer, -3);
+	
+	// Game name text
+	int objGame = CreateTextObject
+	(
+		GAME_NAME, FONT_KOUZANBRUSH, RP_UI_MISC,
+		0, SCREEN_HEIGHT - (33 * RES), 
+		14 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.34 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objGame, true);
+	ObjText_SetSidePitch(objGame, -3);
+	
+	if(IsReplay())
+	{
+		// Replay text
+		int objGame = CreateTextObject
+		(
+			IS_REPLAY, FONT_KOUZANBRUSH, RP_UI_MISC,
+			0, 0, 
+			14 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+			BORDER_FULL, 1.34 * RES,
+			COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objGame, true);
+		ObjText_SetSidePitch(objGame, -4);
+	}
+		
+	// Score and hiscore text
+	CreateSprite2D_Dest
+	(
+		DIR_IMG_SYS_SCORE, RP_UI_MISC, BLEND_ALPHA,
+		0, 0, 600, 36,
+		FRAME_LEFT, 0, FRAME_RIGHT, FRAME_TOP + 6
+	);
+	
+	// Infinite tasks
+	_RenderShadow();     // Adds a shadow to all bullets
+	_RenderFrame();      // Infinitely scrolls a graphic to serve as the frame
+	//_RenderAfterimage(); // DEBUG
+}
+
+/*task _RenderAfterimage()
+{
+	for(int i = 0; ; i++)
+	{
+		RenderToTextureA1(RT11, RP_STG_SHOT, RP_STG_SHOT, false);
+		int objShadow = CreateSprite2D_Dest
+		(
+			RT11, RP_STG_SHADOW, BLEND_ALPHA,
+			FRAME_LEFT, FRAME_TOP, (400 * RES) + FRAME_LEFT, (440 * RES) + FRAME_TOP,
+			0, 0, FRAME_WIDTH, FRAME_HEIGHT
+		);
+		
+		wait(4);
+	}
+	
+	/*
+	for(int i = 0; ; i++)
+	{
+		if(i % 10 == 0)
+		{
+			for each(int iShots in ref GetAllShotID(TYPE_ALL))
+			{
+				ObjShot_SetIntersectionEnable(CreateShotA1(ObjMove_GetX(iShots), ObjMove_GetY(iShots), 0, ObjMove_GetAngle(iShots), ObjShot_GetImageID(iShots), 0), false);
+			}
+		}
+		
+		yield;
+	}
+}*/
+
+// Adds a shadow to all bullets
+task _RenderShadow()
+{
+	if(!GetAreaCommonData(AREA_SETTINGS, EFF_SDW, 1)) return;
+	
+	// The texture that will render the shadows
+	int objShadow = CreateSprite2D_Dest
+	(
+		RT5, RP_STG_SHADOW, BLEND_ALPHA,
+		FRAME_LEFT, FRAME_TOP, (400 * RES) + FRAME_LEFT, (440 * RES) + FRAME_TOP,
+		0, 0, FRAME_WIDTH + 8, FRAME_HEIGHT + 8
+	);
+	ObjRender_SetColor(objShadow, COLOR_BLACK);
+	ObjRender_SetAlpha(objShadow, 220);
+	
+	loop
+	{
+		RenderToTextureA1(RT5, RP_STG_SHOT, RP_STG_SHOT, true);
+		yield;
+	}
+}
+
+// Infinitely scrolls a graphic laid over the frame
+task _RenderFrame()
+{
+	int frameAlp = GetAreaCommonData(AREA_SETTINGS, FRAME, 40);
+	
+	if(frameAlp > 0)
+	{
+		// Frame graphic
+		int scrollBG = CreateSprite2D_Dest
+		(
+			DIR_IMG_SYS_FRAME, RP_UI_FRAME, BLEND_ALPHA,
+			0, 0, 1600, 1200,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		
+		// Cuts the center out of the frame graphic and makes it transparent
+		int objShader = ObjShader_Create();
+		ObjShader_SetShaderF(objShader, DIR_SDR_MASK_ALPHA);
+		ObjShader_SetTechnique(objShader, TEC_MASK_MULT);
+		ObjShader_SetTexture(objShader, TEXTURE_MASK, DIR_SDR_MASK_FRAME);
+		ObjShader_SetFloat(objShader, FLOAT_SCREEN_WIDTH, SCREEN_WIDTH);
+		ObjShader_SetFloat(objShader, FLOAT_SCREEN_HEIGHT, SCREEN_HEIGHT);
+		ObjShader_SetFloat(objShader, FLOAT_OVERRIDE_ALPHA, 1);
+		ObjShader_SetFloat(objShader, FLOAT_ALPHA_MULT, frameAlp / 100);
+		ObjShader_SetVector(objShader, FLOAT_FILTER, 1, 1, 1, 1);
+		SetShaderI(objShader, RP_UI_FRAME, RP_UI_FRAME + 1);
+
+		// Counter variable
+		float frame = 0;
+		
+		// Spawning animation variables
+		int orgDistX = 200;
+		int orgDistY = 220;
+		int curDistX = orgDistX;
+		int curDistY = orgDistY;
+		
+		float iMax = 60;
+		
+		// Spawning animation
+		for(int i = 0; i <= iMax; i++)
+		{
+			ObjSprite2D_SetDestRect(scrollBG, (SCREEN_WIDTH / 2) - curDistX, (SCREEN_HEIGHT / 2) - curDistY, (SCREEN_WIDTH / 2) + curDistX, (SCREEN_HEIGHT / 2) + curDistY);
+			curDistX = Interpolate_Linear(orgDistX, (SCREEN_WIDTH / 2) + 5, i / iMax);
+			curDistY = Interpolate_Linear(orgDistY, (SCREEN_HEIGHT / 2) + 3, i / iMax);
+			
+			ObjSprite2D_SetSourceRect(scrollBG, frame, frame, SCREEN_WIDTH + frame, SCREEN_HEIGHT + frame);
+			
+			frame += 0.33;
+			
+			yield;
+		}
+		
+		// Infinite scrolling
+		loop
+		{
+			ObjSprite2D_SetSourceRect(scrollBG, frame, frame, SCREEN_WIDTH + frame, SCREEN_HEIGHT + frame);
+			
+			frame += 0.33;
+			
+			yield;
+		}
+	}
+}
+
+// Creates and manipulates the counters that display the current FPS, shot count, score, and hiscore
+task _RenderCounters(spellID_)
+{
+	bool isReplay = IsReplay();
+	
+	// Current FPS
+	int numbFPS = CreateTextObject
+		(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		0, SCREEN_HEIGHT - (18 * RES), 
+		14 * RES, SCREEN_WIDTH - (2 * RES), ALIGNMENT_RIGHT,
+		BORDER_FULL, 1.34 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+		);
+	ObjText_SetFontBold(numbFPS, true);
+	ObjText_SetSidePitch(numbFPS, -3);
+	
+	// Replay FPS
+	int numbRFPS;
+	
+	if(isReplay)
+	{
+		// Current FPS
+		numbRFPS = CreateTextObject
+		(
+			"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+			0, 18 * RES, 
+			14 * RES, SCREEN_WIDTH - (2 * RES), ALIGNMENT_LEFT,
+			BORDER_FULL, 1.34 * RES,
+			COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+		);
+		ObjText_SetFontBold(numbRFPS, true);
+		ObjText_SetSidePitch(numbRFPS, -3);
+	}
+	
+	// Current shot count
+	int numbShots = CreateTextObject
+		(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		0, SCREEN_HEIGHT - (33 * RES), 
+		14 * RES, SCREEN_WIDTH - (2 * RES), ALIGNMENT_RIGHT,
+		BORDER_FULL, 1.34 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+		);
+	ObjText_SetFontBold(numbShots, true);
+	ObjText_SetSidePitch(numbShots, -3);
+	
+	// Current score
+	int numbScore = CreateTextObject
+		(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		FRAME_LEFT + (40 * RES), 5, 
+		15 * RES, (158 * RES), ALIGNMENT_RIGHT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+		);
+	ObjText_SetFontBold(numbScore, true);
+	ObjText_SetSidePitch(numbScore, -3);
+	
+	// Current hiscore
+	int numbHiScore = CreateTextObject
+	(
+		"Something went wrong!", FONT_KOUZANBRUSH, RP_UI_MISC,
+		FRAME_LEFT + (239 * RES), 5, 
+		15 * RES, (158 * RES), ALIGNMENT_RIGHT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_LGRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(numbHiScore, true);
+	ObjText_SetSidePitch(numbHiScore, -3);
+	
+	// Initializes variables needed for later
+	int mult = (spellID_ != 70 && spellID_ != 71) ? 1000000000 : 1000;
+	int countScore    = 0;
+	int countOldScore = 0;
+	int orgHiScore    = GetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ itoa(spellID_) ~ GetPlayerID(), mult);
+	int countHiScore  = orgHiScore;
+	
+	ObjText_SetText(numbHiScore, DigitToCommaArray(countHiScore));
+	
+	bool passedHiScore = false;
+	
+	while(!_isEnd) 
+	{
+		// Renders the FPS counter
+		ObjText_SetText(numbFPS, itoa(round(GetCurrentFps() / 2) * 2) ~ " fps");
+		if(isReplay) ObjText_SetText(numbRFPS, itoa(round(GetReplayFps() / 2) * 2) ~ " fps");
+
+		// Renders the shot counter
+		let shots = GetShotCount(TARGET_ALL);
+		if(shots < 1000) ObjText_SetText(numbShots, itoa(shots) ~ " shots");
+		else ObjText_SetText(numbShots, DigitToCommaArray(shots) ~ " shots");
+		
+		// Grants the ability to smoothly interpolate between the old and new numbers
+		countOldScore = GetScore();
+		
+		// Updates the number that shows your score
+		if(countOldScore > countScore) countScore = Interpolate_Smooth(countOldScore, countScore, 0.5);
+		else countScore = countOldScore;
+		ObjText_SetText(numbScore, DigitToCommaArray(countScore));
+
+		countHiScore = max(countScore, orgHiScore);
+		
+		if(!IsReplay())
+		{
+			ObjText_SetText(numbHiScore, DigitToCommaArray(countHiScore));
+		
+			// New HiScore notification
+			if(countHiScore > orgHiScore && !passedHiScore)
+			{
+				NotifyEventOwn(EV_CREATE_TOAST_MINOR, TOAST_MINOR_SCORE, 200);
+				passedHiScore = true;
+			}
+		}
+		
+		yield;
+	}
+	
+	if(!IsReplay())
+	{
+		int spellID = GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID);
+		int line = (spellID <= 71) ? spellID - 1 : spellID - 2;
+		if((GetScore() >= atoi(SplitString(ObjFileT_GetLineText(_medalReq, 1), '\\')[line]) * mult) && (!GetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN)) && !GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false))
+		{
+			SetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(spellID), true);
+			NotifyEvent(_ID_PACKAGE, EV_CREATE_TOAST_MEDAL, ID_INVALID);
+		}
+		SetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ itoa(spellID_) ~ GetPlayerID(), countHiScore);
+		
+		async
+		{
+			for(int i = 1; i <= 64; i++) 
+			{
+				if(!GetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(i), false)) return;
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, MEDAL_ALL);
+		}
+		
+		// Afterparty medals
+		for(int i = 67; i <= 70; i++)
+		{
+			if(!GetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(i), false)) return;
+		}
+		for(int i = 72; i <= 76; i++) // Might be fixed
+		{
+			if(!GetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(i), false)) return;
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_GRANT_ACHIEVE, MEDAL_AFTER);
+	}
+}
+
+// Background
+task _RenderBackground(int objBoss_, int objScene_, string bossName_, string[] background_, int color_, int spellID_)
+{
+	bool sdrDist = GetAreaCommonData(AREA_SETTINGS, SDR_DIST, 1);
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	int rp0 = (sdrDist) ? RP_UI_BG : RP_UI_DISTORT;
+	int rp1 = (sdrDist) ? RP_UI_BG + 1 : RP_UI_DISTORT + 1;
+	
+	int[] colorA = ColorHexToARGB(color_, COLOR_PERMUTE_RGB) / 2.5;
+	int[] colorB = ColorHexToARGB(color_, COLOR_PERMUTE_RGB) / 3.25;
+	
+	if(GetAreaCommonData(AREA_SETTINGS, BG_STAGE, 1))
+	{
+		// Camera parallax
+		async
+		{
+			float cameraFocusX = 0;
+			float cameraFocusY = 0;
+			float cameraFocusZ = 0;
+
+			float cameraPitch = 0;
+			float cameraYaw = 0;
+			float cameraRoll = 0;
+
+			float cameraShiftX = GetPlayerX();
+			float cameraShiftY = GetPlayerY();
+
+			float cameraDeltaX;
+			float cameraDeltaY;
+			
+			loop
+			{
+				cameraShiftX = Interpolate_Linear(cameraShiftX, GetPlayerX(), 0.0175);
+				cameraShiftY = Interpolate_Linear(cameraShiftY, GetPlayerY(), 0.0175);
+
+				cameraDeltaX = cameraShiftX - CENTER_X;
+				cameraDeltaY = cameraShiftY - CENTER_Y;
+
+				SetCameraFocusXYZ
+				(
+				  cameraFocusX + cameraDeltaX / 15,
+				  cameraFocusY,
+				  cameraFocusZ - cameraDeltaY / 15
+				);
+
+				SetCameraPitch(cameraPitch + cameraDeltaY / 60);
+				SetCameraYaw(cameraYaw - cameraDeltaX / 150);
+				SetCameraRoll(cameraRoll - cameraDeltaX / 80);
+				
+				yield;
+			}
+		}
+	  
+		// First grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rp0, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, -50);
+			ObjRender_SetColor(objBack, colorB[0], colorB[1], colorB[2]);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			loop
+			{
+				scroll += 1.1;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+		
+		// Second grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rp0, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, 0);
+			ObjRender_SetColor(objBack, colorA[0], colorA[1], colorA[2]);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			loop
+			{
+				scroll += 1.2;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+		
+		// Third grid
+		async
+		{
+			int objBack = CreateSprite3D_Dest
+			(
+				DIR_IMG_BG_GRID, rp0, BLEND_ADD_ARGB,
+				0, 0, 1024, 1024,
+				-512 * 4, -512 * 4, 512 * 4, 512 * 4
+			);
+			
+			ObjRender_SetZ(objBack, 50);
+			ObjRender_SetColor(objBack, colorB[0], colorB[1], colorB[2]);
+			
+			// Counter variable
+			int scroll = 0;
+			
+			loop
+			{
+				scroll += 1.3;
+				ObjSprite3D_SetSourceRect(objBack, -1024 * 2, (-1024 * 2) + scroll, 1024 * 2, (1024 * 2) + scroll);
+				ObjRender_SetAngleZ(objBack, 12 * sin(scroll / 15));
+				
+				// Prevents the background from vanishing when the boss dies
+				if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objBack, RP_UI_VIS);
+				
+				yield;
+			}
+		}
+		
+		// Gradient
+		if(spellID_ > 64)
+		{
+			async
+			{
+				int objGradient = CreateSprite2D_Dest
+				(
+					DIR_IMG_BG_GRADIENT, rp0, BLEND_MULTIPLY,
+					0, 0, 1, 720,
+					0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+				);
+				
+				// Counter variable
+				int scroll = 0;
+				
+				loop
+				{
+					scroll += 2;
+					ObjSprite2D_SetSourceRect(objGradient, 0, scroll, 1, 720 + scroll);
+					
+					// Prevents the background from vanishing when the boss dies
+					if(Obj_IsDeleted(objBoss_)) Obj_SetRenderPriorityI(objGradient, RP_UI_VIS);
+					
+					yield;
+				}
+			}
+		}
+	}
+	
+	if(GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1))
+	{
+		// Is the spell background mask effect being updated
+		bool isMoving = true;
+		
+		// Spell background mask shape prim 
+		const int COUNT_VERTEX = 33;
+		int objMask = CreatePrimObject(RP_MIN, PRIMITIVE_TRIANGLELIST, COUNT_VERTEX);
+		
+		// Spell background mask shader
+		int objShader;
+		if(sdrMisc)
+		{
+			objShader = ObjShader_Create();
+			ObjShader_SetShaderF(objShader, DIR_SDR_MASK_ALPHA);
+			ObjShader_SetTechnique(objShader, TEC_MASK_CONST);
+			ObjShader_SetTexture(objShader, TEXTURE_MASK, RT12);
+			ObjShader_SetFloat(objShader, FLOAT_SCREEN_WIDTH, 1024);
+			ObjShader_SetFloat(objShader, FLOAT_SCREEN_HEIGHT, 1024);
+			ObjShader_SetFloat(objShader, FLOAT_OVERRIDE_ALPHA, 0.8);
+			ObjShader_SetFloat(objShader, FLOAT_ALPHA_MULT, 1);
+			ObjShader_SetVector(objShader, FLOAT_FILTER, 1, 1, 1, 1);
+			SetShaderI(objShader, rp1, rp1);
+		}
+		
+		// Wait for the spell to start
+		while(!ObjEnemyBossScene_GetInfo(objScene_, INFO_IS_SPELL)) yield;
+		
+		bool isFading = false;
+		
+		// Spell background
+		async
+		{
+			// Counter variable
+			int frame = 0;
+			
+			alternative(bossName_)
+				
+				// Non-moving scene with clouds scrolling upwards
+				case
+				(
+					// Stage one
+					CHAR_RUMIA, CHAR_WAKASAGAHIME,
+					
+					// Stage two
+					CHAR_MYSTIA, CHAR_KYOUKO,
+					
+					// Stage three
+					CHAR_ALICE, CHAR_DOREMY,
+					
+					// Stage four
+					CHAR_SANAE,
+					
+					// Stage five
+					CHAR_CLOWNPIECE,
+					
+					// Stage six
+					CHAR_REMILIA, CHAR_YUYUKO,
+					
+					// Afterparty
+					CHAR_KAGUYA, CHAR_SHINKI
+				)
+				{
+					
+					// Non-moving scene
+					int objBack = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Clouds scrolling upwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 + frame, 960, 720 + frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// One graphic rotating on a sine wave with clouds scrolling downwards
+				case
+				(	
+					// Stage one
+					CHAR_SEIRAN,
+					
+					// Stage two
+					CHAR_CIRNO,
+					
+					// Stage four
+					CHAR_REIMU, CHAR_MARISA,
+					
+					// Stage six
+					CHAR_YUUMA,
+					
+					// Afterparty
+					CHAR_PATCHOULI, CHAR_YOUMU
+				)
+				{
+					// Rotating graphic
+					int objBack = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 1255, 1255,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Rotates graphics
+						ObjRender_SetAngleZ(objBack, sin(frame / 10) * 300);
+						
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.7);
+								_FadeOut(objCloud, 120, 255 * 0.7);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Scene scrolling downwards
+				case
+				(
+					// Stage three
+					CHAR_ORANGE
+				)
+				{
+					
+					// Scrolling scene
+					int objBack = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+					}
+					
+					loop
+					{	
+						// Scrolls the scene
+						ObjSprite2D_SetSourceRect(objBack, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.7);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Scene scrolling upwards and diagonally on a sine wave changing colors throughout the rainbow, with clouds scrolling downwards
+				case
+				(
+					// Stage four
+					CHAR_YACHIE
+				)
+				{
+					// Flashing, color-changing scene scrolling upwards and diagonally
+					int objBack = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Scrolls the scene 
+						ObjSprite2D_SetSourceRect(objBack, 0 + (sin(frame / 3) * 150), 0 + frame, 960 + (sin(frame / 3) * 150), 720 + frame);
+						
+						// Colors the scene
+						if(sdrMisc)
+						{
+							int[] col = ColorHSVtoRGB(frame / 1.5, 255, 200) / 255;
+							ObjShader_SetVector(objShader, FLOAT_FILTER, col[0], col[1], col[2], 1);
+						}
+						else
+						{
+							ObjRender_SetColorHSV(objBack, frame / 1.5, 255, 200);
+							ObjRender_SetColorHSV(objCloud, frame / 1.5, 255, 200);
+						}
+
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// A bunch of randomly-colored orbs moving across the screen at random, with clouds scrolling upwards over them.
+				case
+				(
+					// Stage four
+					CHAR_MISUMARU
+				)
+				{
+					// Particle list for the random orbs
+					int objBack = CreateParticleList2D
+					(
+						background_[0],
+						0, 0, 600, 600,
+						BLEND_ALPHA, rp1
+					);
+					
+					// Clouds scrolling upwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					const int[] COLORS = [COLOR_DRED, COLOR_DORANGE, COLOR_DYELLOW, COLOR_DGREEN, COLOR_DAQUA, COLOR_DAZURE, COLOR_DPURPLE, COLOR_DMAGENTA];
+					const int OUT = 32;
+					
+					loop
+					{
+						// Renders the orbs
+						if(frame > 100 && frame % 10 == 0 && Obj_IsExists(objBoss_))
+						{
+							async
+							{
+								int color = COLORS[prand_int(0, 7)];
+								
+								float scale = prand(0.35, 0.9);
+								
+								float posX = prand(-32, SCREEN_WIDTH + 32);
+								
+								float posY = -256;
+								
+								float rate = prand(-1.5, 1.5);
+								
+								float iMax = prand_int(280, 400);
+								for(int i = 0; i <= iMax; i++)
+								{
+									// Position
+									posY = Interpolate_Smooth(-300, SCREEN_HEIGHT + 300, i / iMax);
+									ObjParticleList_SetPosition(objBack, posX, posY, ID_INVALID);
+
+									// Size
+									ObjParticleList_SetScale(objBack, scale);
+									
+									// Tint
+									ObjParticleList_SetColor(objBack, color);
+									
+									// Rotation
+									ObjParticleList_SetAngleZ(objBack, i * rate);
+									
+									ObjParticleList_AddInstance(objBack);
+									
+									yield;
+								}
+							}
+						}
+						
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 + frame, 960, 720 + frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						if(sdrMisc) RenderToTextureB1(RT7, objBack, true);
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Non-moving scene with clock hands that show the float time over it and clouds scrolling downwards over that
+				case
+				(
+					// Stage five
+					CHAR_SAKUYA
+				)
+				{
+					// Current time
+					string time   = GetCurrentDateTimeS();
+					int hour   = atoi(time[8..10]);
+					int minute = atoi(time[10..12]); 
+					int second = atoi(time[12..14]);
+					
+					// Non-moving scene
+					int objBack = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Debug
+					/*int objClock = CreateTextObject
+					(
+						"Something went wrong!", FONT_KOUZANBRUSH, rp1,
+						300, SCREEN_HEIGHT / 2, 
+						55 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+						BORDER_FULL, 8 * RES,
+						COLOR_WHITE, COLOR_WHITE, COLOR_BLACK
+					);*/
+					
+					// Clock hands
+					int objHour = CreateLaser_Straight(CENTER_X, CENTER_Y, 0, 94);	
+					int objMin = CreateLaser_Straight(CENTER_X, CENTER_Y, 0, 145);
+					int objSec = CreateLaser_Straight(CENTER_X, CENTER_Y, 0, 202);
+					
+					ObjStLaser_SetAngle(objHour, (hour * (360 / 12)) - 90);
+					ObjStLaser_SetAngle(objMin, (minute * (360 / 60)) - 90);
+					ObjStLaser_SetAngle(objSec, (second * (360 / 60)) - 90);
+						
+					/*int objHour = CreatePrimObject(RP_UI_DISTORT + 1, PRIMITIVE_TRIANGLESTRIP, 4);
+					ObjRender_SetPosition(objHour, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, ID_INVALID); 
+
+					int objMin = CreatePrimObject(RP_UI_DISTORT + 1, PRIMITIVE_TRIANGLESTRIP, 4);
+					ObjRender_SetPosition(objMin, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, ID_INVALID); */
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					const int RAD   = SCREEN_HEIGHT / 2;
+					const int WIDTH = 8000;
+					
+					loop
+					{						
+						ObjStLaser_SetAngle(objSec, ObjStLaser_GetAngle(objSec) + 0.1);
+					
+						// Clock hands
+						/*ObjPrim_SetVertexPosition(objHour, 0, 0, 0, ID_INVALID);
+						ObjPrim_SetVertexPosition(objHour, 1, 0, 120, ID_INVALID);
+						ObjPrim_SetVertexPosition(objHour, 2, 120, 0, ID_INVALID);
+						ObjPrim_SetVertexPosition(objHour, 3, 120, 120, ID_INVALID);*/
+						
+						//ObjText_SetText(objClock, floor(frame / 20));
+						//Obj_SetRenderPriorityI(objHour, floor(frame / 20));
+						
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							
+							//_FadeOut(objHour, 120);
+							//_FadeOut(objMin, 120);
+							//_FadeOut(objSec, 120);
+							
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Non-moving scene with clouds scrolling downwards feat. constant flipping because of course
+				case
+				(
+					// Stage five
+					CHAR_SEIJA
+				)
+				{
+					// Non-moving scene
+					int objBack = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Pos
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					// Flip timer 
+					float iMax = 90;
+					frame = 420;
+
+					loop
+					{
+						// Flipping
+						if(frame % 500 == 0)
+						{				
+							async
+							{	
+								float init = ObjRender_GetAngleX(objBack);
+								
+								for(int i = 0; i <= iMax; i++)
+								{
+									float ang = Interpolate_Smooth(init, init + 180, i / iMax);
+										
+									ObjRender_SetAngleX(objBack, ang);
+									ObjRender_SetAngleX(objCloud, ang);
+										
+									yield;
+								}
+							}
+						}
+						else if(frame % 250 == 0)
+						{
+							async
+							{	
+								float init = ObjRender_GetAngleY(objBack);
+								
+								for(int i = 0; i <= iMax; i++)
+								{
+									float ang = Interpolate_Smooth(init, init + 180, i / iMax);
+									
+									ObjRender_SetAngleY(objBack, ang);
+									ObjRender_SetAngleY(objCloud, ang);
+									
+									yield;
+								}
+							}
+						}
+						
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+					
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Two blended scenes scrolling diagonally and upwards against eachother, with clouds scrolling downwards over that
+				case
+				(
+					// Extra stage
+					CHAR_KOISHI
+				)
+				{
+					// Scene scrolling upwards and left
+					int objBackA = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Scene scrolling upwards and right
+					int objBackB = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Pos
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBackA, 120, 255 * 0.8);
+						_FadeIn(objBackB, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Scrolls the scenes
+						ObjSprite2D_SetSourceRect(objBackA, 0 + frame, 0 + frame, 960 + frame, 720 + frame);
+						ObjSprite2D_SetSourceRect(objBackB, (960 / 2) - frame, 0 + frame, (960 + (960 / 2)) - frame, 720 + frame);
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBackA, 120, 255 * 0.8);
+								_FadeOut(objBackB, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBackA, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackB, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Graphics scrolling diagonally outwards from the center against eachother while stretching and changing color through the rainbow, with clouds scrolling upwards over that
+				case
+				(
+					// Extra stage
+					CHAR_MOMOYO,
+					
+					// Afterparty
+					CHAR_SARIEL
+				)
+				{	
+					// Outwards
+					
+					// Scene scrolling left and up
+					int objBackA = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						(SCREEN_WIDTH / 2) / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Scene scrolling left and down
+					/*int objBackB = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						(SCREEN_WIDTH / 2) / 2, SCREEN_HEIGHT / 2
+					);*/
+					
+					// Scene scrolling right and up
+					int objBackC = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						SCREEN_WIDTH - ((SCREEN_WIDTH / 2) / 2) - 1, SCREEN_HEIGHT / 2
+					);
+					ObjRender_SetAngleY(objBackC, 180);
+					
+					// Scene scrolling right and down
+					/*int objBackD = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						SCREEN_WIDTH - ((SCREEN_WIDTH / 2) / 2) - 1, SCREEN_HEIGHT / 2
+					);
+					ObjRender_SetAngleY(objBackD, 180);*/
+					
+					// Inwards
+					
+					// Scene scrolling left and up
+					/*int objBackE = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						(SCREEN_WIDTH / 2) / 2, SCREEN_HEIGHT / 2
+					);*/
+					
+					// Scene scrolling left and down
+					int objBackF = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						(SCREEN_WIDTH / 2) / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Scene scrolling right and up
+					/*int objBackG = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						SCREEN_WIDTH - ((SCREEN_WIDTH / 2) / 2) - 1, SCREEN_HEIGHT / 2
+					);
+					ObjRender_SetAngleY(objBackG, 180);*/
+					
+					// Scene scrolling right and down
+					int objBackH = CreateSprite2D_Pos
+					(
+						background_[0], rp1, BLEND_MULTIPLY,
+						0, 0, 960 / 2, 720,
+						1, 1,
+						SCREEN_WIDTH - ((SCREEN_WIDTH / 2) / 2) - 1, SCREEN_HEIGHT / 2
+					);
+					ObjRender_SetAngleY(objBackH, 180);
+					
+					// Clouds scrolling upwards
+					int objCloud = CreateSprite2D_Pos
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					if(sdrMisc) ObjShader_SetFloat(objShader, FLOAT_OVERRIDE_ALPHA, 0.7);
+					else
+					{
+						_FadeIn(objBackA, 120, 255 * 0.7);
+						//_FadeIn(objBackB, 120, 255 * 0.8);
+						_FadeIn(objBackC, 120, 255 * 0.7);
+						//_FadeIn(objBackD, 120, 255 * 0.8);
+						//_FadeIn(objBackE, 120, 255 * 0.8);
+						_FadeIn(objBackF, 120, 255 * 0.7);
+						//_FadeIn(objBackG, 120, 255 * 0.8);
+						_FadeIn(objBackH, 120, 255 * 0.7);
+						_FadeIn(objCloud, 120, 255 * 0.7);
+					}
+					
+					loop
+					{
+						// Scrolls the scenes
+						ObjSprite2D_SetSourceRect(objBackA, 0 + frame, 0 + frame, (960 / 2) + frame, 720 + frame);
+						//ObjSprite2D_SetSourceRect(objBackB, 0 + frame, 0 - frame, (960 / 2) + frame, 720 - frame);
+						ObjSprite2D_SetSourceRect(objBackC, 0 + frame, 0 + frame, (960 / 2) + frame, 720 + frame);
+						//ObjSprite2D_SetSourceRect(objBackD, 0 + frame, 0 - frame, (960 / 2) + frame, 720 - frame);
+						//ObjSprite2D_SetSourceRect(objBackE, 0 - frame, 0 + frame, (960 / 2) - frame, 720 + frame);
+						ObjSprite2D_SetSourceRect(objBackF, 0 - frame, 0 - frame, (960 / 2) - frame, 720 - frame);
+						//ObjSprite2D_SetSourceRect(objBackG, 0 - frame, 0 + frame, (960 / 2) - frame, 720 + frame);
+						ObjSprite2D_SetSourceRect(objBackH, 0 - frame, 0 - frame, (960 / 2) - frame, 720 - frame);
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 + frame, 960, 720 + frame);
+						
+						// Stretches the scenes
+						ObjRender_SetScaleY(objBackA, 1.21 + (sin(frame * 2) * 0.2));
+						//ObjRender_SetScaleY(objBackB, 1.21 + (sin(frame * 2) * 0.2));
+						ObjRender_SetScaleY(objBackC, 1.21 + (sin(frame * 2) * 0.2));
+						//ObjRender_SetScaleY(objBackD, 1.21 + (sin(frame * 2) * 0.2));
+						//ObjRender_SetScaleY(objBackE, 1.21 - (sin(frame * 2) * 0.2));
+						ObjRender_SetScaleY(objBackF, 1.21 - (sin(frame * 2) * 0.2));
+						//ObjRender_SetScaleY(objBackG, 1.21 - (sin(frame * 2) * 0.2));
+						ObjRender_SetScaleY(objBackH, 1.21 - (sin(frame * 2) * 0.2));
+						
+						// Colors the scenes
+						if(sdrMisc)
+						{
+							int[] col;
+							if(bossName_ == CHAR_MOMOYO) col = ColorHSVtoRGB(frame / 1.5, 255, 200) / 255;
+							else col = ColorHSVtoRGB(200, absolute(sin(frame / 5)) * 255, 255) / 255;
+							
+							ObjShader_SetVector(objShader, FLOAT_FILTER, col[0], col[1], col[2], 1);
+						}
+						else
+						{
+							if(bossName_ == CHAR_MOMOYO)
+							{
+								ObjRender_SetColorHSV(objBackA, frame / 1.5, 255, 200);
+								ObjRender_SetColorHSV(objBackC, frame / 1.5, 255, 200);
+								ObjRender_SetColorHSV(objBackF, frame / 1.5, 255, 200);
+								ObjRender_SetColorHSV(objBackH, frame / 1.5, 255, 200);
+								ObjRender_SetColorHSV(objCloud, frame / 1.5, 255, 200);
+							}
+							else
+							{
+								int sat = absolute(sin(frame / 5)) * 255;
+								ObjRender_SetColorHSV(objBackA, 200, sat, 255);
+								ObjRender_SetColorHSV(objBackC, 200, sat, 255);
+								ObjRender_SetColorHSV(objBackF, 200, sat, 255);
+								ObjRender_SetColorHSV(objBackH, 200, sat, 255);
+								ObjRender_SetColorHSV(objCloud, 200, sat, 255);
+							}
+						}
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBackA, 120, 255 * 0.7);
+								//_FadeOut(objBackB, 120, 255 * 0.8);
+								_FadeOut(objBackC, 120, 255 * 0.7);
+								//_FadeOut(objBackD, 120, 255 * 0.8);
+								//_FadeOut(objBackE, 120, 255 * 0.8);
+								_FadeOut(objBackF, 120, 255 * 0.7);
+								//_FadeOut(objBackG, 120, 255 * 0.8);
+								_FadeOut(objBackH, 120, 255 * 0.7);
+								_FadeOut(objCloud, 120, 255 * 0.7);
+							}
+							Obj_SetRenderPriorityI(objBackA, RP_UI_VIS + 1);
+							//Obj_SetRenderPriorityI(objBackB, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackC, RP_UI_VIS + 1);
+							//Obj_SetRenderPriorityI(objBackD, RP_UI_VIS + 1);
+							//Obj_SetRenderPriorityI(objBackE, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackF, RP_UI_VIS + 1);
+							//Obj_SetRenderPriorityI(objBackG, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackH, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Non-moving scene with two different rotating and scaling graphics over it, and clouds scrolling downwards over that
+				case
+				(
+					// Extra stage
+					CHAR_YUKARI
+				)
+				{
+					// Non-moving scene
+					int objBackA = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Scene rotating clockwise
+					int objBackB = CreateSprite2D_Pos
+					(
+						background_[1], rp1, BLEND_ADD_ARGB,
+						0, 0, 1255, 1255,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Scene rotating counterclockwise
+					int objBackC = CreateSprite2D_Pos
+					(
+						background_[2], rp1, BLEND_SUBTRACT,
+						0, 0, 1255, 1255,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					// Clouds scrolling downwards
+					int objCloud = CreateSprite2D_Pos
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						1, 1,
+						SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBackA, 120, 255 * 0.8);
+						_FadeIn(objBackB, 120, 255 * 0.8);
+						_FadeIn(objBackC, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Rotates the scenes
+						ObjRender_SetAngleZ(objBackB, frame * 0.7);
+						ObjRender_SetAngleZ(objBackC, -(frame * 0.7));
+						
+						// Scales the scenes
+						ObjRender_SetScaleXYZ(objBackB, 2 + (sin(frame) * 0.4));
+						ObjRender_SetScaleXYZ(objBackC, 2 - (sin(frame) * 0.4));
+						
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 - frame, 960, 720 - frame);
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBackA, 120, 255 * 0.8);
+								_FadeOut(objBackB, 120, 255 * 0.8);
+								_FadeOut(objBackC, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBackA, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackB, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objBackC, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+				
+				// Non-moving scene that changes color with clouds scrolling downwards
+				case
+				(
+					// Afterparty
+					CHAR_KEIKI
+				)
+				{
+					
+					// Non-moving scene
+					int objBack = CreateSprite2D_Dest
+					(
+						background_[0], rp1, BLEND_ALPHA,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					// Clouds scrolling upwards
+					int objCloud = CreateSprite2D_Dest
+					(
+						DIR_IMG_EFF_CLOUD, rp1, BLEND_SUBTRACT,
+						0, 0, 960, 720,
+						0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+					);
+					
+					if(!sdrMisc)
+					{
+						_FadeIn(objBack, 120, 255 * 0.8);
+						_FadeIn(objCloud, 120, 255 * 0.8);
+					}
+					
+					loop
+					{
+						// Scrolls the clouds
+						ObjSprite2D_SetSourceRect(objCloud, 0, 0 + frame, 960, 720 + frame);
+						
+						// Colors the scene
+						if(sdrMisc)
+						{
+							int[] col = ColorHSVtoRGB(frame / 1.5, 255, 200) / 255;
+							ObjShader_SetVector(objShader, FLOAT_FILTER, col[0], col[1], col[2], 1);
+						}
+						else
+						{
+							ObjRender_SetColorHSV(objBack, frame / 1.5, 255, 200);
+							ObjRender_SetColorHSV(objCloud, frame / 1.5, 255, 200);
+						}
+						
+						// Prevents the background from vanishing when the boss dies
+						if(Obj_IsDeleted(objBoss_))
+						{
+							if(!sdrMisc && !isFading)
+							{
+								isFading = true;
+								_FadeOut(objBack, 120, 255 * 0.8);
+								_FadeOut(objCloud, 120, 255 * 0.8);
+							}
+							Obj_SetRenderPriorityI(objBack, RP_UI_VIS + 1);
+							Obj_SetRenderPriorityI(objCloud, RP_UI_VIS + 1);
+						}
+						
+						frame++;
+						
+						yield;
+					}
+				}
+			}
+		
+		if(sdrMisc)
+		{
+			// Shader effect
+			
+			async
+			{
+				loop
+				{			
+					if(isMoving) RenderToTextureA1(RT12, RP_MIN, RP_MIN, true);
+					
+					// Prevents the background from vanishing when the boss dies
+					if(Obj_IsDeleted(objBoss_))
+					{
+						SetShaderI(objShader, RP_UI_VIS + 1, RP_UI_VIS + 1);
+					}
+					
+					yield;
+				}
+			}
+
+			// 11 triangles
+			// Width of 150px each
+			// Centers space 100px (overlap of 50px on each side)
+			// 5 on each side from the center
+
+			float iMax = 90;
+			
+			const int PAUSE = 22;
+			
+			const int TRIANGLE_WIDTH = 580;
+			const int TRIANGLE_SPACE = 100;
+			
+			int x = (SCREEN_WIDTH / 2) - ((TRIANGLE_WIDTH / 2) + (TRIANGLE_SPACE * 5)); 
+
+			// Place vertices from left to right
+			// Let the middle vertex (i + 1) of each triangle be the top of the triangle
+			for(int i = 0; i < COUNT_VERTEX; i += 3)
+			{ 
+				ObjPrim_SetVertexPosition(objMask, i, x, SCREEN_HEIGHT + 200, ID_INVALID);
+				ObjPrim_SetVertexPosition(objMask, i + 1, x + (TRIANGLE_WIDTH / 2), SCREEN_HEIGHT + 200, ID_INVALID);
+				ObjPrim_SetVertexPosition(objMask, i + 2, x + TRIANGLE_WIDTH, SCREEN_HEIGHT + 200, ID_INVALID);
+				x += TRIANGLE_SPACE;
+			}
+
+			// Changes the middle triangle to be wider
+			// Vertex 16 is left unchanged, should already be in the middle
+			ObjPrim_SetVertexPosition(objMask, 15, - 250, SCREEN_HEIGHT + 200, ID_INVALID); // Left point of center triangle
+			ObjPrim_SetVertexPosition(objMask, 17, SCREEN_WIDTH + 250, SCREEN_HEIGHT + 200, ID_INVALID); // Right point of center triangle
+
+			// Middle vertex of each triangle: 1,4,7,10,13, 16 ,19,22,25,28,31
+
+			// Spawning animation
+			// Cycle through middle points of mirrored triangles
+			for(int i = 1; i <= 13; i += 3)
+			{
+				_MoveTriangle(i, true); // Left
+				_MoveTriangle(32 - i, true); // Right
+				wait(PAUSE);
+			}
+			_MoveTriangle(16, true); // Center
+
+			wait(iMax);
+			
+			isMoving = false;
+			
+			// Wait until the boss dies
+			while(Obj_IsExists(objBoss_)) yield;
+
+			isMoving = true;
+			
+			// Despawning animation
+			_MoveTriangle(16, false); // Center
+			for(int i = 13; i >= 1; i -= 3)
+			{
+				wait(PAUSE); // Waits after center triangle retracts
+				_MoveTriangle(i, false); // Left
+				_MoveTriangle(32 - i, false); // Right
+			}
+
+			// Moves the triangles
+			task _MoveTriangle(int point_, bool isRising_)
+			{
+				// If the triangle is rising, the end point is above, else below
+				float endY = isRising_ ? -278 : SCREEN_HEIGHT + 220;
+				float initY = isRising_ ? SCREEN_HEIGHT + 200 : -250;
+				
+				// Moves the center point of the triangle
+				for(int i = 0; i <= iMax; i++)
+				{		
+					float curX = ObjPrim_GetVertexPosition(objMask, point_)[0];
+					ObjPrim_SetVertexPosition(objMask, point_, curX + ((point_ - 16) / 6), Interpolate_Smooth(initY, endY, i / iMax), ID_INVALID);
+					
+					yield;
+				}
+			}
+		}
+	}
+}
+
+// Creates a laser for Sakuya's spell BG
+function<int> CreateLaser_Straight(float posX_, float posY_, float ang_, float length_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetLength(objStLaser, length_);
+	ObjLaser_SetIntersectionWidth(objStLaser, 15);
+	ObjLaser_SetRenderWidth(objStLaser, 15);
+	ObjShot_SetDeleteFrame(objStLaser, INT_MAX);
+	ObjShot_SetGraphic(objStLaser, 1040);
+	ObjShot_SetDelay(objStLaser, 120);
+	ObjShot_SetIntersectionEnable(objStLaser, false);
+	Obj_SetRenderPriorityI(objStLaser, RP_STG_MIN);
+	ObjRender_SetAlpha(objStLaser, 0);
+	ObjRender_SetColor(objStLaser, COLOR_GRAY);
+	ObjShot_SetSpellResist(objStLaser, true);
+	Obj_SetValueI(objStLaser, VAL_DELEFF, false);
+	_FadeIn(objStLaser, 300);
+	
+	return objStLaser;
+}
+
+// Creates a small popup near the player that flies away
+task _RenderToast_Minor(int toastType_, float iMax_)
+{
+	float ang = prand(0, 360);
+	float rad = prand(35, 75);
+	
+	float orgX = GetPlayerX();
+	float orgY = GetPlayerY();
+		
+	float curX = orgX;
+	float curY = orgY;
+	
+	float destX = orgX + (rad * cos(ang));
+	float destY = orgY + (rad * sin(ang));
+	
+	float scaleOrg = 0;
+	float scaleCur = scaleOrg;
+	
+	float alpha = 255;
+
+	for(int i = 0; i <= iMax_; i++)
+	{
+		// Position
+		curX = Interpolate_Decelerate(orgX, destX, i / iMax_);
+		curY = Interpolate_Decelerate(orgY, destY, i / iMax_);
+		ObjParticleList_SetPosition(_objPartToast, curX, curY, ID_INVALID);
+		
+		// Size
+		scaleCur = Interpolate_Decelerate(scaleOrg, 0.5, i / (iMax_ / 2));
+		ObjParticleList_SetScale(_objPartToast, scaleCur, scaleCur, ID_INVALID);
+		
+		// Fade
+		ObjParticleList_SetAlpha(_objPartToast, Interpolate_Smooth(alpha, 0, i / iMax_));
+		
+		// Source rect
+		ObjParticleList_SetExtraData(_objPartToast, 0, toastType_ * 67, 1);
+		
+		ObjParticleList_AddInstance(_objPartToast);
+		
+		yield;
+	}
+}
+
+// Spell card bonus popup
+task _RenderToast_Major(int offY, bool displayScore_, int scoreCur_, int clearTime_)
+{
+	bool sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	// Toast graphics
+	int objToast = CreateSprite2D_Pos
+	(
+		DIR_IMG_SYS_TOAST_MAJOR, (sdrMisc) ? RP_UI_TOAST : RP_UI_MISC, BLEND_ALPHA,
+		0, offY, 882, offY + 121, 
+		0.7, 0.7,
+		SCREEN_WIDTH / 2, 180
+	);
+	
+	// Score number
+	int objNumb = ID_INVALID;
+	if(displayScore_)
+	{
+		objNumb = CreateTextObject
+		(
+			"+" ~ DigitToCommaArray(scoreCur_), FONT_KOUZANBRUSH, (sdrMisc) ? RP_UI_TOAST : RP_UI_MISC,
+			0, 210,
+			26 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+			BORDER_FULL, 2 * RES,
+			COLOR_WHITE, COLOR_AQUA, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objNumb, true);
+		ObjText_SetSidePitch(objNumb, -5);
+	}
+	
+	// Clear time
+	int objTime = CreateTextObject
+	(
+		CLEAR_TIME ~ " " ~ itoa(clearTime_ / 60) ~ "s", FONT_KOUZANBRUSH, (sdrMisc) ? RP_UI_TOAST : RP_UI_MISC,
+		0, displayScore_ ? 250 : 210,
+		26 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, displayScore_ ? COLOR_AQUA : COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objTime, true);
+	ObjText_SetSidePitch(objTime, -5);
+	
+	int objDist;
+	
+	// Counter variables
+	int  frame = 0;
+	float intn = 1;
+	float iMax = 45;
+		
+	if(sdrMisc)
+	{
+		// Shader
+		objDist = CreateSprite2D_Dest
+		(
+			RT4, RP_UI_MISC, BLEND_ALPHA,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		ObjRender_SetAlpha(objDist, 0);
+		ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+		ObjShader_SetTechnique(objDist, TEC_DISTORT);
+	
+		// Spawning animation
+	
+		_FadeIn(objDist, 30);
+	
+		for(int i = 0; i <= iMax; i++)
+		{
+			RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+			
+			frame++;
+			ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+			
+			intn = Interpolate_Smooth(1, 0, i / iMax);
+			ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+			
+			yield;
+		}
+	
+		wait(45);
+	
+		// Despawning animation
+	
+		_FadeOut(objDist, 40);
+
+		for(int i = 0; i <= iMax; i++)
+		{
+			RenderToTextureA1(RT4, RP_UI_TOAST, RP_UI_TOAST, true);
+			
+			frame++;
+			ObjShader_SetFloat(objDist, FLOAT_FRAME, frame);
+			
+			intn = Interpolate_Smooth(0, 1, i / iMax);
+			ObjShader_SetFloat(objDist, FLOAT_INTN, intn);
+			
+			yield;
+		}
+	}
+	
+	else
+	{
+		_FadeIn(objToast, 30);
+		_FadeIn(objNumb, 30);
+		_FadeIn(objTime, 30);
+		
+		wait(90);
+		
+		_FadeOut(objToast, 40);
+		_FadeOut(objNumb, 40);
+		_FadeOut(objTime, 40);
+		
+		wait(40);
+	}
+	
+	// Cleanup
+	Obj_Delete(objToast);
+	if(sdrMisc) Obj_Delete(objDist);
+	if(displayScore_) Obj_Delete(objNumb);
+	Obj_Delete(objTime);
+}
+
+task _WarningGlow(int color_)
+{
+	// Top
+	int glowA = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 1, 30,
+		-FRAME_WIDTH, -30, 0, 0
+	);
+	ObjRender_SetColor(glowA, color_);
+	ObjRender_SetAngleZ(glowA, 180);
+	
+	// Left
+	int glowB = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_B, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 29, 1,
+		0, 0, 30, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowB, color_);
+	
+	// Bottom
+	int glowC = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 1, 30,
+		0, FRAME_HEIGHT - 30, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowC, color_);
+	
+	// Right
+	int glowD = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_C, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 30, 1,
+		FRAME_WIDTH - 30, 0, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(glowD, color_);
+	
+	_FadeIn(glowA, 45);
+	_FadeIn(glowB, 45);
+	_FadeIn(glowC, 45);
+	_FadeIn(glowD, 45);
+	
+	wait(105);
+	
+	_FadeOut(glowA, 45);
+	_FadeOut(glowB, 45);
+	_FadeOut(glowC, 45);
+	_FadeOut(glowD, 45);
+	
+	wait(45);
+	
+	Obj_Delete(glowA);
+	Obj_Delete(glowB);
+	Obj_Delete(glowC);
+	Obj_Delete(glowD);
+}
+
+task _CreateToast_Controls(string text_)
+{
+	int objBox = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_BOX, RP_FX_HIGH, BLEND_ALPHA,
+		0, 0, 160, 60,
+		0, 0,
+		0, 0
+	);
+	
+	int objText = CreateTextObject
+	(
+		text_, FONT_KORURI, RP_FX_HIGH,
+		0, 0,
+		30 * RES, 126 * RES, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.3 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	
+	int off = (text_ == PRESS_XC) ? 60 : 60;
+	
+	float iMax = 40;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0, RES, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale, scale / 2, ID_INVALID);
+		ObjRender_SetScaleXYZ(objText, scale / 2);
+		
+		float posX = GetPlayerX() * RES;
+		float posY = GetPlayerY() * RES;
+		
+		ObjRender_SetPosition(objBox, posX, posY - (45 * RES), ID_INVALID);
+		ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(i * 5)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 40; i <= 40 + 60; i++)
+	{
+		float posX = GetPlayerX() * RES;
+		float posY = GetPlayerY() * RES;
+		
+		ObjRender_SetPosition(objBox, posX, posY - (45 * RES), ID_INVALID);
+		ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(i * 5)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(RES, 0, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale, scale / 2, ID_INVALID);
+		ObjRender_SetScaleXYZ(objText, scale / 2);
+		
+		float posX = GetPlayerX() * RES;
+		float posY = GetPlayerY() * RES;
+		
+		ObjRender_SetPosition(objBox, posX, posY - (45 * RES), ID_INVALID);
+		ObjRender_SetPosition(objText, posX - (63 * RES), posY - (off * RES), ID_INVALID);
+		
+		float col = Interpolate_Smooth(255, 100, absolute(sin(500 + (i * 5))));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	Obj_Delete(objBox);
+	Obj_Delete(objText);
+}

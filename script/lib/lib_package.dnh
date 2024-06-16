@@ -1,0 +1,4314 @@
+///////////////////////////////////////////////////////////////
+//////////////////////// Package Library //////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains package-related functions
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Menu option flashing
+int _flash = 0;
+
+// Menu background scrolling
+int _scroll = 0;
+
+// Currently selected menu option
+int _select = 0;
+
+// Current page for multi-page menus
+int _page = 0;
+
+// Amount of frames the movement key has been held down for
+int _held = 0;
+
+// Settings
+int[] _settings;
+
+// Misc shaders setting as its own variable
+bool _sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);;
+
+// Misc particles setting as its own variable
+bool _prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);;
+
+// Current menu screen
+int _menu = ID_INVALID;
+
+// Selected player
+string _player = "";
+
+// Spell comment text
+string _comm = "";
+
+// Is it currently the replay save scene?
+bool _isReplayScene = false;
+
+// Text file from which to read medal requirements
+int _medalReq = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_medalReq, DIR_TXT_MEDAL);
+
+// Text file from which to read achievements
+int _achieveText = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_achieveText, DIR_TXT_ACHIEVE);
+
+// Text file from which to read settings
+int _settingText = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_settingText, DIR_TXT_SETTINGS);
+
+// Text file from which to read spell card names
+int _spellNames = ObjFile_Create(OBJ_FILE_TEXT);
+ObjFile_Open(_spellNames, DIR_TXT_SPELLNAME);
+
+// Music name effect particles
+int _objPartNote = CreateParticleList2D
+(
+	DIR_IMG_EFF_NOTE,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_LOW
+);
+ObjRender_SetPermitCamera(_objPartNote, false);
+
+// Fucked up
+const int RESULT_CANCEL_ = 69420168;
+
+// Are players in high-power mode?
+bool _power = false;
+
+/////////////////////// Library Content ///////////////////////
+
+task _GameInit()
+{
+	//SetDisplayMatrix();
+	
+	SetSkipModeKey(KEY_INVALID);
+	
+	int loadList = ObjFile_Create(OBJ_FILE_TEXT);
+	int iMax;
+	
+	// Fonts
+	ObjFile_Open(loadList, DIR_TXT_LOADLIST_FNT);
+	iMax = ObjFileT_GetLineCount(loadList);
+	for(int i = 1; i <= iMax; i++)
+	{
+		InstallFont(DIR_FNT ~ ObjFileT_GetLineText(loadList, i));
+	}
+	
+	yield;
+	
+	LoadTextureEx(DIR_IMG_PKG_LOADING, true, true);
+	int objLoading = CreateSprite2D_Dest
+	(
+		DIR_IMG_PKG_LOADING, RP_UI_VIS, BLEND_ALPHA,
+		0, 0, 960, 720,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	int objPraying = CreateTextObject
+	(
+		LOADING, FONT_KOUZANBRUSH, RP_UI_VIS + 1,
+		0, 300 * RES,
+		22 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetSidePitch(objPraying, -5);
+	
+	yield;
+	
+	CreateCommonDataArea(AREA_ACHIEVE);
+	CreateCommonDataArea(AREA_GAME);
+	CreateCommonDataArea(AREA_HISTORY);
+	CreateCommonDataArea(AREA_REPLAY);
+	CreateCommonDataArea(AREA_SCRIPTS);
+	CreateCommonDataArea(AREA_SETTINGS);
+
+	// Common data area loading
+	LoadCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+	LoadCommonDataAreaA2(AREA_SETTINGS, DIR_DAT_SETTINGS);
+	LoadCommonDataAreaA2(AREA_HISTORY, DIR_DAT_SPELLHISTORY);
+	
+	_playTime = GetAreaCommonData(AREA_ACHIEVE, PLAYTIME, 0);
+	_playTimeCur = _playTime;
+	_ManagePlaytime();
+
+	_settings = 
+	[
+		GetAreaCommonData(AREA_SETTINGS, SDR_DIST, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_SDW, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_CHR, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_BOSS, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_GRZ, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_LSR, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1),
+		GetAreaCommonData(AREA_SETTINGS, BG_STAGE, 1),
+		GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1),
+		GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1),
+		GetAreaCommonData(AREA_SETTINGS, HINT, 1),
+		GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100),
+		GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100),
+		GetAreaCommonData(AREA_SETTINGS, FRAME, 40)
+	];
+	
+	_sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+	
+	_volBGM = GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100);
+	_volSFX = GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, GetOwnScriptID());
+	
+	// Debug
+	//SetAreaCommonData(AREA_ACHIEVE, FINALE_CLEAR, true);
+	//SetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 100);
+	
+	// Asset loading 
+	
+	// Images
+	ObjFile_Open(loadList, DIR_TXT_LOADLIST_IMG);
+	iMax = ObjFileT_GetLineCount(loadList);
+	for(int i = 1; i <= iMax; i++)
+	{
+		LoadTextureEx(DIR_ASSETS ~ ObjFileT_GetLineText(loadList, i), true, true);
+		yield;
+	}
+	
+	// Shaders
+	ObjFile_Open(loadList, DIR_TXT_LOADLIST_SDR);
+	iMax = ObjFileT_GetLineCount(loadList);
+	for(int i = 1; i <= iMax; i++)
+	{
+		LoadShader(DIR_SDR ~ ObjFileT_GetLineText(loadList, i));
+		yield;
+	}
+	
+	// Sounds
+	ObjFile_Open(loadList, DIR_TXT_LOADLIST_SND);
+	iMax = ObjFileT_GetLineCount(loadList);
+	for(int i = 1; i <= iMax; i++)
+	{
+		LoadSound(DIR_ASSETS ~ ObjFileT_GetLineText(loadList, i));
+		yield;
+	}
+	
+	Obj_Delete(loadList);
+	
+	// Render target creation
+	CreateRenderTarget(RT3);
+	CreateRenderTarget(RT4);
+	CreateRenderTarget(RT5);
+	CreateRenderTarget(RT6);
+	CreateRenderTarget(RT7);
+	CreateRenderTarget(RT8);
+	CreateRenderTarget(RT9);
+	CreateRenderTarget(RT10);
+	CreateRenderTarget(RT11);
+	CreateRenderTarget(RT12);
+	
+	// Prepares invalid render priorities
+	SetInvalidRenderPriorityA1(RP_MIN, RP_UI_TOAST);
+	
+	ObjText_SetText(objPraying, LOADED);
+	
+	/*bool isPressed = false;
+	
+	while(!isPressed)
+	{
+		for(int i = 0; i <= 100; i++)
+		{
+			if(GetKeyState(i) == KEY_PUSH)
+			{	
+				isPressed = true;
+				break;
+			}
+		}
+		
+		yield;
+	}*/
+	
+	Obj_Delete(objLoading);
+	Obj_Delete(objPraying);
+	
+	NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_TITLE, BGM_TITLE);
+	
+	_HandleMenu();
+	
+	wait(10);
+	
+	RemoveTexture(DIR_IMG_PKG_LOADING);
+}
+
+/*
+function<void> SetDisplayMatrix()
+{
+	int monitorW = GetMonitorWidth(), monitorH = GetMonitorHeight();
+	int screenW = 960, screenH = 720;
+
+    float aspectW = monitorW / float(screenW);
+    float aspectH = monitorH / float(screenH);
+    float normAspect = min(aspectW, aspectH);
+    
+    float scaleW = normAspect / aspectW;
+    float scaleH = normAspect / aspectH;
+    
+    float[] mPos1 = [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        -screenW / 2, -screenH / 2, 0, 1
+    ];
+    float[] mScale = [
+        scaleW, 0, 0, 0,
+        0, scaleH, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ];
+    float[] mPos2 = [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        screenW / 2, screenH / 2, 0, 1
+    ];
+    
+    mPos1 = MatrixMultiply(mPos1, mScale);
+    mPos1 = MatrixMultiply(mPos1, mPos2);
+    
+    SetFullscreenDisplayMatrix(mPos1);
+}
+*/
+
+task _ManagePlaytime()
+{
+	float initTime = GetSystemTimeMilliS();
+	float absTime  = initTime;
+	
+	for(int i = 0; ; i++)
+	{
+		absTime = GetSystemTimeMilliS();
+		
+		_playTimeCur = _playTime + ((absTime - initTime) / 16.666667);
+		
+		if(i % 1800 == 0)
+		{
+			SetAreaCommonData(AREA_ACHIEVE, PLAYTIME, _playTimeCur);
+			SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+		}
+		
+		yield;
+	}
+}
+
+// Main menu
+task _HandleMenu()
+{
+	NotifyEventOwn(EV_GRANT_ACHIEVE, OPEN_GAME);
+	
+	_menu = MENU_MAIN;
+	
+	_RenderBackground();
+	
+	if(!GetAreaCommonData(AREA_ACHIEVE, READ_MANUAL, false) && !GetAreaCommonData(AREA_ACHIEVE, PLAY_SCENE, false)) _RenderControls();
+	
+	// Main menu
+	Menu_Main();
+}
+
+function<void> Menu_Main()
+{
+	_menu = MENU_MAIN;
+	
+	int[] results = [RESULT_START, RESULT_AFTER, RESULT_REPLAY, RESULT_MANUAL, RESULT_ACHIEVE, RESULT_MUSIC, RESULT_SETTINGS, RESULT_QUIT];
+	
+	for(int i = 0; i < length(results); i++) _RenderMainMenuOption(results[i]);
+	
+	int selection = HandleSelection(results, 7, true);
+	
+	alternative(selection)
+		case(RESULT_START)    Menu_Player();
+		case(RESULT_AFTER)    Menu_Player2();
+		case(RESULT_REPLAY)   Menu_Replay();
+		case(RESULT_MANUAL)   Menu_Manual();
+		case(RESULT_ACHIEVE)  Menu_Achieve();
+		case(RESULT_MUSIC)    Menu_Music();
+		case(RESULT_SETTINGS) Menu_Settings();
+		case(RESULT_QUIT)
+		{
+			_playTime = _playTimeCur;
+			SetAreaCommonData(AREA_ACHIEVE, PLAYTIME, _playTime);
+			SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+			wait(5);
+			ClosePackage();
+		}
+}
+
+function<void> Menu_Player()
+{	
+	_menu = MENU_PLAYER;
+	
+	int[] results = [RESULT_REIMU, RESULT_MARISA, RESULT_SANAE];
+	
+	_RenderPlayerMenuOption();
+	_RenderHighPower();
+	
+	int selection = HandleSelection(results, 2, false);
+	
+	alternative(selection)
+	case(RESULT_REIMU)
+	{
+		_player = CHAR_REIMU;
+		SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_REIMU);
+	}
+	case(RESULT_MARISA)
+	{
+		_player = CHAR_MARISA;
+		SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_MARISA);
+	}
+	case(RESULT_SANAE)
+	{
+		_player = CHAR_SANAE;
+		SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_SANAE);
+	}
+	case(RESULT_CANCEL_)
+	{
+		Menu_Main();
+		return;
+	}
+	
+	Menu_Scene();
+}
+
+function<void> Menu_Player2()
+{
+	_menu = MENU_PLAYER2;
+	
+	_RenderPlayer2Menu();
+	
+	int selection = HandlePlayer2MenuSelection();
+	
+	if(selection == RESULT_CANCEL_)
+	{
+		Menu_Main();
+		return;
+	}
+	else
+	{
+		Menu_After();
+	}
+}
+
+function<void> Menu_After()
+{
+	_menu = MENU_AFTER;
+	_player = CHAR_FLANDRE;
+	SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_FLANDRE);
+	
+	int iMax = 9;
+	for(int i = 0; i < iMax; i++)
+	{
+		_RenderAfterMenuOption(i);
+	}
+	
+	_RenderAfterComment();
+	
+	int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ "70" ~ CHAR_FLANDRE, 0i);
+	bool tetrSeen = historyData & 0xffff;
+	if(tetrSeen) _RenderEndlessTetr();
+	
+	int[] result;
+	if(!tetrSeen) result = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+	else result = [0, 1, 2, 3, 3, 4, 5, 6, 7, 8, 9]; 
+	
+	int selection = HandleSelection(result, 8 + tetrSeen, false);
+	
+	if(selection == RESULT_CANCEL_)
+	{
+		Menu_Player2();
+		return;
+	}
+	else
+	{	
+		if(selection == 3 && _select == 4 && tetrSeen)
+		{
+			SetAreaCommonData(AREA_REPLAY, PATH_SINGLE, "9-4");
+			SetAreaCommonData(AREA_REPLAY, IS_PRACTICE, true);
+		}
+		else
+		{
+			SetAreaCommonData(AREA_REPLAY, PATH_SINGLE, "9-" ~ itoa(selection + 1));
+			SetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+		}
+		
+		_menu = MENU_OVER;
+	
+		_HandleStage();
+	}
+}
+
+function<void> Menu_Replay()
+{
+	_menu = MENU_REPLAY;
+	
+	LoadReplayList();
+	
+	int selection = HandleReplaySelection();
+	
+	if(selection == RESULT_CANCEL_)
+	{
+		Menu_Main();
+		return;
+	}
+	else
+	{
+		SetAreaCommonData(AREA_GAME, PATH_REPLAY, GetReplayInfo(selection, REPLAY_FILE_PATH));
+		
+		alternative(GetReplayInfo(selection, REPLAY_PLAYER_NAME))
+			case(CHAR_REIMU_C)
+			{
+				_player = CHAR_REIMU;
+				SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_REIMU);
+			}
+			case(CHAR_MARISA_C)
+			{
+				_player = CHAR_MARISA;
+				SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_MARISA);
+			}
+			case(CHAR_SANAE_C)
+			{	
+				_player = CHAR_SANAE;
+				SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_SANAE);
+			}
+			case(CHAR_FLANDRE_C)
+			{
+				_player = CHAR_FLANDRE;
+				SetAreaCommonData(AREA_GAME, PATH_PLAYER, DIR_PLR_FLANDRE);
+			}
+		
+		_menu = MENU_OVER;
+	
+		_HandleStage();
+	}
+}
+
+function<void> Menu_Manual()
+{
+	NotifyEventOwn(EV_GRANT_ACHIEVE, READ_MANUAL);
+	
+	_menu = MENU_MANUAL;
+	
+	_RenderManual();
+	
+	HandleManualSelection(3);
+	
+	Menu_Main();
+	
+	return;
+}
+
+function<void> Menu_Achieve()
+{
+	_menu = MENU_ACHIEVE;
+	
+	int achieveCount = ObjFileT_GetLineCount(_achieveText) - 2;
+	
+	for(int i = 0; i <= achieveCount; i++) _RenderAchieveMenuOption(i);
+
+	_RenderAchieveComment();
+	
+	HandleManualSelection(achieveCount);
+	
+	Menu_Main();
+	
+	return;
+}
+
+
+function<void> Menu_Music()
+{
+	_menu = MENU_MUSIC;
+	
+	Obj_SetRenderPriorityI(_objPartNote, RP_UI_VIS + 1);
+	
+	int musicCount = ObjFileT_GetLineCount(_musicNames) - 2;
+	
+	for(int i = 0; i <= musicCount; i++) _RenderMusicMenuOption(i);
+
+	_RenderMusicComment();
+	
+	_RenderFreqGraph();
+	
+	HandleMusicSelection(musicCount);
+	
+	Obj_SetRenderPriorityI(_objPartNote, RP_FX_LOW);
+	
+	Menu_Main();
+	
+	return;
+}
+
+function<void> Menu_Settings()
+{
+	_menu = MENU_SETTINGS;
+	
+	bool[] isToggle = [true, true, true, true, true, true, true, true, true, true, true, true, false, false, false];
+	
+	for(int i = 0; i < length(isToggle); i++)
+	{
+		_RenderSettingsMenuOption(i, isToggle[i]);
+	}
+	
+	_RenderResetOption(length(isToggle));
+	
+	_RenderSettingsComment();
+	
+	HandleSettingsSelection(isToggle, length(isToggle));
+	
+	Menu_Main();
+	
+	return;
+}
+
+function<void> Menu_Scene()
+{
+	_menu = MENU_SCENE;
+	
+	int[] pageLength = [8, 8, 8, 8, 8, 8, 8, 0];
+	
+	int iMax = 7;
+	for(int i = 0; i <= iMax; i++)
+	{
+		int jMax = pageLength[i];
+		for(int j = 0; j <= jMax; j++)
+		{
+			_RenderSceneMenuOption(i, j);
+		}
+	}
+	
+	_RenderSpellComment();
+	
+	if(GetAreaCommonData(AREA_ACHIEVE, FINAL_BOSS, false))
+	{
+		pageLength[7] = 1;
+		_RenderFinalPracticeOption();
+		
+		if(GetAreaCommonData(AREA_ACHIEVE, FINALE_CLEAR, false))
+		{
+			pageLength[7] = 2;
+			_RenderFinalCreditsOption();
+		}
+	}
+	
+	int[] selection = HandleSceneSelection(7, pageLength);
+	
+	if(selection[0] == RESULT_CANCEL_)
+	{
+		Menu_Player();
+		return;
+	}
+	
+	if(selection != [7, 1] && selection != [7, 2])
+	{
+		SetAreaCommonData(AREA_REPLAY, PATH_SINGLE, itoa(selection[0] + 1) ~ "-" ~ itoa(selection[1] + 1));
+		SetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+		
+		_menu = MENU_OVER;
+	
+		_HandleStage();
+	}
+	else if(selection == [7, 1])
+	{
+		SetAreaCommonData(AREA_REPLAY, PATH_SINGLE, "8-1");
+		SetAreaCommonData(AREA_REPLAY, IS_PRACTICE, true);
+		
+		_menu = MENU_OVER;
+	
+		_HandleStage();
+	}
+	else if(selection == [7, 2])
+	{
+		HandleCredits();
+		_menu = MENU_SCENE;
+		NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_TITLE, BGM_TITLE);
+		Menu_Scene();
+		return;
+	}
+}
+
+// Stage scene
+task _HandleStage()
+{
+	string pathReplay = GetAreaCommonData(AREA_GAME, PATH_REPLAY, "");
+	
+	if(length(pathReplay) <= 0)
+	{
+		bool isPrac = GetAreaCommonData(AREA_REPLAY, IS_PRACTICE, false);
+		
+		string stageID = SplitString(GetAreaCommonData(AREA_REPLAY, PATH_SINGLE, ID_INVALID), "-")[0];
+		string pathBGM = (isPrac && atoi(stageID) != 9) ? DIR_BGM_FINAL : DIR_BGM ~ "/s" ~ stageID ~ ".ogg";
+		
+		if(_playingBGM != pathBGM)
+		{
+			if(atoi(stageID) != 9) NotifyEventOwn(EV_BGM_CHANGE, pathBGM, (isPrac) ? BGM_FINAL : atoi(stageID));
+			else NotifyEventOwn(EV_BGM_CHANGE, pathBGM, BGM_S9);
+		}
+	}
+	
+	// Initialize game data
+	SetAreaCommonData(AREA_GAME, GAME_TIME, "0");
+	SetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, false);
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, true);
+	SetAreaCommonData(AREA_GAME, ACHIEVE_READY, "ID_INVALID");
+	SetAreaCommonData(AREA_GAME, FAMILIAR_KILL, 0);
+	int isPlayerDown = LoadAreaCommonDataValuePointer(AREA_GAME, IS_PLAYER_DOWN, false);
+	
+	// Begin stage
+	InitializeStageScene();
+	if(length(pathReplay) > 0) SetStageReplayFile(pathReplay);
+	SetStageMainScript(DIR_PKG_STAGE);
+	SetStagePlayerScript(GetAreaCommonData(AREA_GAME, PATH_PLAYER, ID_INVALID));
+	StartStageScene();
+	
+	int gameTime = 0;
+	
+	for(; ; gameTime++)
+	{
+		// Handle pausing
+		if(GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			alternative(HandlePause())
+			
+				// Restart from beginning
+				case(RESULT_RETRY)
+				{
+					TerminateStageScene();
+					_HandleStage();
+					return;
+				}
+				
+				// Quit to menu
+				case(RESULT_END)
+				{
+					TerminateStageScene();
+				}
+		}
+		
+		// Restart from beginning
+		/*if(GetKeyState(KEY_BACK) == KEY_PUSH)
+		{
+			TerminateStageScene();
+			_HandleStage();
+			return;
+		}*/
+			
+		alternative(GetStageSceneResult())
+		
+			// You won or timed out the boss
+			case(STAGE_RESULT_CLEARED)
+			{
+				SetAreaCommonData(AREA_GAME, GAME_TIME, itoa(gameTime));
+				_HandleEnd();
+				break;
+			}
+			
+			// You died
+			case(STAGE_RESULT_PLAYER_DOWN)
+			{
+				SetAreaCommonData(AREA_GAME, GAME_TIME, itoa(gameTime));
+				_HandleEnd();
+				break;
+			}
+			
+			// You quit 
+			case(STAGE_RESULT_BREAK_OFF)
+			{
+				_RemoveTextures();
+				NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_TITLE, BGM_TITLE);
+				_menu = (_player == CHAR_FLANDRE) ? MENU_AFTER : MENU_SCENE;
+				_RenderBackground();
+				string pathReplay = GetAreaCommonData(AREA_GAME, PATH_REPLAY, "");
+				SetAreaCommonData(AREA_GAME, PATH_REPLAY, "");
+				if(length(pathReplay) > 0) Menu_Replay();
+				else if(_player == CHAR_FLANDRE) Menu_After();
+				else Menu_Scene();
+				break;
+			}
+			
+		// You died
+		if(GetCommonDataPtr(isPlayerDown, false))
+		{
+			wait(30);
+			RenderToTextureA1(RT0, RP_UI_VIS, RP_MAX, true);
+			TerminateStageScene();
+			yield;
+			SetAreaCommonData(AREA_GAME, GAME_TIME, itoa(gameTime));
+			_HandleEnd();
+			break;
+		}
+		
+		yield;
+	}
+}
+
+function<int> HandlePause()
+{
+	_paused = true;
+	NotifyEventOwn(EV_BGM_PAUSE, ID_INVALID);
+	yield;
+	RenderToTextureA1(RT0, RP_UI_VIS, RP_MAX, true);
+	PauseStageScene(true);
+	int scriptPause = LoadScript(DIR_PKG_PAUSE);
+	StartScript(scriptPause);
+	while(!IsCloseScript(scriptPause)) yield;
+	PauseStageScene(false);
+	NotifyEventOwn(EV_BGM_RESUME, ID_INVALID);
+	_paused = false;
+	return GetScriptResult(scriptPause);
+}
+
+task _HandleEnd()
+{
+	SetSkipModeKey(KEY_INVALID);
+	FinalizeStageScene();
+	
+	bool credits = GetAreaCommonData(AREA_ACHIEVE, CREDITS, false);
+	bool final = false;
+	
+	if(!IsReplay() && GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID) == 64 && !GetAreaCommonData(AREA_GAME, IS_PLAYER_DOWN, false))
+	{
+		HandleCredits();
+		_menu = MENU_OVER;
+		final = true;
+	}
+	
+	_RemoveTextures();
+			
+	int scriptEnd = LoadScript(DIR_PKG_END);
+	StartScript(scriptEnd);
+	while(!IsCloseScript(scriptEnd)) yield;
+			
+	alternative(GetScriptResult(scriptEnd))
+		case(RESULT_SAVE_REPLAY)
+		{
+			HandleReplaySave();
+			NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_TITLE, BGM_TITLE);
+			NotifyEventOwn(EV_UNLOAD_TEXTURES, ID_INVALID);
+			_menu = (_player == CHAR_FLANDRE) ? MENU_AFTER : MENU_SCENE;
+			_RenderBackground();
+			if(!credits && final)
+			{
+				_select = 1;
+				Menu_Main();
+			}
+			else if(_player == CHAR_FLANDRE) Menu_After();
+			else Menu_Scene();
+		}
+		case(RESULT_END)
+		{
+			NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_TITLE, BGM_TITLE);
+			NotifyEventOwn(EV_UNLOAD_TEXTURES, ID_INVALID);
+			_menu = (_player == CHAR_FLANDRE) ? MENU_AFTER : MENU_SCENE;
+			_RenderBackground();
+			string pathReplay = GetAreaCommonData(AREA_GAME, PATH_REPLAY, "");
+			SetAreaCommonData(AREA_GAME, PATH_REPLAY, "");
+			if(length(pathReplay) > 0) Menu_Replay();
+			else if(!credits && final)
+			{
+				_select = 1;
+				Menu_Main();
+			}
+			else if(_player == CHAR_FLANDRE) Menu_After();
+			else Menu_Scene();
+		}
+		case(RESULT_RETRY)
+		{
+			_HandleStage();
+		}
+}
+
+task _RemoveTextures()
+{
+	wait(60);
+	
+	string bossName = GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID);
+	string[] background = GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID);
+
+	if(bossName != CHAR_REIMU && bossName != CHAR_MARISA && bossName != CHAR_SANAE && bossName != CHAR_FLANDRE) RemoveTexture(DIR_IMG_CHAR ~ "/portrait_" ~ bossName ~ ".png");
+	if(bossName != CHAR_FLANDRE) RemoveTexture(DIR_IMG_CHAR ~ "/title_"    ~ bossName ~ ".png");
+	RemoveTexture(DIR_IMG_ENM  ~ "/sprite_"   ~ bossName ~ ".png");
+	for each(string i in ref background) RemoveTexture(i);
+}
+
+function<void> HandleReplaySave()
+{
+	_menu = MENU_SELECTSLOT;
+	_isReplayScene = true;
+	int scriptRpy = LoadScript(DIR_PKG_REPLAY_SAVE);
+	StartScript(scriptRpy);
+	while(!IsCloseScript(scriptRpy)) yield;
+	_isReplayScene = false;
+}
+
+function<void> HandleCredits()
+{
+	SetSkipModeKey(KEY_LCONTROL);
+	
+	_menu = MENU_CREDITS;
+	
+	NotifyEventOwn(EV_BGM_CHANGE, DIR_BGM_CREDITS, BGM_CREDITS);
+	
+	_RenderCreditsBackground();
+	
+	int objCredits = ObjFile_Create(OBJ_FILE_TEXT);
+	ObjFile_Open(objCredits, DIR_TXT_CREDITS);
+	
+	if(GetAreaCommonData(AREA_ACHIEVE, CREDITS, false))
+	{
+		_RenderSkip(ObjFileT_GetLineText(objCredits, 25));
+	}
+	
+	// text, scale, duration, x, y, name offY, title offY, name size, title size
+	// the comments are mostly wrong sorry i retroactively child'ed natashi and greg
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 1), 1, 150, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -55, 10, 45, 40); // game
+	wait(220 * 1.25);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 2), 0.9, 150, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -40, 45, 42, 29); // me
+	wait(220 * 1.25);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 3), 0.8, 150, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -42, 13, 50, 28); // my man
+	wait(220 * 1.25);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 4), 0.7, 130, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -38, 10, 45, 25); // zun
+	wait(200 * 1.25);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 5), 0.5, 150, 222, 174, -30, 10, 35, 20); // naudiz
+	wait(35);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 6), 0.5, 150, SCREEN_WIDTH - 222, 174, -30, 10, 35, 20); // naudiz
+	wait(35);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 7), 0.5, 150, 222, SCREEN_HEIGHT - 174, -30, 10, 35, 20); // kevin
+	wait(35);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 8), 0.5, 150, SCREEN_WIDTH - 222, SCREEN_HEIGHT - 174, -30, 10, 35, 20); // mugenri
+	wait(160 * 1.35);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 9), 0.5, 150, SCREEN_WIDTH - 240, 180, -30, 10, 35, 20); // horrible
+	wait(35 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 10), 0.5, 150, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -30, 10, 35, 20); // cow
+	wait(35 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 11), 0.5, 150, 240, 720 - 180, -30, 10, 35, 20); // vi
+	wait(180 * 1.35);
+	
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 12), 0.5, 120, 222, 174, -30, 10, 35, 20); // ryannlib
+	wait(30 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 13), 0.5, 120, SCREEN_WIDTH - 222, 174, -30, 10, 35, 20); // weavesilk
+	wait(30 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 14), 0.5, 120, 222, SCREEN_HEIGHT - 174, -30, 10, 35, 20); // terra
+	wait(30 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 15), 0.5, 120, SCREEN_WIDTH - 222, SCREEN_HEIGHT - 174, -30, 10, 35, 20); // felis-licht
+	
+	wait(120 * 1.35);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 16), 0.5, 120, 240, 180, -30, 10, 35, 20); // dairi
+	wait(30 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 17), 0.5, 120, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -30, 10, 35, 20); // didev
+	wait(30 * 1.5);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 18), 0.5, 120, 960 - 240, 720 - 180, -30, 10, 35, 20); // fuzzbearplush
+	wait(150 * 1.35);
+	
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 19), 0.5, 120, 222, 174, -30, 10, 35, 20); // nagoya
+	wait(22);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 20), 0.5, 120, SCREEN_WIDTH - 222, 174, -30, 10, 32, 20); // ctc sprites
+	wait(22);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 21), 0.5, 120, 222, SCREEN_HEIGHT - 174, -42, 25, 35, 20); // kevin (not monitor)
+	wait(22);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 22), 0.5, 120, SCREEN_WIDTH - 222, SCREEN_HEIGHT - 174, -30, 10, 35, 20);
+	
+	wait(201);
+	_RenderCredit(ObjFileT_GetLineText(objCredits, 23), 1.175, 220 * 1.35, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, -110, 40, 150, 35); // you uwu
+	wait(578);
+	_RenderNext(ObjFileT_GetLineText(objCredits, 24)); // next gay orgy
+	wait(275);
+	
+	// Cleanup
+	Obj_Delete(objCredits);
+	
+	RenderToTextureA1(RT0, RP_UI_VIS, RP_MAX, true);
+	SetSkipModeKey(KEY_INVALID);
+	NotifyEventOwn(EV_GRANT_ACHIEVE, FINALE_CLEAR);
+	SetAreaCommonData(AREA_ACHIEVE, CREDITS, true);
+	SaveCommonDataAreaA2(AREA_ACHIEVE, DIR_DAT_ACHIEVE);
+}
+
+task _RenderCredit(string text_, float scale_, int duration_, float posX_, float posY_, float offYA_, float offYB_, int fontSizeA_, int fontSizeB_)
+{
+	// Main circle
+	int circleA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_MAIN, RP_UI_MISC + 1, BLEND_ALPHA,
+		0, 0, 627, 627,
+		scale_, scale_,
+		posX_, posY_
+	);
+	
+	// Main text
+	int textA = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_TEXT, RP_UI_MISC + 1, BLEND_ALPHA,
+		1881, 0, 2508, 627,
+		scale_, scale_,
+		posX_, posY_
+	);
+	
+	// Person's name
+	int name = CreateTextObject
+	(
+		SplitString(text_, '\\')[0], FONT_KOUZANBRUSH, RP_UI_MISC + 1,
+		posX_, posY_ + offYA_, 
+		fontSizeA_, 0, ALIGNMENT_CENTER,
+		BORDER_FULL, min(7, fontSizeA_ / 10),
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(name, true);
+	ObjText_SetSidePitch(name, -4);
+	ObjText_SetLinePitch(name, -4);
+	
+	// Person's title
+	int title = CreateTextObject
+	(
+		SplitString(text_, '\\')[1], FONT_KORURI, RP_UI_MISC + 1,
+		posX_, posY_ + offYB_, 
+		fontSizeB_, 0, ALIGNMENT_CENTER,
+		BORDER_FULL, min(5, fontSizeB_ / 10),
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(title, true);
+	ObjText_SetSidePitch(title, -1.5);
+	ObjText_SetLinePitch(title, -3);
+	
+	_GrowIn(circleA, 30, scale_);
+	_GrowIn(textA, 30, scale_);
+	_FadeIn(name, 25);
+	_FadeIn(title, 25);
+	
+	// Manipulates the circle while it exists
+	for(int i = 0; i <= duration_ * 1.5; i++)
+	{
+		// Rotation
+		float sz = sin(i);
+		float cz = cos(i);
+		
+		ObjRender_SetAngleZ(circleA, i * 0.7);
+		ObjRender_SetAngleZ(textA, -i);
+		
+		yield;
+	}
+	
+	_GrowOut(circleA, 25, scale_);
+	_GrowOut(textA, 25, scale_);
+	_FadeOut(name, 25);
+	_FadeOut(title, 25);
+	
+	wait(25);
+	
+	Obj_Delete(circleA);
+	Obj_Delete(textA);
+	Obj_Delete(name);
+	Obj_Delete(title);
+}
+
+task _RenderNext(string text_)
+{
+	int next = CreateTextObject
+	(
+		text_, FONT_KOUZANBRUSH, RP_UI_MISC + 1,
+		0, SCREEN_HEIGHT - 50,
+		35, SCREEN_WIDTH, ALIGNMENT_RIGHT,
+		BORDER_FULL, 3,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(next, true);
+	ObjText_SetSidePitch(next, -4);
+	
+	_FadeIn(next, 40);
+	
+	wait(220);
+	
+	_FadeOut(next, 25);
+	
+	wait(25);
+	
+	Obj_Delete(next);
+}
+
+
+task _RenderSkip(string text_)
+{
+	int next = CreateTextObject
+	(
+		text_, FONT_KORURI, RP_UI_MISC + 1,
+		5, SCREEN_HEIGHT - 37,
+		30, SCREEN_WIDTH - 5, ALIGNMENT_LEFT,
+		BORDER_FULL, 3,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(next, true);
+	ObjText_SetSidePitch(next, -1.5);
+	
+	_FadeIn(next, 40);
+	
+	wait(230);
+	
+	_FadeOut(next, 25);
+	
+	wait(25);
+	
+	Obj_Delete(next);
+}
+
+task _RenderCreditsBackground()
+{
+	int rp1 = RP_UI_MISC;
+	string[] background_ = [DIR_IMG_BG ~ "/back_" ~ CHAR_FLANDRE ~ "_a.png", DIR_IMG_BG ~ "/back_" ~ CHAR_FLANDRE ~ "_b.png"];
+	
+	// Cool kid version
+			if(GetAreaCommonData(AREA_SETTINGS, SDR_MISC, true))
+			{					
+				let ID = [ObjPrim_Create(OBJ_PRIMITIVE_2D), ObjPrim_Create(OBJ_PRIMITIVE_2D)];
+
+				ascent(i in 0..2) 
+				{
+					Obj_SetRenderPriorityI(ID[i], rp1);
+					ObjPrim_SetTexture(ID[i],[background_[0], background_[1]][i]);
+					ObjRender_SetBlendType(ID[i], [BLEND_ALPHA, BLEND_MULTIPLY][i]);
+					ObjPrim_SetPrimitiveType(ID[i], PRIMITIVE_TRIANGLESTRIP);
+					ObjPrim_SetVertexCount(ID[i], 1026);
+					ObjRender_SetPosition(ID[i], SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 0);
+					ObjRender_SetVertexShaderRenderingMode(ID[i], true);
+					ObjShader_SetShaderF(ID[i], DIR_SDR_BACK);
+					ObjShader_SetTechnique(ID[i], TEC_SWIRL);
+				}
+
+				int rad = 600;
+		
+				ascent(i in 0..513)
+				{
+					ascent(j in 0..2)
+					{
+						ObjPrim_SetVertexUVT(ID[0], i * 2 + j, 1024 / 256 * i,  512 * j);
+						ObjPrim_SetVertexUVT(ID[1], i * 2 + j, 960 / 256 * i,  320 * j);
+						ObjPrim_SetVertexPosition(ID[0], i * 2 + j, cos(360 / 512 * i) * rad * j, sin(360 / 512 * i) * rad * j, 0);
+						ObjPrim_SetVertexPosition(ID[1], i * 2 + j, cos(360 / 512 * i) * rad * (0.5 + j / 2), sin(360 / 512 * i) * rad * j, 0);
+					}
+				}
+				
+				float[] col;
+				for(int i = 0; _menu == MENU_CREDITS; i++)
+				{		
+					ObjShader_SetFloat(ID[0], FLOAT_FRAME_MAG, -(i / 10) / 75);
+					ObjShader_SetFloat(ID[1], FLOAT_FRAME_MAG, (i / 10) / 75);
+					
+					col = ColorHSVtoRGB(i, 255, 255) / 255;
+					ObjShader_SetVector(ID[0], FLOAT_FILTER, col[0], col[1], col[2], (i <= 45) ? Interpolate_Smooth(0, 1, i / 45) : 1);
+					
+					yield;
+				}
+				
+				Obj_Delete(ID[0]);
+				Obj_Delete(ID[1]);
+			}
+			
+			// :kevinstie_completely_exploded:
+			else
+			{
+				int objBackA = CreateSprite2D_Dest
+				(
+					background_[0], rp1, BLEND_ALPHA,
+					0, 0, 960, 720,
+					0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+				);
+				
+				int objBackB = CreateSprite2D_Dest
+				(
+					background_[1], rp1, BLEND_MULTIPLY,
+					0, 0, 960, 720,
+					0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+				);
+
+				_FadeIn(objBackA, 45);
+				_FadeIn(objBackB, 45);
+				
+				for(int i = 0; _menu == MENU_CREDITS; i++)
+				{		
+					ObjRender_SetColorHSV(objBackA, i, 255, 255);
+					
+					ObjSprite2D_SetSourceRect(objBackA, i, i, 960 + i, 720 + i);
+					ObjSprite2D_SetSourceRect(objBackB, -i, i, 960 - i, 720 + i);
+					
+					yield;
+				}
+			
+					Obj_Delete(objBackA);
+					Obj_Delete(objBackB);
+			}
+}
+
+task _RenderBackground()
+{
+	SetAreaCommonData(AREA_REPLAY, POWER, _power);
+	
+	const int[] RGB_COLOR_DRED   = ColorHexToARGB(COLOR_DRED, COLOR_PERMUTE_RGB) / 1.5;
+	const int[] RGB_COLOR_DBLUE  = ColorHexToARGB(COLOR_DBLUE, COLOR_PERMUTE_RGB) / 1.5;
+	const int[] RGB_COLOR_DGREEN = ColorHexToARGB(COLOR_DGREEN, COLOR_PERMUTE_RGB) / 1.5;
+	
+	int backA = CreateSprite2D_Dest
+	(
+		DIR_IMG_PKG_MENU_BACK_1, RP_UI_VIS, BLEND_ALPHA,
+		0, 0 + _scroll, 960, 720 + _scroll, 
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	int backB = CreateSprite2D_Dest
+	(
+		DIR_IMG_PKG_MENU_BACK_2, (_sdrMisc) ? RP_MIN : RP_UI_VIS, BLEND_ALPHA,
+		0, 0 - _scroll, 960, 720 - _scroll, 
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	
+	int objDist = CreateSprite2D_Dest
+	(
+		RT1, RP_UI_VIS, BLEND_ALPHA,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	ObjShader_SetShaderF(objDist, DIR_SDR_TOAST);
+	ObjShader_SetTechnique(objDist, TEC_DISTORT);
+	ObjShader_SetFloat(objDist, FLOAT_INTN, 0.125);
+	
+	int objPartStar = CreateParticleList2D 
+	(
+		DIR_IMG_EFF_STAR,
+		0, 0, 256, 256,
+		BLEND_ALPHA, RP_UI_VIS
+	);
+	
+	int objPartNote = CreateParticleList2D 
+	(
+		DIR_IMG_EFF_NOTE,
+		0, 0, 256, 256,
+		BLEND_ALPHA, RP_UI_VIS
+	);
+	
+	int objPartGear = CreateParticleList2D 
+	(
+		DIR_IMG_EFF_GEAR,
+		0, 0, 256, 256,
+		BLEND_ALPHA, RP_UI_VIS
+	);
+	
+	int objText = CreateTextObject
+	(
+		FANWORK, FONT_KORURI, RP_UI_VIS + 3,
+		-500 * RES, 1 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objText, true);
+	ObjText_SetSidePitch(objText, -2);
+	
+	int objTitle = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_MENU_TITLE, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 464, 76,
+		1, 1,
+		SCREEN_WIDTH + (500 * RES), 40
+	);
+	ObjSprite2D_SetSource(objTitle, 0, 0, 464, 76);
+	ObjRender_SetAlpha(objTitle, 100);
+	
+	int objLogo = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_LOGO, (_sdrMisc) ? RP_MIN : RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1024, 1024,
+		0.6, 0.6,
+		SCREEN_WIDTH - (186 * RES), 143 * RES
+	);
+	ObjRender_SetAlpha(objLogo, 0);
+	
+	int objDist2 = CreateSprite2D_Dest
+	(
+		RT2, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	ObjShader_SetShaderF(objDist2, DIR_SDR_TOAST);
+	ObjShader_SetTechnique(objDist2, TEC_DISTORT);
+	ObjShader_SetFloat(objDist2, FLOAT_INTN, 0.055);
+	
+	if(_menu == MENU_AFTER) ObjRender_SetColorHSV(backA, 0 * (300 / 7), 115, 45);
+	
+	while(_menu != MENU_OVER)
+	{
+		ObjSprite2D_SetSourceRect(backA, 0, 0 + (_scroll / 1.8), 960, 720 + (_scroll / 1.8));
+		ObjSprite2D_SetSourceRect(backB, 0, 0 - (_scroll / 2.2), 960, 720 - (_scroll / 2.2));
+		
+		int[] source = Obj_GetValueDI(objTitle, VAL_SOURCE, ID_INVALID);
+		
+		alternative(_menu)
+			case(MENU_MAIN)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(ColorRGBtoHSV(col[0], col[1], col[2])[0], _select * (300 / 8), 0.165), 150, 70);
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH + (500 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 255, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 255, 0.25));
+				
+				ObjShader_SetFloat(objDist2, FLOAT_FRAME, _scroll / 3.75);
+				
+				if(_sdrMisc)
+				{
+					RenderToTextureB1(RT2, objLogo, true);
+					Obj_SetVisible(objDist2, true);
+					Obj_SetRenderPriorityI(objLogo, RP_MIN);
+				}
+				else
+				{
+					Obj_SetVisible(objDist2, false);
+					Obj_SetRenderPriorityI(objLogo, RP_UI_VIS + 3);
+				}
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_AFTER, MENU_PLAYER2)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 0 * (300 / 7), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 1064, 0.25), 464, Interpolate_Smooth(source[3], 1140, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (150 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_PLAYER)
+			{
+				int[] colCur  = ObjRender_GetColor(backA);
+				int[] colDest = (_select == 0) ? RGB_COLOR_DRED : (_select == 1) ? RGB_COLOR_DBLUE : (_select == 2) ? RGB_COLOR_DGREEN : ID_INVALID;
+				ObjRender_SetColor(backA, Interpolate_Smooth(colCur[0], colDest[0], 0.1), Interpolate_Smooth(colCur[1], colDest[1], 0.1), Interpolate_Smooth(colCur[2], colDest[2], 0.1));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 0, 0.25), 464, Interpolate_Smooth(source[3], 76, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (100 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_SCENE)
+			{
+				int[] colDest = (_player == CHAR_REIMU) ? RGB_COLOR_DRED : (_player == CHAR_MARISA) ? RGB_COLOR_DBLUE : (_player == CHAR_SANAE) ? RGB_COLOR_DGREEN : ID_INVALID;
+				ObjRender_SetColor(backA, colDest[0], colDest[1], colDest[2]);
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 76 + (_page * 76), 0.25), 464, Interpolate_Smooth(source[3], 152 + (_page * 76), 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (130 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_REPLAY)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 1 * (300 / 7), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 684, 0.25), 464, Interpolate_Smooth(source[3], 760, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (100 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_MANUAL)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 3 * (300 / 8), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 836, 0.25), 464, Interpolate_Smooth(source[3], 912, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (100 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+			}
+			case(MENU_ACHIEVE)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 4 * (300 / 8), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 760, 0.25), 464, Interpolate_Smooth(source[3], 836, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (160 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 255, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+				
+				if(_prtMisc)
+				{
+					// Particles
+					if(_scroll % 5 == 0)
+					{
+						async
+						{
+							float orgX = prand(20 * RES, SCREEN_WIDTH + (40 * RES));
+							float orgY = prand(SCREEN_HEIGHT + (20 * RES), SCREEN_HEIGHT + (30 * RES));
+							
+							float curX = orgX;
+							float curY = orgY;
+							
+							float destX = curX + prand(-40, 40);
+							float destY = prand(-80, -110);
+							
+							float angX = prand(0, 360);
+							float angY = prand(0, 360);
+							float angZ = prand(0, 360);
+							
+							float iMax = prand(160, 260);
+							for(int i = 1; i <= iMax; i++)
+							{
+								// Position
+								curX = Interpolate_Smooth(orgX, destX, i / iMax);
+								curY = Interpolate_Smooth(orgY, destY, i / iMax);
+								ObjParticleList_SetPosition(objPartStar, curX, curY, ID_INVALID);
+								
+								// Rotation
+								angX += prand(1, 2);
+								angY -= prand(1, 2);
+								angZ += prand(1, 2);
+								ObjParticleList_SetAngle(objPartStar, angX, angY, angZ);
+								
+								// Size
+								ObjParticleList_SetScale(objPartStar, 0.2);
+								
+								// Fade
+								ObjParticleList_SetAlpha(objPartStar, 255);
+								
+								// Tint
+								ObjParticleList_SetColor(objPartStar, COLOR_GREEN);
+								
+								ObjParticleList_AddInstance(objPartStar);
+								
+								yield;
+							}
+						}
+					}
+				}
+			}
+			case(MENU_MUSIC)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 5 * (300 / 8), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 912, 0.25), 464, Interpolate_Smooth(source[3], 988, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle),SCREEN_WIDTH - (100 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 255, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 0, 0.2));
+				
+				if(_prtMisc)
+				{
+					// Particles
+					if(_scroll % 5 == 0)
+					{
+						async
+						{
+							float orgX = prand(20 * RES, SCREEN_WIDTH + (40 * RES));
+							float orgY = prand(SCREEN_HEIGHT + (20 * RES), SCREEN_HEIGHT + (30 * RES));
+							
+							float curX = orgX;
+							float curY = orgY;
+							
+							float destX = curX + prand(-40, 40);
+							float destY = prand(-80, -110);
+											
+							int mult = -1 + 2 * prand_int(0, 1);
+	
+							float tilt = 0;
+							
+							float iMax = prand(160, 260);
+							for(int i = 1; i <= iMax; i++)
+							{
+								// Position
+								curX = Interpolate_Smooth(orgX, destX, i / iMax);
+								curY = Interpolate_Smooth(orgY, destY, i / iMax);
+								ObjParticleList_SetPosition(objPartNote, curX, curY, ID_INVALID);
+								
+								// Tilt
+								tilt += (cos(_scroll) / 4) * mult;
+								ObjParticleList_SetAngleZ(objPartNote, tilt);
+								
+								// Size
+								ObjParticleList_SetScale(objPartNote, 0.2);
+								
+								// Fade
+								ObjParticleList_SetAlpha(objPartNote, 255);
+								
+								// Tint
+								ObjParticleList_SetColor(objPartNote, COLOR_AQUA);
+								
+								ObjParticleList_AddInstance(objPartNote);
+								
+								yield;
+							}
+						}
+					}
+				}
+			}
+			case(MENU_SETTINGS)
+			{
+				int[] col = ObjRender_GetColor(backA);
+				col = ColorRGBtoHSV(col[0], col[1], col[2]);
+				ObjRender_SetColorHSV(backA, Interpolate_Smooth(col[0], 6 * (300 / 8), 0.165), Interpolate_Smooth(col[1], 115, 0.165), Interpolate_Smooth(col[2], 45, 0.165));
+				
+				ObjSprite2D_SetSource(objTitle, 0, Interpolate_Smooth(source[1], 988, 0.25), 464, Interpolate_Smooth(source[3], 1064, 0.25));
+				
+				ObjRender_SetX(objTitle, Interpolate_Smooth(ObjRender_GetX(objTitle), SCREEN_WIDTH - (130 * RES), 0.25));
+				
+				ObjRender_SetAlpha(objLogo, Interpolate_Smooth(ObjRender_GetAlpha(objLogo), 0, 0.25));
+				ObjRender_SetAlpha(objDist2, Interpolate_Smooth(ObjRender_GetAlpha(objDist2), 0, 0.25));
+				
+				ObjRender_SetAlpha(objPartStar, Interpolate_Smooth(ObjRender_GetAlpha(objPartStar), 0, 0.2));
+				ObjRender_SetAlpha(objPartNote, Interpolate_Smooth(ObjRender_GetAlpha(objPartNote), 0, 0.2));
+				ObjRender_SetAlpha(objPartGear, Interpolate_Smooth(ObjRender_GetAlpha(objPartGear), 255, 0.2));
+				
+				if(_prtMisc)
+				{
+					// Particles
+					if(_scroll % 5 == 0)
+					{
+						async
+						{
+							float orgX = prand(20 * RES, SCREEN_WIDTH + (40 * RES));
+							float orgY = prand(SCREEN_HEIGHT + (20 * RES), SCREEN_HEIGHT + (30 * RES));
+							
+							float curX = orgX;
+							float curY = orgY;
+							
+							float destX = curX + prand(-40, 40);
+							float destY = prand(-80, -110);
+							
+							//float angX = prand(0, 360);
+							//float angY = prand(0, 360);
+							float angZ = prand(0, 360);
+							
+							int dir = -1 + 2 * prand_int(0, 1);
+							
+							float iMax = prand(160, 260);
+							for(int i = 1; i <= iMax; i++)
+							{
+								// Position
+								curX = Interpolate_Smooth(orgX, destX, i / iMax);
+								curY = Interpolate_Smooth(orgY, destY, i / iMax);
+								ObjParticleList_SetPosition(objPartGear, curX, curY, ID_INVALID);
+								
+								// Rotation
+								angZ += prand(1, 2) * dir;
+								ObjParticleList_SetAngle(objPartGear, 0, 0, angZ);
+								
+								// Size
+								ObjParticleList_SetScale(objPartGear, 0.2);
+								
+								// Fade
+								ObjParticleList_SetAlpha(objPartGear, 255);
+								
+								// Tint
+								ObjParticleList_SetColor(objPartGear, COLOR_AZURE);
+								
+								ObjParticleList_AddInstance(objPartGear);
+								
+								yield;
+							}
+						}
+					}
+				}
+			}
+		
+		if(_sdrMisc)
+		{
+			RenderToTextureB1(RT1, backB, true);
+			Obj_SetVisible(objDist, true);
+			Obj_SetRenderPriorityI(backB, RP_MIN);
+		}
+		else
+		{
+			Obj_SetVisible(objDist, false);
+			Obj_SetRenderPriorityI(backB, RP_UI_VIS);
+		}
+		
+		ObjShader_SetFloat(objDist, FLOAT_FRAME, _scroll / 3.75);
+		
+		ObjRender_SetX(objText, Interpolate_Smooth(ObjRender_GetX(objText), 5 * RES, 0.18));
+		
+		_scroll++;
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(backA);
+	Obj_Delete(backB);
+	Obj_Delete(objDist);
+	Obj_Delete(objText);
+	Obj_Delete(objTitle);
+	Obj_Delete(objPartStar);
+	Obj_Delete(objPartGear);
+	Obj_Delete(objPartNote);
+	Obj_Delete(objDist2);
+	Obj_Delete(objLogo);
+}
+
+task _RenderControls()
+{
+	int objText = CreateTextObject
+	(
+		CONTROLS, FONT_KORURI, RP_UI_VIS,
+		SCREEN_WIDTH + (500 * RES), SCREEN_HEIGHT - (20 * RES),
+		17 * RES, SCREEN_WIDTH, ALIGNMENT_RIGHT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objText, true);
+	ObjText_SetSidePitch(objText, -2.5);
+	ObjText_SetLinePitch(objText, -2);
+	
+	while(_menu != MENU_MANUAL && _menu != MENU_OVER)
+	{
+		ObjRender_SetX(objText, Interpolate_Smooth(ObjRender_GetX(objText), -100, 0.18));
+		
+		yield;
+	}
+	
+	float initX = ObjRender_GetX(objText);
+	
+	float iMax = 45;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objText, Interpolate_Smooth(initX, SCREEN_WIDTH + (500 * RES), i / iMax));
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objText);
+}
+
+// Handles menu selection
+function<int> HandleSelection(int[] result_, int selMax_, bool main_)
+{
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	bool finaleClear = GetAreaCommonData(AREA_ACHIEVE, FINALE_CLEAR, false);
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, ((result_[_select] == RESULT_QUIT && _menu != MENU_AFTER) || (result_[_select] == RESULT_AFTER && !finaleClear && _menu == MENU_MAIN)) ? DIR_SFX_MENU_CANCEL : DIR_SFX_MENU_CONFIRM);
+			
+			if(finaleClear || result_[_select] != RESULT_AFTER )
+			{
+				if(_menu != MENU_PLAYER)
+				{
+					loop(30)
+					{
+						_flash += 16;
+						yield;
+					}
+				}
+				
+				if(_menu != MENU_AFTER)
+				{
+					async
+					{
+						yield;
+						_select = 0;
+					}
+				}
+				
+				return result_[_select];
+			}
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			if(main_ && _select != 7) _select = 7;
+			else if(main_ && _select == 7)
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			
+				if(_menu != MENU_PLAYER)
+				{
+					loop(30)
+					{
+						_flash += 16;
+						yield;
+					}
+				}
+				
+				async
+				{
+					yield;
+					_select = 0;
+				}
+				
+				return result_[_select];
+			}
+			else if(!main_)
+			{
+				_select = 0;
+				return RESULT_CANCEL_;
+			}
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH || GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH || GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD || GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		else
+		{
+			_held = 0;
+		}
+		if(_select < 0)       _select = selMax_;
+		else if(_select > selMax_) _select = 0;
+		
+		if(_menu == MENU_PLAYER && GetVirtualKeyState(VK_USER1) == KEY_PUSH && GetAreaCommonData(AREA_ACHIEVE, STAGE ~ itoa(7), false))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, (_power) ? DIR_SFX_MENU_CANCEL : DIR_SFX_POWER_UP);
+			_power = (_power) ? false : true;
+			SetAreaCommonData(AREA_REPLAY, POWER, _power);
+		}
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles menu selection
+function<int> HandlePlayer2MenuSelection()
+{
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+				
+			async
+			{
+				yield;
+				_select = 0;
+			}
+				
+			return RESULT_START;
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+				
+			async
+			{
+				yield;
+				_select = 0;
+			}
+				
+			return RESULT_CANCEL_;
+		}
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles scene menu selection
+function<int[]> HandleSceneSelection(int pages_, int[] length_)
+{
+	int[] req = [0, 0, 9, 18, 27, 36, 45, 57];
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			if(_debug || GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0) >= req[_page])
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+				loop(30)
+				{
+					_flash += 16;
+					yield;
+				}
+				
+				/*async
+				{
+					yield;
+					_select = 0;
+					_page = 0;
+				}*/
+				
+				return [_page, _select];
+			}
+			else NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			_select = 0;
+			_page = 0;
+			return [RESULT_CANCEL_, ID_INVALID];
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE && GetVirtualKeyState(VK_UP) == KEY_FREE && GetVirtualKeyState(VK_DOWN) == KEY_FREE)
+		{
+			_held = 0;
+		}
+		if(_page < 0) _page = pages_;
+		else if(_page > pages_) _page = 0;
+		if(_select < 0) _select = length_[_page];
+		else if(_select > length_[_page]) _select = 0;
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles replay menu selection
+function<int> HandleReplaySelection()
+{	
+	int pageMax   = 14;
+	int pageCount = 9;
+	
+	for(int i = 0; i <= pageMax; i++)
+	{
+		for(int j = 0; j <= pageCount; j++)
+		{
+			_RenderReplayMenuOption(i, j);
+		}
+	}
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	while(_menu == MENU_REPLAY)
+	{
+		if((GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE) && IsValidReplayIndex(((_page * 15) + _select) + 1)))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			loop(30)
+			{
+				_flash += 16;
+				yield;
+			}
+			
+			return ((_page * 15) + _select) + 1;
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			_select = 0;
+			_page = 0;
+			
+			return RESULT_CANCEL_;
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_page++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_page++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE && GetVirtualKeyState(VK_UP) == KEY_FREE && GetVirtualKeyState(VK_DOWN) == KEY_FREE)
+		{
+			_held = 0;
+		}
+		if(_page < 0) _page = pageCount;
+		else if(_page > pageCount) _page = 0;
+		if(_select < 0) _select = pageMax;
+		else if(_select > pageMax) _select = 0;
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles manual and achievement menu selection
+function<void> HandleManualSelection(int selMax_)
+{
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PUSH || GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH || (GetKeyState(KEY_RETURN) == KEY_PUSH && GetKeyState(KEY_LMENU) == KEY_FREE))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			
+			async
+			{
+				yield;
+				_select = 0;
+			}
+			
+			return;
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH || GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH || GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD || GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		else
+		{
+			_held = 0;
+		}
+		if(_select < 0)       _select = selMax_;
+		else if(_select > selMax_) _select = 0;
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles music room menu selection
+function<void> HandleMusicSelection(int selMax_)
+{
+	string[] music = [DIR_BGM_TITLE, DIR_BGM_S1, DIR_BGM_S2, DIR_BGM_S3, DIR_BGM_S4, DIR_BGM_S5, DIR_BGM_S6, DIR_BGM_S7, DIR_BGM_S8, DIR_BGM_FINAL, DIR_BGM_CREDITS, DIR_BGM_S9];
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PUSH || (GetKeyState(KEY_RETURN) == KEY_PUSH && GetKeyState(KEY_LMENU) == KEY_FREE))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			NotifyEventOwn(EV_BGM_CHANGE, music[_select], ID_INVALID);
+			
+			loop(30)
+			{
+				_flash += 16;
+				yield;
+			}
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			
+			async
+			{
+				yield;
+				_select = 0;
+			}
+			
+			return;
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH || GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH || GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD || GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD || GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		else
+		{
+			_held = 0;
+		}
+		if(_select < 0)       _select = selMax_;
+		else if(_select > selMax_) _select = 0;
+		
+		_flash++;
+		
+		yield;
+	}
+}
+
+// Handles settings menu selection
+function<void> HandleSettingsSelection(bool[] isToggle_, int length_)
+{
+	/*_settings = [GetAreaCommonData(AREA_SETTINGS, DIST_BG, 1), GetAreaCommonData(AREA_SETTINGS, DIST_LIFE, 1), GetAreaCommonData(AREA_SETTINGS, DIST_LINE, 1), GetAreaCommonData(AREA_SETTINGS, SHADOW, 1), GetAreaCommonData(AREA_SETTINGS, CHARGE, 1), GetAreaCommonData(AREA_SETTINGS, LASER, 1), GetAreaCommonData(AREA_SETTINGS, BG_STAGE, 1), GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1), GetAreaCommonData(AREA_SETTINGS, TRAIL, 1), GetAreaCommonData(AREA_SETTINGS, CIRCLE, 1), GetAreaCommonData(AREA_SETTINGS, AURA, 1), GetAreaCommonData(AREA_SETTINGS, GRZ_PART, 1), GetAreaCommonData(AREA_SETTINGS, GRZ_COL, 1), GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100), GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100), GetAreaCommonData(AREA_SETTINGS, FRAME, 50)];*/
+	
+	int orgBGM = GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100);
+	int orgSFX = GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100);
+	
+	_settings = 
+	[
+		GetAreaCommonData(AREA_SETTINGS, SDR_DIST, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_SDW, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_CHR, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_BOSS, 1),
+		GetAreaCommonData(AREA_SETTINGS, EFF_GRZ, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_LSR, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1),
+		GetAreaCommonData(AREA_SETTINGS, BG_STAGE, 1),
+		GetAreaCommonData(AREA_SETTINGS, BG_SPELL, 1),
+		GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1),
+		GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1),
+		GetAreaCommonData(AREA_SETTINGS, HINT, 1),
+		GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100),
+		GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100),
+		GetAreaCommonData(AREA_SETTINGS, FRAME, 40)
+	];
+	
+	while(GetVirtualKeyState(VK_PAUSE) != KEY_FREE || GetVirtualKeyState(VK_OK) != KEY_FREE || GetVirtualKeyState(VK_CANCEL) != KEY_FREE || (GetKeyState(KEY_RETURN) != KEY_FREE && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE)) yield;
+	
+	loop
+	{
+		if(GetVirtualKeyState(VK_OK) == KEY_PULL || (GetKeyState(KEY_RETURN) == KEY_PULL && GetKeyState(KEY_LMENU) == KEY_FREE && GetKeyState(KEY_RMENU) == KEY_FREE))
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CONFIRM);
+			
+			async
+			{
+				yield;
+				
+				//string[] settings = [DIST_BG, DIST_LIFE, DIST_LINE, SHADOW, CHARGE, LASER, BG_STAGE, BG_SPELL, TRAIL, CIRCLE, AURA, GRZ_PART, GRZ_COL, VOL_BGM, VOL_SFX, FRAME];
+				string[] settings = [SDR_DIST, EFF_SDW, EFF_CHR, EFF_BOSS, EFF_GRZ, PRT_LSR, PRT_SHT, BG_STAGE, BG_SPELL, SDR_MISC, PRT_MISC, HINT, VOL_BGM, VOL_SFX, FRAME];
+				
+				if(_select != length(isToggle_))
+				{
+					for(int i = 0; i < length(_settings); i++)
+					{
+						SetAreaCommonData(AREA_SETTINGS, settings[i], _settings[i]);
+					}
+				}
+				else
+				{
+					int[] defaults = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 100, 100, 40];
+					for(int i = 0; i < length(_settings); i++)
+					{
+						SetAreaCommonData(AREA_SETTINGS, settings[i], defaults[i]);
+					}
+				}
+				
+				_sdrMisc = GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1);
+				_prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+				
+				_volBGM = GetAreaCommonData(AREA_SETTINGS, VOL_BGM, 100);
+				_volSFX = GetAreaCommonData(AREA_SETTINGS, VOL_SFX, 100);
+	
+				ObjSound_SetVolumeRate(_objBGM, _volBGM / 2);
+				ObjSound_SetVolumeRate(_objSFX, _volSFX / 2);
+	
+				SaveCommonDataAreaA2(AREA_SETTINGS, DIR_DAT_SETTINGS);
+				
+				_select = 0;
+			}
+			
+			return;
+		}
+		if(GetVirtualKeyState(VK_CANCEL) == KEY_PUSH || GetVirtualKeyState(VK_PAUSE) == KEY_PUSH)
+		{
+			_volBGM = orgBGM;
+			_volSFX = orgSFX;
+			ObjSound_SetVolumeRate(_objBGM, _volBGM / 2);
+			ObjSound_SetVolumeRate(_objSFX, _volSFX / 2);
+		
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_CANCEL);
+			_select = 0;
+			_page = 0;
+			return;
+		}
+		if(GetVirtualKeyState(VK_UP) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select--;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			_select++;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_UP) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select--;
+			}
+		}
+		else if(GetVirtualKeyState(VK_DOWN) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				_select++;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			if(_select < 12) _settings[_select]--;
+			else if(_select < length_ - 1)
+			{
+				_settings[_select] -= 10;
+				if(_select == 12) _volBGM = _settings[_select];
+				else if(_select == 13) _volSFX = _settings[_select];
+			}
+			else if(_select == length_ - 1) _settings[_select] -= 5;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_PUSH)
+		{
+			NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+			if(_select < 12) _settings[_select]++;
+			else if(_select < length_ - 1)
+			{
+				_settings[_select] += 10;
+				if(_select == 12) _volBGM = _settings[_select];
+				else if(_select == 13) _volSFX = _settings[_select];
+			}
+			else if(_select == length_ - 1) _settings[_select] += 5;
+			_held = 0;
+		}
+		else if(GetVirtualKeyState(VK_LEFT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn( EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				if(_select < 12) _settings[_select]--;
+				else if(_select < length_ - 1)
+				{
+					_settings[_select] -= 10;
+					if(_select == 12) _volBGM = _settings[_select];
+					else if(_select == 13) _volSFX = _settings[_select];
+				}
+				else if(_select == length_ - 1) _settings[_select] -= 5;
+			}
+		}
+		else if(GetVirtualKeyState(VK_RIGHT) == KEY_HOLD)
+		{
+			_held++;
+			if(_held == 30 || (_held > 30 && _held % 10 == 0))
+			{
+				NotifyEventOwn(EV_SFX_PLAY, DIR_SFX_MENU_SELECT);
+				if(_select < 12) _settings[_select]++;
+				else if(_select < length_ - 1)
+				{
+					_settings[_select] += 10;
+					if(_select == 12) _volBGM = _settings[_select];
+					else if(_select == 13) _volSFX = _settings[_select];
+				}
+				else if(_select == length_ - 1) _settings[_select] += 5;
+			}
+		}
+		if(GetVirtualKeyState(VK_LEFT) == KEY_FREE && GetVirtualKeyState(VK_RIGHT) == KEY_FREE && GetVirtualKeyState(VK_UP) == KEY_FREE && GetVirtualKeyState(VK_DOWN) == KEY_FREE)
+		{
+			_held = 0;
+		}
+		for(int i = 0; i < length(isToggle_); i++)
+		{
+			if(isToggle_[i])
+			{
+				if(_settings[i] > 1) _settings[i] = 0;
+				else if(_settings[i] < 0) _settings[i] = 1;
+			}
+			else if(i == 12)
+			{
+				if(_settings[i] > 200)
+				{
+					_settings[i] = 0;
+					_volBGM = 0;
+				}
+				else if(_settings[i] < 0)
+				{
+					_settings[i] = 200;
+					_volBGM = 200;
+				}
+			}
+			else if(i == 13)
+			{
+				if(_settings[i] > 200)
+				{
+					_settings[i] = 0;
+					_volSFX = 0;
+				}
+				else if(_settings[i] < 0)
+				{
+					_settings[i] = 200;
+					_volSFX = 200;
+				}
+			}
+			else
+			{
+				if(_settings[i] > 100) _settings[i] = 0;
+				else if(_settings[i] < 0) _settings[i] = 100;
+			}
+		}
+		if(_select < 0) _select = length_;
+		else if(_select > length_) _select = 0;
+		
+		_flash++;
+		
+		ObjSound_SetVolumeRate(_objBGM, _volBGM / 2);
+		ObjSound_SetVolumeRate(_objSFX, _volSFX / 2);
+		
+		yield;
+	}
+}
+
+task _RenderMainMenuOption(int index_)
+{
+	int objOption = CreateSprite2D_Pos
+	(
+		DIR_IMG_PKG_MENU_OPT, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, index_ * 34, 218, 34 + (index_ * 34),  
+		1, 1,
+		(-120 * RES) + ((index_ % 8) * (20 * RES)), (190 * RES) + ((index_ % 8) * (37 * RES))
+	);
+	
+	bool finaleClear = GetAreaCommonData(AREA_ACHIEVE, FINALE_CLEAR, false);
+	
+	int objLock = ID_INVALID;
+	
+	int val = 255;
+	if(index_ == 1 && !finaleClear)
+	{
+		val = 150;
+		
+		objLock = CreateTextObject
+		(
+			AFTER_LOCKED, FONT_KORURI, RP_UI_VIS + 3,
+			(175 * RES) + ((index_ % 8) * (20 * RES)) + 40, (200 * RES) + ((index_ % 8) * (37 * RES)),
+			16 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+			BORDER_FULL, 1.5 * RES,
+			COLOR_WHITE, COLOR_WHITE, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objLock, true);
+		ObjText_SetSidePitch(objLock, -2);
+		ObjText_SetLinePitch(objLock, -2);
+		ObjRender_SetAlpha(objLock, 0);
+	}
+	
+	while(_menu == MENU_MAIN)
+	{
+		bool isSelection = _select == (index_ % 8);
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		ObjRender_SetColorHSV(objOption, _select * (300 / 8), isSelection ? intn * 255 : 0, val);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), isSelection ? (175 * RES) + ((index_ % 8) * (20 * RES)) : (100 * RES) +  + ((index_ % 8) * (20 * RES)), 0.2));
+		
+		if(index_ == 1 && !finaleClear)
+		{
+			ObjRender_SetAlpha(objLock, Interpolate_Smooth(ObjRender_GetAlpha(objLock), (_select == index_) ? 255 : 0, 0.2));
+			ObjRender_SetColorHSV(objLock, _select * (300 / 8), isSelection ? intn * 255 : 0, val);
+		}
+		
+		yield;
+	}
+	
+	float initX = ObjRender_GetX(objOption);
+	
+	float iMax = 90;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initX, (-120 * RES) - ((index_ % 8) * (20 * RES)), i / iMax));
+		if(index_ == 1 && !finaleClear) ObjRender_SetAlpha(objLock, Interpolate_Smooth(ObjRender_GetAlpha(objLock), 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	if(Obj_IsExists(objLock)) Obj_Delete(objLock);
+}
+
+task _RenderPlayerMenuOption()
+{
+	int objOption = CreateSprite2D_Dest
+	(
+		DIR_IMG_PKG_PLAYER_OPT, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, _select * 720, 960, 720 + (_select * 720),  
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	ObjRender_SetAlpha(objOption, 0);
+	
+	float rect = 0;
+	
+	while(_menu == MENU_PLAYER)
+	{	
+		rect = Interpolate_Smooth(rect, _select * 720, 0.25);
+		
+		ObjSprite2D_SetSourceRect(objOption, 0, rect, 960, 720 + rect);
+		
+		ObjRender_SetAlpha(objOption, Interpolate_Smooth(ObjRender_GetAlpha(objOption), 255, 0.17));
+		
+		yield;
+	}
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetAlpha(objOption, Interpolate_Smooth(255, 0, i / iMax));
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+}
+
+task _RenderHighPower()
+{
+	int objPow = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_MAX_POWER, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 450, 65,
+		1, 1,
+		450 / 2, SCREEN_HEIGHT - (65 / 2)
+	);
+	ObjRender_SetAlpha(objPow, 0);
+	
+	while(_menu == MENU_PLAYER)
+	{
+		ObjRender_SetAlpha(objPow, Interpolate_Smooth(ObjRender_GetAlpha(objPow), _power * 255, 0.25));
+		
+		yield;
+	}
+	
+	if(_power)
+	{
+		int alpha = ObjRender_GetAlpha(objPow);
+		
+		for(int i = 0; i <= (alpha / 30); i++)
+		{
+			ObjRender_SetAlpha(objPow, Interpolate_Smooth(alpha, 0, i / (alpha / 30)));
+			
+			yield;
+		}
+	}
+	
+	Obj_Delete(objPow);
+}
+
+task _RenderSceneMenuOption(int stage_, int index_)
+{
+	int stageOff = [1, 10, 19, 28, 37, 46, 55, 64][stage_];
+
+	int spellID = index_ + stageOff;
+	
+	int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ _player, 0i);
+	int numCap =  historyData >> 32 & 0xffff;
+	int numTry = historyData & 0xffff;
+	
+	int viewData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_REIMU, 0i) & 0xffff;
+	if(viewData == 0) viewData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_MARISA, 0i) & 0xffff;
+	if(viewData == 0) viewData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_SANAE, 0i) & 0xffff;
+	
+	int capData;
+	if(numCap > 0) capData = numCap;
+	else capData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_REIMU, 0i) >> 32 & 0xffff;
+	if(capData == 0) capData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_MARISA, 0i) >> 32 & 0xffff;
+	if(capData == 0) capData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ CHAR_SANAE, 0i) >> 32 & 0xffff;
+	
+	int line = (viewData == 0) ? 1 : spellID + 1;
+	string[] spellData = SplitString(ObjFileT_GetLineText(_spellNames, line), '\\');
+	if(line != 1) spellData[0] = "\"" ~ spellData[0] ~ "\"";
+	
+	string score = DigitToCommaArray(GetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ itoa(spellID) ~ _player, 100000000i));
+	
+	// To view all comments for debug purposes, change (numCap > 0) to (numCap > -1)
+	string comm = MEDAL_REQ ~ " " ~ "[f tc=(255, 255, 0) bc=(164, 164, 0)]" ~ SplitString(ObjFileT_GetLineText(_medalReq, 1), '\\')[spellID - 1] ~ ",000,000,000[f tc=(255, 255, 255) bc=(128, 128, 128)][r][r]" ~ ((capData > 0) ? spellData[1] ~ "[r][r]" ~ spellData[2] : SplitString(ObjFileT_GetLineText(_spellNames, 1), '\\')[1]);
+	
+	string medal = (GetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(spellID), false)) ? "★" : "";
+	
+	int objOption = CreateTextObject
+	(
+		itoa(stage_ + 1) ~ "-" ~ itoa(index_ + 1) ~ "  " ~ medal ~ "  " ~ spellData[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (index_ * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objHistory = CreateTextObject
+	(
+		DigitToCommaArray(numCap) ~ "/" ~ DigitToCommaArray(numTry), FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (index_ * 28),
+		20 * RES, 125 * RES, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objHistory, true);
+	ObjText_SetSidePitch(objHistory, -2);
+	
+	int objScore = CreateTextObject
+	(
+		score, FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (index_ * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objScore, true);
+	ObjText_SetSidePitch(objScore, -2);
+	
+	int req = [0, 0, 9, 18, 27, 36, 45, 57][stage_];
+	
+	int val = (GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0) >= req) ? 255 : 150;
+	
+	while(_menu == MENU_SCENE)
+	{
+		bool isSelection = _select == index_;
+		bool samePage    = _page == stage_; 
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objHistory, index_ * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objScore, index_ * 65, isSelection ? intn * 255 : 0, val);
+		
+		Obj_SetVisible(objOption, samePage);
+		Obj_SetVisible(objHistory, samePage);
+		Obj_SetVisible(objScore, samePage);
+		
+		if(isSelection && samePage) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (22 * RES) : (5 * RES), 0.2));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(ObjRender_GetX(objHistory), (isSelection) ? (482 * RES) : (505 * RES), 0.2));
+		ObjRender_SetX(objScore, Interpolate_Smooth(ObjRender_GetX(objScore), 355 * RES, 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXhis = ObjRender_GetX(objHistory);
+	float initXscr = ObjRender_GetX(objScore);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(initXhis, -400 * RES, i / iMax));
+		ObjRender_SetX(objScore, Interpolate_Smooth(initXscr, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objHistory);
+	Obj_Delete(objScore);
+}
+
+task _RenderFinalPracticeOption()
+{
+	string[] spellData = SplitString(ObjFileT_GetLineText(_spellNames, 66), '\\');
+
+	int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ "65" ~ _player, 0i);
+	int numCap =  historyData >> 32 & 0xffff;
+	int numTry = historyData & 0xffff;
+	
+	string score = DigitToCommaArray(GetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ "65" ~ _player, 100000000i));
+	
+	string comm = spellData[2];
+	
+	int objOption = CreateTextObject
+	(
+		spellData[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (1 * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objHistory = CreateTextObject
+	(
+		DigitToCommaArray(numCap) ~ "/" ~ DigitToCommaArray(numTry), FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (1 * 28),
+		20 * RES, 125 * RES, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objHistory, true);
+	ObjText_SetSidePitch(objHistory, -2);
+	
+	int objScore = CreateTextObject
+	(
+		score, FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (1 * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objScore, true);
+	ObjText_SetSidePitch(objScore, -2);
+	
+	int val = (GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0) >= 57) ? 255 : 150;
+	
+	while(_menu == MENU_SCENE)
+	{
+		bool isSelection = _select == 1;
+		bool samePage    = _page == 7; 
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, 1 * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objHistory, 1 * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objScore, 1 * 65, isSelection ? intn * 255 : 0, val);
+		
+		Obj_SetVisible(objOption, samePage);
+		Obj_SetVisible(objHistory, samePage);
+		Obj_SetVisible(objScore, samePage);
+		
+		if(isSelection && samePage) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (47 * RES) : (30 * RES), 0.2));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(ObjRender_GetX(objHistory), (isSelection) ? (482 * RES) : (505 * RES), 0.2));
+		ObjRender_SetX(objScore, Interpolate_Smooth(ObjRender_GetX(objScore), 355 * RES, 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXhis = ObjRender_GetX(objHistory);
+	float initXscr = ObjRender_GetX(objScore);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(initXhis, -400 * RES, i / iMax));
+		ObjRender_SetX(objScore, Interpolate_Smooth(initXscr, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objHistory);
+	Obj_Delete(objScore);
+}
+
+task _RenderFinalCreditsOption()
+{
+	string[] spellData = SplitString(ObjFileT_GetLineText(_spellNames, 67), '\\');
+
+	string comm = spellData[1];
+	
+	int objOption = CreateTextObject
+	(
+		spellData[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (2 * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int val = (GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0) >= 57) ? 255 : 150;
+	
+	while(_menu == MENU_SCENE)
+	{
+		bool isSelection = _select == 2;
+		bool samePage    = _page == 7; 
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, 1 * 65, isSelection ? intn * 255 : 0, val);
+		
+		Obj_SetVisible(objOption, samePage);
+		
+		if(isSelection && samePage) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (47 * RES) : (30 * RES), 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+}
+
+task _RenderSpellComment()
+{
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 426, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	
+	int objDarkA = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 34, SCREEN_WIDTH, 72,
+		COLOR_BLACK
+	);
+	
+	int objComment = CreateTextObject
+	(
+		_comm, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 432,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objComment, true);
+	ObjText_SetSidePitch(objComment, -2);
+	ObjText_SetLinePitch(objComment, -2);
+	
+	int objDesc = CreateTextObject
+	(
+		CHANGE_PAGE, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 25 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objDesc, true);
+	ObjText_SetSidePitch(objDesc, -2);
+	
+	int objBox = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_BOX, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 160, 60,
+		0, 0,
+		SCREEN_WIDTH / 2, (SCREEN_HEIGHT / 2) - (100 * RES)
+	);
+	
+	int[] req = [0, 0, 9, 18, 27, 36, 45, 57];
+	
+	int cap = GetAreaCommonData(AREA_ACHIEVE, CAPTURE_COUNT, 0);
+	
+	int objLock = CreateTextObject
+	(
+		STAGE_LOCKED ~ "[r]" ~ itoa(cap) ~ "/" ~ itoa(req[_page]) ~ " " ~ CAPTURES, FONT_KORURI, RP_UI_VIS + 3,
+		0, (SCREEN_HEIGHT / 2) - (120 * RES),
+		19 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_WHITE, COLOR_RED, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objLock, true);
+	ObjText_SetSidePitch(objLock, -2);
+	ObjText_SetLinePitch(objLock, -2);
+	ObjRender_SetScaleXYZ(objLock, 0);
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_SCENE; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetX(objComment, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 5, i / iMax));
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 165, i / iMax));
+			
+			ObjRender_SetX(objDesc, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 0, i / iMax));
+			ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(0, 155, i / iMax));
+		}
+		
+		ObjText_SetText(objComment, _comm);
+		ObjText_SetText(objLock, STAGE_LOCKED ~ "[r]" ~ itoa(cap) ~ "/" ~ itoa(req[_page]) ~ " " ~ CAPTURES);
+		
+		ObjRender_SetScaleXYZ(objBox, Interpolate_Smooth(ObjRender_GetScaleX(objBox), (cap < req[_page]) * 1.8, 0.2));
+		ObjRender_SetScaleXYZ(objLock, Interpolate_Smooth(ObjRender_GetScaleX(objLock), cap < req[_page], 0.2));
+		
+		yield;
+	}
+
+	int scale = ObjRender_GetScaleX(objBox);
+	int scaleA = ObjRender_GetScaleX(objLock);
+	
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objComment, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(155, 0, i / iMax));
+		
+		ObjRender_SetX(objDesc, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(155, 0, i / iMax));
+		
+		ObjRender_SetScaleXYZ(objBox, Interpolate_Smooth(scale, 0, i / iMax));
+		ObjRender_SetScaleXYZ(objLock, Interpolate_Smooth(scaleA, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objComment);
+	Obj_Delete(objDesc);
+	Obj_Delete(objBox);
+	Obj_Delete(objLock);
+	Obj_Delete(objDark);
+	Obj_Delete(objDarkA);
+}
+
+task _RenderPlayer2Menu()
+{
+	int objOption = CreateSprite2D_Dest
+	(
+		DIR_IMG_PKG_PLAYER_AFTER, RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 960, 720,  
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+	);
+	ObjRender_SetAlpha(objOption, 0);
+	
+	float rect = 0;
+	
+	while(_menu == MENU_PLAYER2)
+	{		
+		ObjRender_SetAlpha(objOption, Interpolate_Smooth(ObjRender_GetAlpha(objOption), 255, 0.17));
+		
+		yield;
+	}
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetAlpha(objOption, Interpolate_Smooth(255, 0, i / iMax));
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+}
+
+task _RenderAfterMenuOption(int index_)
+{
+	int offX = 0;
+	
+	int stageOff = 67;
+
+	int historyDataA = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ "70" ~ CHAR_FLANDRE, 0i);
+	bool tetrSeen = historyDataA & 0xffff;
+	int indexA = index_ + (index_ > 3 && tetrSeen);
+	
+	int spellID = indexA + stageOff;
+	if(!tetrSeen && index_ > 3) spellID++;
+	
+	int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ itoa(spellID) ~ _player, 0i);
+	int numCap =  historyData >> 32 & 0xffff;
+	int numTry = historyData & 0xffff;
+	
+	int line = (numTry == 0) ? 1 : spellID + 1;
+	//if(!tetrSeen && numTry > 0 && index_ >= 4) line++;
+	string[] spellData = SplitString(ObjFileT_GetLineText(_spellNames, line), '\\');
+	if(line != 1) spellData[0] = "\"" ~ spellData[0] ~ "\"";
+	
+	string score = DigitToCommaArray(GetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ itoa(spellID) ~ _player, 100000000i));
+	
+	string mult = (spellID != 70) ? ",000,000,000" : ",000";
+	
+	// To view all comments for debug purposes, change (numCap > 0) to (numCap > -1)
+	string comm = MEDAL_REQ ~ " " ~ "[f tc=(255, 255, 0) bc=(164, 164, 0)]" ~ SplitString(ObjFileT_GetLineText(_medalReq, 1), '\\')[(index_ + stageOff) - 1] ~ mult ~ "[f tc=(255, 255, 255) bc=(128, 128, 128)][r][r]" ~ ((numCap > 0) ? spellData[2] : SplitString(ObjFileT_GetLineText(_spellNames, 1), '\\')[1]);
+	
+	string medal = (GetAreaCommonData(AREA_ACHIEVE, MEDAL ~ itoa(spellID), false)) ? "★" : "";
+	
+	int objOption = CreateTextObject
+	(
+		"α-" ~ itoa(index_ + 1) ~ "  " ~ medal, FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (indexA * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objOption2 = CreateTextObject
+	(
+		spellData[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (indexA * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption2, true);
+	ObjText_SetSidePitch(objOption2, -2);
+	if(length(spellData[0]) == 39)
+	{
+		ObjRender_SetScaleX(objOption2, 0.75);
+		offX = -62;
+	}
+	
+	int objHistory = CreateTextObject
+	(
+		DigitToCommaArray(numCap) ~ "/" ~ DigitToCommaArray(numTry), FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (indexA * 28),
+		20 * RES, 125 * RES, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objHistory, true);
+	ObjText_SetSidePitch(objHistory, -2);
+	
+	int objScore = CreateTextObject
+	(
+		score, FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (indexA * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objScore, true);
+	ObjText_SetSidePitch(objScore, -2);
+
+	while(_menu == MENU_AFTER)
+	{
+		bool isSelection = _select == indexA;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, indexA * 65, isSelection ? intn * 255 : 0, 255);
+		ObjRender_SetColorHSV(objOption2, indexA * 65, isSelection ? intn * 255 : 0, 255);
+		ObjRender_SetColorHSV(objHistory, indexA * 65, isSelection ? intn * 255 : 0, 255);
+		ObjRender_SetColorHSV(objScore, indexA * 65, isSelection ? intn * 255 : 0, 255);
+		
+		if(isSelection) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (22 * RES) : (5 * RES), 0.2));
+		ObjRender_SetX(objOption2, Interpolate_Smooth(ObjRender_GetX(objOption2), (isSelection) ? ((87 * RES) + offX) : ((70 * RES) + offX), 0.2));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(ObjRender_GetX(objHistory), (isSelection) ? (482 * RES) : (505 * RES), 0.2));
+		ObjRender_SetX(objScore, Interpolate_Smooth(ObjRender_GetX(objScore), 355 * RES, 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXopt2 = ObjRender_GetX(objOption2);
+	float initXhis = ObjRender_GetX(objHistory);
+	float initXscr = ObjRender_GetX(objScore);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		ObjRender_SetX(objOption2, Interpolate_Smooth(initXopt2, -400 * RES, i / iMax));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(initXhis, -400 * RES, i / iMax));
+		ObjRender_SetX(objScore, Interpolate_Smooth(initXscr, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objOption2);
+	Obj_Delete(objHistory);
+	Obj_Delete(objScore);
+}
+
+task _RenderEndlessTetr()
+{
+	string[] spellData = SplitString(ObjFileT_GetLineText(_spellNames, 72), '\\');
+
+	int historyData = GetAreaCommonData(AREA_HISTORY, SPELL_ATTEMPT ~ "71" ~ CHAR_FLANDRE, 0i);
+	int numCap =  historyData >> 32 & 0xffff;
+	int numTry = historyData & 0xffff;
+	
+	string score = DigitToCommaArray(GetAreaCommonData(AREA_HISTORY, SPELL_HISCORE ~ "71" ~ CHAR_FLANDRE, 100000000i));
+	
+	string comm = spellData[2];
+	
+	int objOption = CreateTextObject
+	(
+		"\"" ~ spellData[0] ~ "\"", FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (4 * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objHistory = CreateTextObject
+	(
+		DigitToCommaArray(numCap) ~ "/" ~ DigitToCommaArray(numTry), FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (4 * 28),
+		20 * RES, 125 * RES, ALIGNMENT_RIGHT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objHistory, true);
+	ObjText_SetSidePitch(objHistory, -2);
+	
+	int objScore = CreateTextObject
+	(
+		score, FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (70 * RES) + (4 * 28),
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objScore, true);
+	ObjText_SetSidePitch(objScore, -2);
+	
+	int val = 255;
+	
+	while(_menu == MENU_AFTER)
+	{
+		bool isSelection = _select == 4;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, 1 * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objHistory, 1 * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objScore, 1 * 65, isSelection ? intn * 255 : 0, val);
+		
+		if(isSelection) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (57 * RES) : (40 * RES), 0.2));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(ObjRender_GetX(objHistory), (isSelection) ? (482 * RES) : (505 * RES), 0.2));
+		ObjRender_SetX(objScore, Interpolate_Smooth(ObjRender_GetX(objScore), 355 * RES, 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXhis = ObjRender_GetX(objHistory);
+	float initXscr = ObjRender_GetX(objScore);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		ObjRender_SetX(objHistory, Interpolate_Smooth(initXhis, -400 * RES, i / iMax));
+		ObjRender_SetX(objScore, Interpolate_Smooth(initXscr, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objHistory);
+	Obj_Delete(objScore);
+}
+
+task _RenderAfterComment()
+{
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 426, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	
+	int objDarkA = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 34, SCREEN_WIDTH, 72,
+		COLOR_BLACK
+	);
+	
+	int objComment = CreateTextObject
+	(
+		_comm, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 432,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objComment, true);
+	ObjText_SetSidePitch(objComment, -2);
+	ObjText_SetLinePitch(objComment, -2);
+	
+	int objDesc = CreateTextObject
+	(
+		CHANGE_PAGE, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 25 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objDesc, true);
+	ObjText_SetSidePitch(objDesc, -2);
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_AFTER; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetX(objComment, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 5, i / iMax));
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 165, i / iMax));
+			
+			ObjRender_SetX(objDesc, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 0, i / iMax));
+			ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(0, 155, i / iMax));
+		}
+		
+		ObjText_SetText(objComment, _comm);
+		
+		yield;
+	}
+	
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objComment, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(155, 0, i / iMax));
+		
+		ObjRender_SetX(objDesc, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(155, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objComment);
+	Obj_Delete(objDesc);
+	Obj_Delete(objDark);
+	Obj_Delete(objDarkA);
+}
+
+// Renders replay menu options
+task _RenderReplayMenuOption(int index_, int page_)
+{	
+	int rpyNum = ((page_ * 15) + index_) + 1;
+	
+	string text = rtos("000", rpyNum) ~ " ";
+	string text2 = "";
+	
+	if(IsValidReplayIndex(rpyNum))
+	{
+		string[] comm = SplitString(GetReplayInfo(rpyNum, REPLAY_COMMENT), '\\');
+		
+		text 
+		~= resize(GetReplayInfo(rpyNum, REPLAY_USER_NAME), 22, ' ')
+		~ resize(comm[0], 16, ' ')
+		~ resize(GetReplayInfo(rpyNum, REPLAY_PLAYER_NAME), 8, ' ')
+		~ resize(GetReplayInfo(rpyNum, REPLAY_DATE_TIME), 18, ' ')
+		~ resize(DigitToCommaArray(GetReplayInfo(rpyNum, REPLAY_TOTAL_SCORE)), 17, ' ');
+		
+		text2
+		~= "    "
+		~ resize(vtos("02d", GetReplayInfo(rpyNum, REPLAY_FPS_AVERAGE)), 2, ' ') ~ FPS
+		~ "  "
+		~ resize(comm[1], 8, ' ')
+		~ resize(FrameToMS(comm[2]), 7, ' ')
+		~ resize(atoi(comm[3]) ? DEFEAT : VICTORY, 9, ' ');
+	}
+	else
+	{
+		text ~= NO_DATA;
+		text2 = "";
+	}
+	
+	int off = 35;
+	int posY = (65 * RES) + (index_ * off);
+	
+	int objOption = CreateTextObject
+	(
+		text, FONT_KOUZANBRUSH, RP_UI_VIS + 3,
+		-900 * RES, posY,
+		16 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -4.8);
+	ObjText_SetSyntacticAnalysis(objOption, false);
+	
+	int objOptionA = CreateTextObject
+	(
+		text2, FONT_KOUZANBRUSH, RP_UI_VIS + 3,
+		-900 * RES, posY + (off / 1.2),
+		16 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOptionA, true);
+	ObjText_SetSidePitch(objOptionA, -4.8);
+	ObjText_SetSyntacticAnalysis(objOptionA, false);
+	
+	while(_menu == MENU_REPLAY)
+	{
+		bool isSelection = _select == index_;
+		bool samePage    = _page == page_; 
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		ObjRender_SetColorHSV(objOptionA, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (13 * RES) : (3 * RES), 0.2));
+		ObjRender_SetX(objOptionA, Interpolate_Smooth(ObjRender_GetX(objOptionA), (isSelection) ? (13 * RES) : (3 * RES), 0.2));
+		
+		ObjRender_SetY(objOption, Interpolate_Smooth(ObjRender_GetY(objOption), (index_ <= _select) ? posY : posY + off, 0.2));
+		
+		Obj_SetVisible(objOption, samePage);
+		Obj_SetVisible(objOptionA, samePage && isSelection);
+		
+		yield;
+	}
+	
+	float initX = ObjRender_GetX(objOption);
+	float initXA = ObjRender_GetX(objOptionA);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initX, -900 * RES, i / iMax));
+		ObjRender_SetX(objOptionA, Interpolate_Smooth(initXA, -900 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objOptionA);
+}
+
+task _RenderManual()
+{
+	int manual = ObjFile_Create(OBJ_FILE_TEXT);
+	ObjFile_Open(manual, DIR_TXT_MANUAL);
+	string text = ObjFileT_GetLineText(manual, _select + 1);
+	
+	int objManual = CreateTextObject
+	(
+		text, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 24 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objManual, true);
+	ObjText_SetSidePitch(objManual, -2);
+	ObjText_SetLinePitch(objManual, -2);
+	
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_MANUAL; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 145, i / iMax));
+			ObjRender_SetX(objManual, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 5, i / iMax));
+		}
+		
+		ObjText_SetText(objManual, ObjFileT_GetLineText(manual, _select + 1));
+		
+		yield;
+	}
+
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objManual, Interpolate_Smooth(5, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(145, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(manual);
+	Obj_Delete(objManual);
+	Obj_Delete(objDark);
+}
+
+task _RenderAchieveMenuOption(int index_)
+{
+	string achieve = [OPEN_GAME, READ_MANUAL, PLAY_SCENE, CAPTURE_SCENE, STAGE ~ itoa(0), STAGE ~ itoa(1), STAGE ~ itoa(2), STAGE ~ itoa(3), STAGE ~ itoa(4), STAGE ~ itoa(5), STAGE ~ itoa(6), FINALE_CLEAR, STAGE ~ itoa(7), CH23, CH28, CH41, MEDAL_ALL, ACHIEVE_ALL, STAGE ~ itoa(8), MEDAL_AFTER][index_];
+	bool achieved = GetAreaCommonData(AREA_ACHIEVE, achieve, false);
+	string time = GetAreaCommonData(AREA_ACHIEVE, achieve ~ DATE, "ID_INVALID");
+	if(time != "ID_INVALID") time = time[0..4] ~ "/" ~ time[4..6] ~ "/" ~ time[6..8];
+	
+	int posY = (22 * RES) + (index_ * 30);
+	
+	int objOption = CreateTextObject
+	(
+		(achieved) ? SplitString(ObjFileT_GetLineText(_achieveText, index_ + 2), '\\')[0] : SplitString(ObjFileT_GetLineText(_achieveText, 1), '\\')[2], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, posY,
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objDate = CreateTextObject
+	(
+		(achieved) ? SplitString(ObjFileT_GetLineText(_achieveText, 1), '\\')[0] ~ " " ~ time : SplitString(ObjFileT_GetLineText(_achieveText, 1), '\\')[1] ~ " " ~ SplitString(ObjFileT_GetLineText(_achieveText, 1), '\\')[0], FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), posY,
+		20 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objDate, true);
+	ObjText_SetSidePitch(objDate, -2);
+	
+	string comm = SplitString(ObjFileT_GetLineText(_achieveText, index_ + 2), '\\')[1];
+	
+	int val = (achieved) ? 255 : 150;
+	
+	while(_menu == MENU_ACHIEVE)
+	{
+		bool isSelection = _select == index_;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, val);
+		ObjRender_SetColorHSV(objDate, index_ * 65, isSelection ? intn * 255 : 0, val);
+		
+		if(isSelection) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (90 * RES) : (65 * RES), 0.2));
+		ObjRender_SetX(objDate, Interpolate_Smooth(ObjRender_GetX(objDate), 420 * RES, 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXdate = ObjRender_GetX(objDate);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		ObjRender_SetX(objDate, Interpolate_Smooth(initXdate, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	Obj_Delete(objDate);
+}
+
+task _RenderAchieveComment()
+{
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 673, SCREEN_WIDTH, 713,
+		COLOR_BLACK
+	);
+	
+	int objComment = CreateTextObject
+	(
+		_comm, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 676,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objComment, true);
+	ObjText_SetSidePitch(objComment, -2);
+	ObjText_SetLinePitch(objComment, -3);
+	
+	int objPlaytime = CreateTextObject
+	(
+		TOTAL_PLAYTIME, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 632,
+		23 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 3,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objPlaytime, true);
+	ObjText_SetSidePitch(objPlaytime, -1);
+	ObjText_SetLinePitch(objPlaytime, -1);
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_ACHIEVE; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetX(objPlaytime, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 0, i / iMax));
+			ObjRender_SetX(objComment, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 0, i / iMax));
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 185, i / iMax));
+		}
+		
+		ObjText_SetText(objComment, _comm);
+		
+		
+		ObjText_SetText(objPlaytime, TOTAL_PLAYTIME ~ "  " ~ FrameToHMS(_playTimeCur));
+		
+		yield;
+	}
+
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objPlaytime, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetX(objComment, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(185, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objComment);
+	Obj_Delete(objDark);
+}
+
+function<string> FrameToHMS(int frame_)
+{
+	int h, m, s;
+	int sec = frame_ ~/ 60;
+	s = sec % 60;
+	m = (sec ~/ 60) % 60;
+	h = sec ~/ 60 ~/ 60;
+	return StringFormat("%3d:%02d:%02d", "ddd", h, m, s);
+}
+
+function<string> FrameToMS(string frame_)
+{
+	int m, s;
+	int frame = atoi(frame_);
+	int sec = frame ~/ 60;
+	s = sec % 60;
+	m = (sec ~/ 60);
+	return StringFormat("%02d:%02d", "dd", m, s);
+}
+
+task _RenderMusicMenuOption(int index_)
+{
+	string music = [DIR_BGM_TITLE, DIR_BGM_S1, DIR_BGM_S2, DIR_BGM_S3, DIR_BGM_S4, DIR_BGM_S5, DIR_BGM_S6, DIR_BGM_S7, DIR_BGM_S8, DIR_BGM_FINAL, DIR_BGM_CREDITS, DIR_BGM_S9][index_];
+	int musicID = [BGM_TITLE, BGM_S1, BGM_S2, BGM_S3, BGM_S4, BGM_S5, BGM_S6, BGM_S7, BGM_S8, BGM_FINAL, BGM_CREDITS, BGM_S9][index_];
+	bool heard = GetAreaCommonData(AREA_ACHIEVE, HEARD ~ itoa(musicID), false);
+	
+	int posY = (36 * RES) + (index_ * 31);
+	
+	int objOption = CreateTextObject
+	(
+		(heard) ? SplitString(ObjFileT_GetLineText(_musicNames, index_ + 2), '\\')[0] : SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[1], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, posY,
+		21 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	string comm = (heard) ? SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[3] ~ "[r][r]" ~ SplitString(ObjFileT_GetLineText(_musicNames, index_ + 2), '\\')[1] : SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[2];
+	
+	int val = (heard) ? 255 : 150;
+	
+	while(_menu == MENU_MUSIC)
+	{
+		bool isSelection = _select == index_;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, val);
+		
+		if(isSelection) _comm = comm;
+		
+		if(_playingBGM == music) ObjText_SetText(objOption, (heard) ? SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[0] ~ " " ~ SplitString(ObjFileT_GetLineText(_musicNames, index_ + 2), '\\')[0] : SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[0] ~ " " ~ SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[1]);
+		else ObjText_SetText(objOption, (heard) ? SplitString(ObjFileT_GetLineText(_musicNames, index_ + 2), '\\')[0] : SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[1]);
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (35 * RES) : (10 * RES), 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+}
+
+task _RenderMusicComment()
+{
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 441, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	
+	int objComment = CreateTextObject
+	(
+		_comm, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 297 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objComment, true);
+	ObjText_SetSidePitch(objComment, -2);
+	ObjText_SetLinePitch(objComment, -3.5);
+	
+	
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_MUSIC; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetX(objComment, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 5, i / iMax));
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 185, i / iMax));
+		}
+		
+		ObjText_SetText(objComment, _comm);
+		
+		yield;
+	}
+
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objComment, Interpolate_Smooth(5, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(185, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objComment);
+	Obj_Delete(objDark);
+}
+
+task _RenderFreqGraph()
+{
+	// Frequency graph
+	int resolution = 256;
+	int[] objTri = [CreatePrimObject(RP_UI_VIS + 1, PRIMITIVE_TRIANGLESTRIP, resolution * 2), CreatePrimObject(RP_UI_VIS + 1, PRIMITIVE_TRIANGLESTRIP, resolution * 2)];
+	int[] objLine = [CreatePrimObject(RP_UI_VIS + 1, PRIMITIVE_LINESTRIP, resolution), CreatePrimObject(RP_UI_VIS + 1, PRIMITIVE_LINESTRIP, resolution)];
+	
+	_FadeIn(objTri[0], 50, 100);
+	_FadeIn(objTri[1], 50, 100);
+	_FadeIn(objLine[0], 50);
+	_FadeIn(objLine[1], 50);
+	
+	float[] oldFft = resize([], resolution, 0.0);
+	float[] newFft = oldFft;
+	
+	const int freq = 4;
+	
+	int posY = 441;
+	
+	int t = 0;
+	int f = 0;
+	while(_menu == MENU_MUSIC)
+	{
+		if(t % freq == 0)
+		{
+			oldFft = newFft;
+			newFft = ObjSound_GetSamplesFFT(_objBGM, 16, resolution, true);
+			t = 0;
+		}
+		
+		ascent(int i in 0i..resolution)
+		{
+			float xt = i / (resolution - 1);
+			
+			float px = (640 * RES) * xt;
+			float x_mul = Interpolate_Linear(0.35, 3.5, xt) * 20;
+			float fft_v = Interpolate_Linear(oldFft[i], newFft[i], t / float(freq)) * x_mul;
+			
+			ObjPrim_SetVertexPosition(objLine[0], i, px, posY - fft_v, 0);
+			ObjPrim_SetVertexPosition(objLine[1], i, px, posY + 2 + fft_v, 0);
+			
+			ObjPrim_SetVertexPosition(objTri[0], i * 2, px, posY - fft_v, 0);
+			ObjPrim_SetVertexPosition(objTri[0], i * 2 + 1, px, posY, 0);
+			
+			ObjPrim_SetVertexPosition(objTri[1], i * 2, px, posY + 2 + fft_v, 0);
+			ObjPrim_SetVertexPosition(objTri[1], i * 2 + 1, px, posY, 0);
+			
+			float hue = (i + f) * 10;
+			ObjPrim_SetVertexColorHSV(objLine[0], i, hue, 255, 255);
+			ObjPrim_SetVertexColorHSV(objLine[1], i, hue, 255, 255);
+			
+			ObjPrim_SetVertexColorHSV(objTri[0], i * 2, hue, 255, 255);
+			ObjPrim_SetVertexColorHSV(objTri[0], i * 2 + 1, hue, 255, 255);
+			
+			ObjPrim_SetVertexColorHSV(objTri[1], i * 2, hue, 255, 255);
+			ObjPrim_SetVertexColorHSV(objTri[1], i * 2 + 1, hue, 255, 255);
+		}
+		
+		t++;
+		f++;
+		
+		yield;
+	}
+	
+	// Cleanup
+	if(f >= 50)
+	{
+		_FadeOut(objTri[0], 20, 100);
+		_FadeOut(objTri[1], 20, 100);
+		_FadeOut(objLine[0], 20);
+		_FadeOut(objLine[1], 20);
+		
+		loop(20)
+		{
+			if(t % freq == 0)
+			{
+				oldFft = newFft;
+				newFft = ObjSound_GetSamplesFFT(_objBGM, 16, resolution, true);
+				t = 0;
+			}
+			
+			ascent(int i in 0i..resolution)
+			{
+				float xt = i / (resolution - 1);
+				
+				float px = (640 * RES) * xt;
+				float x_mul = Interpolate_Linear(0.35, 3.5, xt) * 20;
+				float fft_v = Interpolate_Linear(oldFft[i], newFft[i], t / float(freq)) * x_mul;
+				
+				ObjPrim_SetVertexPosition(objLine[0], i, px, posY - fft_v, 0);
+				ObjPrim_SetVertexPosition(objLine[1], i, px, posY + 2 + fft_v, 0);
+				
+				ObjPrim_SetVertexPosition(objTri[0], i * 2, px, posY - fft_v, 0);
+				ObjPrim_SetVertexPosition(objTri[0], i * 2 + 1, px, posY, 0);
+				
+				ObjPrim_SetVertexPosition(objTri[1], i * 2, px, posY + 2 + fft_v, 0);
+				ObjPrim_SetVertexPosition(objTri[1], i * 2 + 1, px, posY, 0);
+				
+				float hue = (i + f) * 10;
+				ObjPrim_SetVertexColorHSV(objLine[0], i, hue, 255, 255);
+				ObjPrim_SetVertexColorHSV(objLine[1], i, hue, 255, 255);
+				
+				ObjPrim_SetVertexColorHSV(objTri[0], i * 2, hue, 255, 255);
+				ObjPrim_SetVertexColorHSV(objTri[0], i * 2 + 1, hue, 255, 255);
+				
+				ObjPrim_SetVertexColorHSV(objTri[1], i * 2, hue, 255, 255);
+				ObjPrim_SetVertexColorHSV(objTri[1], i * 2 + 1, hue, 255, 255);
+			}
+			
+			t++;
+			f++;
+			
+			yield;
+		}
+	}
+	
+	Obj_Delete(objLine[0]);
+	Obj_Delete(objLine[1]);
+	Obj_Delete(objTri[0]);
+	Obj_Delete(objTri[1]);
+}
+
+task _RenderSettingsMenuOption(int index_, bool isToggle_)
+{
+	int posY = (52 * RES) + (index_ * 33);
+	
+	int objOption = CreateTextObject
+	(
+		SplitString(ObjFileT_GetLineText(_settingText, index_ + 2), '\\')[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, posY,
+		21 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	int objOn;
+	int objOff;
+	int objPerc;
+	
+	if(index_ < 12)
+	{
+		objOn = CreateTextObject
+		(
+			SplitString(ObjFileT_GetLineText(_settingText, 1), '\\')[1], FONT_KORURI, RP_UI_VIS + 3,
+			-400 * RES, posY,
+			21 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+			BORDER_FULL, 2 * RES,
+			COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objOn, true);
+		ObjText_SetSidePitch(objOn, -2);
+		
+		objOff = CreateTextObject
+		(
+			SplitString(ObjFileT_GetLineText(_settingText, 1), '\\')[2], FONT_KORURI, RP_UI_VIS + 3,
+			-400 * RES, posY,
+			21 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+			BORDER_FULL, 2 * RES,
+			COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objOff, true);
+		ObjText_SetSidePitch(objOff, -2);
+	}
+	else
+	{
+		objPerc = CreateTextObject
+		(
+			itoa(_settings[index_]) ~ "%", FONT_KORURI, RP_UI_VIS + 3,
+			-400 * RES, posY,
+			21 * RES, 100, ALIGNMENT_RIGHT,
+			BORDER_FULL, 2 * RES,
+			COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+		);
+		ObjText_SetFontBold(objPerc, true);
+		ObjText_SetSidePitch(objPerc, -2);
+	}
+	
+	string comm = SplitString(ObjFileT_GetLineText(_settingText, index_ + 2), '\\')[1];
+	
+	while(_menu == MENU_SETTINGS)
+	{
+		bool isSelection = _select == index_;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		if(index_ < 12)
+		{
+			ObjRender_SetColorHSV(objOn, index_ * 65, (isSelection && _settings[index_]) ? intn * 255 : 0, (_settings[index_]) ? 255 : 80);
+			ObjRender_SetColorHSV(objOff, index_ * 65, (isSelection && !_settings[index_]) ? intn * 255 : 0, (!_settings[index_]) ? 255 : 80);
+		}
+		else ObjRender_SetColorHSV(objPerc, index_ * 65, (isSelection) ? intn * 255 : 0, 255);
+		
+		if(isSelection) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (120 * RES) : (95 * RES), 0.2));
+		if(index_ < 12)
+		{
+			//ObjRender_SetX(objOn, Interpolate_Smooth(ObjRender_GetX(objOn), (isSelection) ? (430 * RES) : (465 * RES), 0.2));
+			//ObjRender_SetX(objOff, Interpolate_Smooth(ObjRender_GetX(objOff), (isSelection) ? (460 * RES) : (495 * RES), 0.2));
+			ObjRender_SetX(objOn, Interpolate_Smooth(ObjRender_GetX(objOn), 455 * RES, 0.2));
+			ObjRender_SetX(objOff, Interpolate_Smooth(ObjRender_GetX(objOff), 505 * RES, 0.2));
+		}
+		else ObjRender_SetX(objPerc, Interpolate_Smooth(ObjRender_GetX(objPerc), 465 * RES, 0.2)); //ObjRender_SetX(objPerc, Interpolate_Smooth(ObjRender_GetX(objPerc), (isSelection) ? (445 * RES) : (480 * RES), 0.2));
+		
+		if(index_ >= 12) ObjText_SetText(objPerc, itoa(_settings[index_]) ~ "%");
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	float initXon;
+	float initXoff;
+	if(index_ < 12)
+	{
+		initXon  = ObjRender_GetX(objOn);
+		initXoff = ObjRender_GetX(objOff);
+	}
+	else initXon = ObjRender_GetX(objPerc);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		if(index_ < 12)
+		{
+			ObjRender_SetX(objOn, Interpolate_Smooth(initXon, -400 * RES, i / iMax));
+			ObjRender_SetX(objOff, Interpolate_Smooth(initXoff, -400 * RES, i / iMax));
+		}
+		else ObjRender_SetX(objPerc, Interpolate_Smooth(initXon, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+	if(index_ < 12)
+	{
+		Obj_Delete(objOn);
+		Obj_Delete(objOff);
+	}
+	else Obj_Delete(objPerc);
+}
+
+task _RenderResetOption(int index_)
+{
+	int objOption = CreateTextObject
+	(
+		SplitString(ObjFileT_GetLineText(_settingText, index_ + 2), '\\')[0], FONT_KORURI, RP_UI_VIS + 3,
+		-400 * RES, (52 * RES) + (index_ * 33),
+		21 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 2 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objOption, true);
+	ObjText_SetSidePitch(objOption, -2);
+	
+	string comm = SplitString(ObjFileT_GetLineText(_settingText, index_ + 2), '\\')[1];
+	
+	while(_menu == MENU_SETTINGS)
+	{
+		bool isSelection = _select == index_;
+		
+		float intn = sin(_flash);
+		intn = absolute(intn);
+		
+		ObjRender_SetColorHSV(objOption, index_ * 65, isSelection ? intn * 255 : 0, 255);
+		
+		if(isSelection) _comm = comm;
+		
+		ObjRender_SetX(objOption, Interpolate_Smooth(ObjRender_GetX(objOption), (isSelection) ? (120 * RES) : (95 * RES), 0.2));
+		
+		yield;
+	}
+	
+	float initXopt = ObjRender_GetX(objOption);
+	
+	float iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objOption, Interpolate_Smooth(initXopt, -400 * RES, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objOption);
+}
+
+task _RenderSettingsComment()
+{
+	int objDark = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 620, SCREEN_WIDTH, SCREEN_HEIGHT,
+		COLOR_BLACK
+	);
+	
+	int objDarkA = CreateSprite2D_NoTexture_Dest_RGB
+	(
+		RP_UI_VIS + 3, BLEND_ALPHA,
+		0, 0, 1, 1,
+		0, 34, SCREEN_WIDTH, 72,
+		COLOR_BLACK
+	);
+	
+	int objExplanation = CreateTextObject
+	(
+		SplitString(ObjFileT_GetLineText(_settingText, 1), '\\')[0], FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 24 * RES,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objExplanation, true);
+	ObjText_SetSidePitch(objExplanation, -2);
+	
+	int objComment = CreateTextObject
+	(
+		_comm, FONT_KORURI, RP_UI_VIS + 3,
+		SCREEN_WIDTH + (400 * RES), 622,
+		18 * RES, SCREEN_WIDTH, ALIGNMENT_LEFT,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_VLGRAY, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetFontBold(objComment, true);
+	ObjText_SetSidePitch(objComment, -2);
+	ObjText_SetLinePitch(objComment, -3);
+	
+	float iMax = 50;
+	for(int i = 0; _menu == MENU_SETTINGS; i++)
+	{
+		if(i <= iMax)
+		{
+			ObjRender_SetX(objComment, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 5, i / iMax));
+			ObjRender_SetAlpha(objDark, Interpolate_Smooth(0, 185, i / iMax));
+			
+			ObjRender_SetX(objExplanation, Interpolate_Smooth(SCREEN_WIDTH + (400 * RES), 0, i / iMax));
+			ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(0, 185, i / iMax));
+		}
+		
+		ObjText_SetText(objComment, _comm);
+		
+		yield;
+	}
+
+	iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		ObjRender_SetX(objComment, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		ObjRender_SetX(objExplanation, Interpolate_Smooth(0, SCREEN_WIDTH + (800 * RES), i / iMax));
+		
+		ObjRender_SetAlpha(objDark, Interpolate_Smooth(185, 0, i / iMax));
+		ObjRender_SetAlpha(objDarkA, Interpolate_Smooth(185, 0, i / iMax));
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objComment);
+	Obj_Delete(objExplanation);
+	Obj_Delete(objDark);
+	Obj_Delete(objDarkA);
+}
+
+function<string> DigitToCommaArray(int num_)
+{
+    string res = itoa(num_);
+    for(int i = length(res), n = 0; i > 0; i--)
+	{
+        if (n > 0 && n % 3 == 0)
+            res = insert(res, i, ',');
+        n++;
+    }
+    return res;
+}
+
+task _CreateToast_BGM(int index_)
+{
+	yield;
+	
+	string text = SplitString(ObjFileT_GetLineText(_musicNames, index_ + 1), '\\')[0];
+	
+	int offY = (index_ == 1) ? 50 * RES : (SCREEN_HEIGHT - (20 * RES));
+	
+	int objText = CreateTextObject
+	(
+		SplitString(ObjFileT_GetLineText(_musicNames, 1), '\\')[0] ~ " \"" ~ text ~ "\"", FONT_KORURI, RP_UI_MISC + 2,
+		0, SCREEN_HEIGHT - offY,
+		22 * RES, SCREEN_WIDTH -20, (index_ == 1) ? ALIGNMENT_RIGHT : ALIGNMENT_CENTER,
+		BORDER_FULL, 2 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	ObjText_SetSidePitch(objText, -3);
+	ObjText_SetFontBold(objText, true);
+	ObjRender_SetPermitCamera(objText, false);
+	
+	_FadeIn(objText, 60);
+	
+	loop(120 / 5)
+	{
+		if((_menu == MENU_OVER && index_ == 1) || (_menu != MENU_OVER && index_ != 1)) break;
+		if(_prtMisc) _RenderNoteParticle((index_ == 1) ? 550 : 0, ObjRender_GetY(objText));
+		wait(5);
+	}
+	
+	_FadeOut(objText, 60);
+	
+	loop(60)
+	{
+		if((_menu == MENU_OVER && index_ == 1) || (_menu != MENU_OVER && index_ != 1)) break;
+		yield;
+	}
+	
+	Obj_Delete(objText);
+}
+
+task _RenderNoteParticle(float posX_, float posY_)
+{
+	int color = [COLOR_RED, COLOR_ORANGE, COLOR_YELLOW, COLOR_GREEN, COLOR_AQUA, COLOR_AZURE, COLOR_PURPLE, COLOR_PINK][prand_int(0, 7)];
+	
+	float initX = posX_ + prand(150, SCREEN_WIDTH - 150);
+	float initY = (posY_ > 300) ? posY_ + prand(0, 20 * RES) : posY_ + prand(20, 30);
+	
+	float curX = initX;
+	float curY = initY;
+
+	float destX = prand(150, SCREEN_WIDTH - 150);
+	float destY = (posY_ > 300) ? posY_ + prand(0, 20 * RES) : posY_ + prand(20, 30);
+	
+	int mult = -1 + 2 * prand_int(0, 1);
+	
+	float tilt = 0;
+	
+	float scaleOrg = 0;
+	float scaleCur = scaleOrg;
+	
+	float alpha = 255;
+	
+	float iMax = 120;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Color
+		ObjParticleList_SetColor(_objPartNote, color);
+		
+		// Position
+		curX = Interpolate_Smooth(initX, destX, i / iMax);
+		curY = Interpolate_Smooth(initY, destY, i / iMax);
+		ObjParticleList_SetPosition(_objPartNote, curX, curY, ID_INVALID);
+		
+		// Tilt
+		tilt += (cos(i) / 4) * mult;
+		ObjParticleList_SetAngleZ(_objPartNote, tilt);
+		
+		// Size
+		scaleCur = (Interpolate_Decelerate(scaleOrg, 0.5, i / (iMax / 2))) / 3;
+		ObjParticleList_SetScale(_objPartNote, scaleCur, scaleCur, ID_INVALID);
+		
+		// Fade
+		ObjParticleList_SetAlpha(_objPartNote, Interpolate_Smooth(alpha, 0, i / iMax));
+		
+		ObjParticleList_AddInstance(_objPartNote);
+		
+		yield;
+	}
+}
+
+task _CreateToast_Achieve(string achieve_)
+{
+	int color;
+	alternative(achieve_)
+	case(OPEN_GAME, READ_MANUAL, PLAY_SCENE, CAPTURE_SCENE, STAGE ~ itoa(0), STAGE ~ itoa(1))
+	{
+		color = COLOR_BRONZE;
+	}
+	case(STAGE ~ itoa(2), STAGE ~ itoa(3), STAGE ~ itoa(4), CH23, CH28, CH41)
+	{
+		color = COLOR_SILVER;
+	}
+	case(STAGE ~ itoa(5), STAGE ~ itoa(6), FINALE_CLEAR, STAGE ~ itoa(7), MEDAL_ALL)
+	{
+		color = COLOR_GOLD;
+	}
+	case(ACHIEVE_ALL)
+	{
+		color = COLOR_WHITE; // Gets replaced instantly
+	}
+	case(STAGE ~ itoa(8), MEDAL_AFTER)
+	{
+		color = COLOR_CRYSTAL;
+	}
+	
+	int line;
+	string[] achieve = [OPEN_GAME, READ_MANUAL, PLAY_SCENE, CAPTURE_SCENE, STAGE ~ itoa(0), STAGE ~ itoa(1), STAGE ~ itoa(2), STAGE ~ itoa(3), STAGE ~ itoa(4), STAGE ~ itoa(5), STAGE ~ itoa(6), FINALE_CLEAR, STAGE ~ itoa(7), CH23, CH28, CH41, MEDAL_ALL, ACHIEVE_ALL, STAGE ~ itoa(8), MEDAL_AFTER];
+	float iMax = length(achieve);
+	for(int i = 0; i < iMax; i++)
+	{
+		if(achieve_ == achieve[i])
+		{
+			line = i + 2;
+			break;
+		}
+	}
+	
+	int[] colorH = ColorHexRGBtoHSV(color);
+	
+	int objBox = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_BOX, RP_MAX, BLEND_ALPHA,
+		0, 0, 160, 60,
+		0, 0,
+		SCREEN_WIDTH - (80 * 1.5) - 30, 40 * 1.5
+	);
+	
+	int objTrophy = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_TROPHY, RP_MAX, BLEND_ALPHA,
+		0, 0, 256, 256,
+		0, 0,
+		SCREEN_WIDTH - (130 * 1.5) - 30, 40 * 1.5
+	);
+
+	int objText = CreateTextObject
+	(
+		SplitString(ObjFileT_GetLineText(_achieveText, line), "\\")[0], FONT_KORURI, RP_MAX,
+		SCREEN_WIDTH - (160 * 1.5) - 30, 35 * 1.5, 
+		15 * RES, 160 * 1.5, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_WHITE, COLOR_WHITE, COLOR_BLACK
+	);
+	
+	if(achieve_ == ACHIEVE_ALL)
+	{
+		ObjRender_SetY(objBox, (40 * 1.5) * 3);
+		ObjRender_SetY(objTrophy, (40 * 1.5) * 3);
+		ObjRender_SetY(objText, (35 * 1.5) * 3);
+		
+		async
+		{
+			for(int i = 0; Obj_IsExists(objTrophy); i++)
+			{
+				int[] col = ColorHSVtoRGB(i * 2.125, 255, 255);
+				
+				ObjRender_SetColor(objTrophy, col[0], col[1], col[2]);
+				ObjText_SetFontColorBottom(objText, col[0], col[1], col[2]);
+				
+				yield;
+			}
+		}
+	}
+	
+	iMax = (achieve_ == ACHIEVE_ALL) ? 90 : 60;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0, 1, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale * 1.5);
+		ObjRender_SetScaleXYZ(objTrophy, scale / 3);
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		ObjRender_SetAngleZ(objTrophy, i * (360 / iMax));
+		
+		if(achieve_ != ACHIEVE_ALL)
+		{
+			int val = Interpolate_Smooth(255, 180, absolute(sin(i * 5)));
+			ObjRender_SetColorHSV(objTrophy, colorH[0], colorH[1], val);
+			ObjRender_SetColorHSV(objText, colorH[0], colorH[1], val);
+		}
+		
+		yield;
+	}
+	
+	float iMaxA = iMax + ((achieve_ == ACHIEVE_ALL) ? 130 : 120);
+	for(int i = iMax; i <= iMaxA; i++)
+	{
+		if(achieve_ != ACHIEVE_ALL)
+		{
+			int val = Interpolate_Smooth(255, 180, absolute(sin(i * 5)));
+			ObjRender_SetColorHSV(objTrophy, colorH[0], colorH[1], val);
+			ObjRender_SetColorHSV(objText, colorH[0], colorH[1], val);
+		}
+		
+		yield;
+	}	
+	
+	if(achieve_ == ACHIEVE_ALL)
+	{
+		for(int i = 0; i <= iMax; i++)
+		{
+			float posY  = Interpolate_Smooth((40 * 1.5) * 3, 40 * 1.5, i / iMax);
+			float posY2 = Interpolate_Smooth((35 * 1.5) * 3, 35 * 1.5, i / iMax);
+			
+			ObjRender_SetY(objBox, posY);
+			ObjRender_SetY(objTrophy, posY);
+			ObjRender_SetY(objText, posY2);
+			
+			yield;
+		}
+		
+		wait(290);
+	}
+	
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(1, 0, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale * 1.5);
+		ObjRender_SetScaleXYZ(objTrophy, scale / 2.5);
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		ObjRender_SetAngleZ(objTrophy, i * (360 / iMax));
+		
+		if(achieve_ != ACHIEVE_ALL)
+		{
+			int val = Interpolate_Smooth(255, 180, absolute(sin((i + iMaxA) * 5)));
+			ObjRender_SetColorHSV(objTrophy, colorH[0], colorH[1], val);
+			ObjRender_SetColorHSV(objText, colorH[0], colorH[1], val);
+		}
+		
+		yield;
+	}
+	
+	// Cleanup
+	Obj_Delete(objBox);
+	Obj_Delete(objTrophy);
+	Obj_Delete(objText);
+}
+
+task _CreateToast_Medal()
+{
+	int objBox = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_BOX, RP_MAX, BLEND_ALPHA,
+		0, 0, 160, 60,
+		0, 0,
+		SCREEN_WIDTH - (80 * 1.5) - 30, 20 * RES
+	);
+	
+	int objText = CreateTextObject
+	(
+		"★ " ~ MEDAL_GET, FONT_KORURI, RP_MAX,
+		SCREEN_WIDTH - (160 * 1.5) - 30, 12 * RES,
+		15 * RES, 160 * 1.5, ALIGNMENT_CENTER,
+		BORDER_FULL, 1.5 * RES,
+		COLOR_WHITE, COLOR_GRAY, COLOR_BLACK
+	);
+	
+	float iMax = 40;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(0, 1, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale, scale / 2, ID_INVALID);
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		float col = Interpolate_Smooth(255, 150, absolute(sin(i * 5)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 40; i <= 40 + 60; i++)
+	{
+		float col = Interpolate_Smooth(255, 150, absolute(sin(i * 5)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Smooth(1, 0, i / iMax);
+		
+		ObjRender_SetScaleXYZ(objBox, scale, scale / 2, ID_INVALID);
+		ObjRender_SetScaleXYZ(objText, scale);
+		
+		float col = Interpolate_Smooth(255, 150, absolute(sin((i * 5) + 500)));
+		ObjRender_SetColor(objText, col, col, col);
+		
+		yield;
+	}
+	
+	Obj_Delete(objBox);
+	Obj_Delete(objText);
+}

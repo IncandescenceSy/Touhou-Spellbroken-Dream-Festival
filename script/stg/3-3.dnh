@@ -1,0 +1,251 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Orange 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Orange 1st"]
+#Text["Orange 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_GREEN;
+int _colorB = COLOR_DGREEN;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 21);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_ORANGE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 354, 650, 176, 77, 50, _colorA, _colorB, CENTER_X, 90, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_PLAYER, EV_RECOLOR_WHILE_BOSS_LIVES, [0, 255, 0], _objBoss);
+	
+	//NotifyEvent(_ID_PACKAGE, EV_FILTER_WHILE_BOSS_LIVES, _objBoss);
+
+	// Pattern
+	_Pattern();
+	_Filter();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(25000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+// Spirals of walls and aimed claw lines (gradual), with bombs that explode into spirals, then a different kind of spiral of wall
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	loop
+	{
+		loop(3)
+		{
+			loop(3)
+			{
+				_WallSpiral();
+				_ClawLines();
+				
+				wait(90);
+			}
+			
+			_SpiralBomb();
+		}
+		
+		loop(3)
+		{
+			_WallSpiralA();
+			
+			loop(3)
+			{
+				wait(96);
+			
+				_SpiralBomb();
+			}
+		}
+		
+		wait(60);
+	}
+}
+
+task _WallSpiral()
+{
+	int iMax = 4;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float off = GetAngleToPlayer(_objBoss);
+		for(int j = -2; j <= 2; j++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0, i * (360 / (iMax * 3)) + (j * 3) + off, 0.025, 3, SHOT_BALL_ORANGE, 25);
+			CreateShot_Enemy(_enmX, _enmY, 0, -i * (360 / (iMax * 3)) + (j * 3) + off, 0.025, 3, SHOT_BALL_ORANGE, 25);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(22);
+	}
+}
+
+task _ClawLines()
+{
+	loop(2)
+	{
+		int iMax = 3;
+		for(int i = 0; i <= iMax; i++)
+		{
+			for(int j = -2; j <= 2; j++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0, GetAngleToPlayer(_objBoss) + (j * 15), 0.025, 3.25, SHOT_ICE_ORANGE, 25);
+			}
+			
+			wait(4);
+		}
+		
+		wait(30);
+	}
+}
+
+task _SpiralBomb()
+{
+	int objEnemy = CreateEnemy
+	(
+		1, 0, false, true,
+		COLOR_ORANGE, STANDARD_ENEMYSCALE, true, true,
+		_enmX, _enmY, _enmX, _enmY, 0
+	);
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	ObjMove_SetDestAtFrame(objEnemy, rand(50, FRAME_WIDTH -50), rand(FRAME_HEIGHT - 120, FRAME_HEIGHT - 80), 60, LERP_DECELERATE);
+	
+	wait(60);
+	
+	float enmX = ObjMove_GetX(objEnemy);
+	float enmY = ObjMove_GetY(objEnemy);
+	
+	_RenderCharge(enmX, enmY, 1, COLOR_GREEN, COLOR_GREEN);
+	
+	wait(65);
+	
+	ObjEnemy_SetLife(objEnemy, 0);
+	
+	int iMax = 7;
+	int way = 6;
+	float off = rand(0, 360);
+	for(int i = 0; i <= iMax; i++)
+	{
+		for(int j = 0; j <= way; j++) CreateShot_Enemy(enmX, enmY, 0, (j * (360 / way)) + off + (i * 5), 0.0075, 2, SHOT_ICE_ORANGE, 25);
+		
+		wait(5);
+	}
+}
+
+task _WallSpiralA()
+{
+	float off = rand(0, 360);
+	int iMax = 20;
+	for(int i = 0; i <= iMax; i++)
+	{
+		for(int j = -2; j <= 2; j++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 0, i * (360 / iMax) + off + (j * 3), 0.025, 3, SHOT_BALL_ORANGE, 25);
+			CreateShot_Enemy(_enmX, _enmY, 0, (i * (360 / iMax) + off + (j * 3)) + 180, 0.025, 3, SHOT_BALL_ORANGE, 25);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(14);
+	}
+}
+
+// Zeroranger shader
+task _Filter()
+{	
+	if(GetAreaCommonData(AREA_SETTINGS, SDR_MISC, 1))
+	{
+		SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME - 1);
+		
+		int objZeroranger = CreateSprite2D_Dest
+		(
+			RT6, RP_MAX, BLEND_ALPHA,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
+			0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+		);
+		ObjShader_SetShaderF(objZeroranger, DIR_SDR_ZERORANGER);
+		ObjShader_SetTechnique(objZeroranger, TEC_ZERORANGER);
+		
+		loop
+		{
+			SetInvalidRenderPriorityA1(RP_MIN, RP_UI_FRAME + 4);
+			
+			RenderToTextureA1(RT6, RP_UI_VIS, RP_UI_FRAME + 4, true);
+			
+			yield;
+		}
+	}
+	else
+	{
+		int objShader = ObjShader_Create();
+		ObjShader_SetShaderF(objShader, DIR_SDR_ZERORANGER);
+		ObjShader_SetTechnique(objShader, TEC_ZERORANGER);
+		SetShaderI(objShader, RP_MIN, RP_MAX);
+	}
+}

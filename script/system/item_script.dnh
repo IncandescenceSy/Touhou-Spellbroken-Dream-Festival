@@ -1,0 +1,163 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Item Script ////////////////////////
+///////////////////////////////////////////////////////////////
+
+// This script controls items and bullet deletion effects
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+#include "./../lib/lib_create.dnh"
+
+// This library contains various image and primitive object manipulation functions
+#include "./../lib/lib_image.dnh"
+
+// This library contains functions pertaining to items and bullet deletion effects
+#include "./../lib/lib_item.dnh"
+
+// This library contains functions that will return various values
+#include "./../lib/lib_logic.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Script IDs
+const int _ID_SYSTEM  = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_SYSTEM, ID_INVALID);
+const int _ID_PACKAGE = GetAreaCommonData(AREA_SCRIPTS, SCRIPT_PACKAGE, ID_INVALID);
+
+// Bullet cancel effect
+int _objPartCancel = CreateParticleList2D
+(
+	DIR_IMG_EFF_CANCEL,
+	0, 0, 64, 64,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+ObjShader_SetShaderF(_objPartCancel, DIR_SDR_PARTICLE);
+ObjShader_SetTechnique(_objPartCancel, TEC_RENDER);
+ObjShader_SetFloat(_objPartCancel, FLOAT_STEP_X, 64 / 512);
+ObjShader_SetFloat(_objPartCancel, FLOAT_STEP_Y, 1);
+
+// Effect cut settings
+bool _prtSht  = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+bool _prtMisc = GetAreaCommonData(AREA_SETTINGS, PRT_MISC, 1);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Loads the items
+	LoadItemData(DIR_LIB_ITEM_DATA);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_ITEM, GetOwnScriptID());
+}
+
+@Event
+{
+	alternative(GetEventType())
+	
+	case(EV_GET_ITEM)
+	{
+		int itemType_ = GetEventArgument(0);
+		int itemObj_  = GetEventArgument(1);
+		
+		int[] color;
+		
+		alternative(itemType_)
+			case(ITEM_CANCEL) // Cancel item
+			{
+				AddScore(SCORE_CANCEL);
+			}
+			
+			case(ITEM_POINTS) // Point item
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+				
+				AddScore(SCORE_POINTS);
+				
+				//if(!Obj_GetValueDI(itemObj_, VAL_NOPRT, false))
+				if(ObjRender_GetAlpha(itemObj_) == 255)
+				{
+					if(_prtMisc) NotifyEvent(_ID_SYSTEM, EV_CREATE_TOAST_MINOR, TOAST_MINOR_POINT, 100);
+					if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(itemObj_), ObjMove_GetY(itemObj_)], [20, 60, 255]);
+				}
+			}
+			
+			case(ITEM_POWERUP) // Power item
+			{
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_ITEM_COLLECT);
+				
+				SetPlayerPower(min(POWER_MAX, GetPlayerPower() + 1));
+				
+				//if(!Obj_GetValueDI(itemObj_, VAL_NOPRT, false) && _prtSht)
+				if(_prtSht && ObjRender_GetAlpha(itemObj_) == 255)
+				{
+					_CreateDeletionEffect([ObjMove_GetX(itemObj_), ObjMove_GetY(itemObj_)], [255, 0, 0]);
+				}
+			}
+	}
+	
+	case(EV_DELETE_SHOT_TO_ITEM)
+	{
+		int    shotObj_ = GetEventArgument(0);
+		float[] shotPos_ = GetEventArgument(1);
+		
+		if(Obj_GetValueDI(shotObj_, VAL_DELEFF, true))
+		{
+			// Deletion particle
+			if(_prtSht && Obj_IsInArea(shotObj_, 0, 0, FRAME_WIDTH, FRAME_HEIGHT))
+			{
+				_CreateDeletionEffect(shotPos_, GetShotDataInfoA1(ObjShot_GetImageID(shotObj_), TARGET_ENEMY, INFO_DELAY_COLOR));
+			}
+			
+			// Cancel item
+			int itemCancel = CreateItemU1(ITEM_CANCEL, shotPos_[0], shotPos_[1], 0);
+			ObjItem_SetRenderScoreEnable(itemCancel, false);
+			_ControlItem(itemCancel, 1, 1, 0);
+		}
+	}
+	
+	case(EV_DROP_POINTS)
+	{
+		float posX_ = GetEventArgument(0);
+		float posY_ = GetEventArgument(1);
+		
+		float ang = 0; //rand(0, 360);
+		
+		_SpawnPoints(posX_, posY_, ang);
+	}
+	
+	case(EV_FAIRY_DROP)
+	{
+		float posX = GetEventArgument(0);
+		float posY = GetEventArgument(1);
+		float drop = GetEventArgument(2);
+		
+		_SpawnDrop(posX, posY, drop);
+	}
+	
+	case(EV_DROP_POWER)
+	{
+		float posX_ = GetEventArgument(0);
+		float posY_ = GetEventArgument(1);
+		
+		float ang = 0; //rand(0, 360);
+		
+		_SpawnPower(posX_, posY_, ang);
+	}
+}
+
+@MainLoop
+{
+	yield;
+}

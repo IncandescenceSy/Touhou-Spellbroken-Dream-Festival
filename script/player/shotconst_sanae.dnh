@@ -1,0 +1,15 @@
+///////////////////////////////////////////////////////////////
+///////////////////// Sanae Shot Constants ////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains constant names for bullets used by Sanae and loads her shotdata
+
+local
+{
+	// Loads data when this script is included
+	LoadPlayerShotData(DIR ~ "/script/player/shotdata_sanae.dnh");
+}
+
+const int AMULET_BLUE = 1; // Blue amulet
+const int FROG        = 2; // Frog
+const int SNAKE       = 3; // Snake  

@@ -1,0 +1,172 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Creation Library //////////////////////
+///////////////////////////////////////////////////////////////
+
+// This library contains functions for quickly creating and returning a variety of graphical objects
+
+/////////////////////// Library Content ///////////////////////
+
+
+////////////////////// Primitive Objects //////////////////////
+
+
+// Creates and returns a basic primitive object of the chosen type
+function<int> CreatePrimObject(int renderPriority_, int primType_, int vertexCount_)
+{
+	int objPrim = ObjPrim_Create(OBJ_PRIMITIVE_2D);
+	Obj_SetRenderPriorityI(objPrim, renderPriority_);
+	ObjPrim_SetPrimitiveType(objPrim, primType_);
+	ObjPrim_SetVertexCount(objPrim, vertexCount_);
+	return objPrim;
+}
+
+// Creates and returns a basic primitive object of the chosen type with a texture
+function<int> CreatePrimObject(string pathFile_, int renderPriority_, int primType_, int vertexCount_)
+{
+	int objPrim = ObjPrim_Create(OBJ_PRIMITIVE_2D);
+	ObjPrim_SetTexture(objPrim, pathFile_);
+	Obj_SetRenderPriorityI(objPrim, renderPriority_);
+	ObjPrim_SetPrimitiveType(objPrim, primType_);
+	ObjPrim_SetVertexCount(objPrim, vertexCount_);
+	return objPrim;
+}
+
+
+////////////////////////// 2D Sprites /////////////////////////
+
+
+// Creates and returns a basic two-dimensional rectangular sprite that is placed at a specific point
+function<int> CreateSprite2D_Pos
+(
+	string pathFile_, int renderPriority_, int blendType_,
+	int minSourceX_, int minSourceY_, int maxSourceX_, int maxSourceY_,
+	float scaleX_, float scaleY_,
+	float posX_, float posY_
+)
+{
+	int objSprite2D = ObjPrim_Create(OBJ_SPRITE_2D);
+	ObjPrim_SetTexture(objSprite2D, pathFile_);
+	Obj_SetRenderPriorityI(objSprite2D, renderPriority_);
+	ObjRender_SetBlendType(objSprite2D, blendType_);
+	ObjSprite2D_SetSourceRect(objSprite2D, minSourceX_, minSourceY_, maxSourceX_, maxSourceY_);
+	ObjSprite2D_SetDestCenter(objSprite2D);
+	ObjRender_SetScaleXYZ(objSprite2D, scaleX_, scaleY_, ID_INVALID);
+	ObjRender_SetPosition(objSprite2D, posX_, posY_, ID_INVALID);
+	return objSprite2D;
+}
+
+// Creates and returns a basic two-dimensional rectangular sprite that spans a specific distance
+function<int> CreateSprite2D_Dest
+(
+	string pathFile_, int renderPriority_, int blendType_,
+	int minSourceX_, int minSourceY_, int maxSourceX_, int maxSourceY_,
+	int minDestX_, int minDestY_, int maxDestX_, int maxDestY_
+)
+{
+	int objSprite2D = ObjPrim_Create(OBJ_SPRITE_2D);
+	ObjPrim_SetTexture(objSprite2D, pathFile_);
+	Obj_SetRenderPriorityI(objSprite2D, renderPriority_);
+	ObjRender_SetBlendType(objSprite2D, blendType_);
+	ObjSprite2D_SetSourceRect(objSprite2D, minSourceX_, minSourceY_, maxSourceX_, maxSourceY_);
+	ObjSprite2D_SetDestRect(objSprite2D, minDestX_, minDestY_, maxDestX_, maxDestY_);
+	return objSprite2D;
+}
+
+
+// Creates and returns a colored two-dimensional rectangle that spans a specific distance
+function<int> CreateSprite2D_NoTexture_Dest_RGB
+(
+	int renderPriority_, int blendType_,
+	int minSourceX_, int minSourceY_, int maxSourceX_, int maxSourceY_,
+	int minDestX_, int minDestY_, int maxDestX_, int maxDestY_,
+	int color_
+)
+{
+	int objSprite2D = ObjPrim_Create(OBJ_SPRITE_2D);
+	Obj_SetRenderPriorityI(objSprite2D, renderPriority_);
+	ObjRender_SetBlendType(objSprite2D, blendType_);
+	ObjSprite2D_SetSourceRect(objSprite2D, minSourceX_, minSourceY_, maxSourceX_, maxSourceY_);
+	ObjSprite2D_SetDestRect(objSprite2D, minDestX_, minDestY_, maxDestX_, maxDestY_);
+	ObjRender_SetColor(objSprite2D, color_);
+	return objSprite2D;
+}
+
+// Creates and returns a two-dimensional particle list object; by Neck Logo (Nicholas Logan)
+function<int> CreateParticleList2D 
+(
+	string path_,
+	int u1_, int v1_, int u2_, int v2_,
+	int blend_, int priority_
+)
+{
+		int dU = (u2_ - u1_) / 2;
+		int dV = (v2_ - v1_) / 2;
+		int obj = ObjParticleList_Create(OBJ_PARTICLE_LIST_2D);
+		ObjPrim_SetTexture(obj, path_);
+		Obj_SetRenderPriorityI(obj, priority_);
+		ObjRender_SetBlendType(obj, blend_);
+		ObjPrim_SetPrimitiveType(obj, PRIMITIVE_TRIANGLELIST);
+		ObjPrim_SetVertexCount(obj, 4);
+		ObjPrim_SetVertexUVT(obj, 0, u1_, v1_);
+		ObjPrim_SetVertexUVT(obj, 1, u2_, v1_);
+		ObjPrim_SetVertexUVT(obj, 2, u1_, v2_);
+		ObjPrim_SetVertexUVT(obj, 3, u2_, v2_);	 
+		ObjPrim_SetVertexPosition(obj, 0, -dU, -dV, 0);
+		ObjPrim_SetVertexPosition(obj, 1, dU, -dV, 0);
+		ObjPrim_SetVertexPosition(obj, 2, -dU, dV, 0);
+		ObjPrim_SetVertexPosition(obj, 3, dU, dV, 0);
+		ObjPrim_SetVertexIndex(obj, [0, 1, 2, 1, 2, 3]);
+	    return obj;
+}
+
+
+////////////////////////// 3D Sprites /////////////////////////
+
+
+// Creates and returns a three-dimensional rectangular sprite that spans a specific distance
+function<int> CreateSprite3D_Dest
+(
+	string pathFile_, int renderPriority_, int blendType_,
+	int minSourceX_, int minSourceY_, int maxSourceX_, int maxSourceY_,
+	int minDestX_, int minDestY_, int maxDestX_, int maxDestY_
+)
+{
+	int objSprite3D = ObjPrim_Create(OBJ_SPRITE_3D);
+	ObjPrim_SetTexture(objSprite3D, pathFile_);
+	Obj_SetRenderPriorityI(objSprite3D, renderPriority_);
+	ObjRender_SetBlendType(objSprite3D, blendType_);
+	ObjSprite3D_SetSourceRect(objSprite3D, minSourceX_, minSourceY_, maxSourceX_, maxSourceY_);
+	ObjSprite3D_SetDestRect(objSprite3D, minDestX_, minDestY_, maxDestX_, maxDestY_);
+	return objSprite3D;
+}
+
+
+///////////////////////// Text Objects ////////////////////////
+
+
+// Creates and returns a colored text object with a border that displays a given string
+function<int> CreateTextObject
+(
+	string textString_, string fontType_, int renderPriority_,
+	float posX_, float posY_, 
+	int fontSize_, int widthMax_, int alignHoriz_,
+	int borderType_, int borderWidth_,
+	int colorTop_, int colorBottom_, int colorBorder_
+)
+{
+	int objText = ObjText_Create();
+	ObjText_SetText(objText, textString_);
+	ObjText_SetFontType(objText, fontType_);
+	Obj_SetRenderPriorityI(objText, renderPriority_);
+	ObjRender_SetPosition(objText, posX_, posY_, ID_INVALID);
+	ObjText_SetFontSize(objText, fontSize_);
+	ObjText_SetMaxWidth(objText, widthMax_);
+	ObjText_SetHorizontalAlignment(objText, alignHoriz_);
+	ObjText_SetFontColorTop(objText, colorTop_);
+	ObjText_SetFontColorBottom(objText, colorBottom_);
+	ObjText_SetFontBorderType(objText, borderType_);
+	ObjText_SetFontBorderWidth(objText, borderWidth_);
+	ObjText_SetFontBorderColor(objText, colorBorder_);
+	ObjText_SetFontCharacterSet(objText, 1);
+	return objText;
+}

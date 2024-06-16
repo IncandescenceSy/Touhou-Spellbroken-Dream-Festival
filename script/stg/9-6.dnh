@@ -1,0 +1,517 @@
+///////////////////////////////////////////////////////////////
+/////////////////////////// Marisa ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Marisa"]
+#Text["Marisa"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_BLUE;
+int _colorB = COLOR_DBLUE;
+
+// Should there be a hitbox
+bool _hitbox = false;
+
+// Star particles
+int objPart_ = CreateParticleList2D 
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, true);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 73);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_MARISA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	//ObjMove_SetPosition(_objBoss, CENTER_X, -150);
+	SetAreaCommonData(AREA_GAME, IS_NORMAL_HITBOX, false);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 355, 609, 186, 103, 70, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+	_Hitbox();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)             SetScriptResult(52500);
+		case(EV_REQUEST_TIMER)            SetScriptResult(120);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(20);
+	
+	const int[] SHOTS   = [SHOT_STAR_RED, SHOT_STAR_YELLOW, SHOT_STAR_GREEN, SHOT_STAR_BLUE, SHOT_STAR_PINK];
+	const int[] SHOTS_A = [SHOT_ORB_RED, SHOT_ORB_YELLOW, SHOT_ORB_GREEN, SHOT_ORB_BLUE, SHOT_ORB_PINK];
+	
+	int side = rand_int(0, 1);
+	
+	for(int l = 0; ; l++)
+	{
+		//SetShotAutoDeleteClip(48, 48, (48 + FRAME_WIDTH) - (RES * FRAME_WIDTH), (48 + FRAME_HEIGHT) - (RES * FRAME_HEIGHT));
+		//_hitbox = false;
+		
+		// Lasers & Stars from offscreen
+		/*loop(2)
+		{
+			// Stars
+			int count = 10;
+			int way = 15;
+			int rad = 140;
+			int off = 0;
+			for(int i = 0; i < count; i++)
+			{
+				for(int j = 0; j < way; j++)
+				{
+					float ang = j * (360 / way) + (i * 25) + off;
+					for(int k = 0; k < length(SHOTS); k++)
+					{
+						float ang = j * (360 / way) + (i * 25) + off + (k * 5);
+						CreateShot_Enemy(_enmX + (rad * cos(ang)), _enmY + (rad * sin(ang)), 1.5, ang, 0.045 + (k * 0.008), 2.5 + (k * 0.15), SHOTS[k], 0);
+						CreateShot_Enemy(_enmX + (rad * cos(-ang)), _enmY + (rad * sin(-ang)), 1.5, -ang, 0.045 + (k * 0.008), 2.5 + (k * 0.15), SHOTS[k], 0);
+					}
+				}
+				
+				if(i == 4)
+				{
+					way = 22;
+					for(int j = 0; j < way; j++)
+					{
+						float ang = j * (360 / way);
+						_Laser(ang, rad, 1);
+					}
+				
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+				}
+				//NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				off += rand(0, 30);
+				wait(23);
+			}
+			
+			// Lasers
+			way = 22;
+			for(int j = 0; j < way; j++)
+			{
+				float ang = j * (360 / way);
+				_Laser(ang, rad, -1);
+			}
+				
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		}
+		
+		wait(60);
+		
+		_hitbox = true;
+		
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 60, LERP_SMOOTH);*/
+		_hitbox = true;
+		
+		wait(60);
+	
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+		wait(65);
+		
+		//if(l == 0) ObjEnemyBossScene_StartSpell(_objScene); WHY DOES THIS LAG ONLY ON NEW SPELLS
+		
+		// Comet orbs
+		int way = 4;
+		int dir = 1;
+		//loop(2)
+	//	{
+			for(int i = 0; i < length(SHOTS_A); i++)
+			{
+				float off = rand(0, 360);
+				float offA = rand(-0.25, 0.25);
+				for(int j = 0; j < way; j++)
+				{
+					_Comet(i, j, SHOTS, SHOTS_A, off, offA, dir);
+				}
+				
+				dir *= -1;
+				wait(110);
+			}
+		//}
+		
+		wait(90);
+		
+		// Misc bullets
+		
+		int count = 9;
+			way = 13;
+			int rad = 140;
+			int off = 0;
+			for(int i = 0; i < count; i++)
+			{
+				for(int j = 0; j < way; j++)
+				{
+					float ang = j * (360 / way) + (i * 25) + off;
+					for(int k = 0; k < length(SHOTS); k++)
+					{
+						float ang = j * (360 / way) + (i * 25) + off + (k * 5);
+						CreateShot_Enemy(_enmX, _enmY, 1.5, ang, 0.045 + (k * 0.008), 2.5 + (k * 0.15), SHOTS[k], 0);
+						CreateShot_Enemy(_enmX, _enmY, 1.5, -ang, 0.045 + (k * 0.008), 2.5 + (k * 0.15), SHOTS[k], 0);
+					}
+				}
+				
+				NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+				off += rand(0, 30);
+				wait(27);
+			}
+			
+		// Master Spark
+		
+		// Moves offscreen
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, -150, 30, LERP_SMOOTH);
+		wait(30);
+		_hitbox = false;
+		
+		// Random position
+		/*int p = rand_int(0, 3); // 0 == left, 1 == top, 2 == right, 3 == bottom
+		
+		int px;
+		int py;
+		int dx;
+		int dy;
+		
+		alternative(p)
+			case(0)
+			{
+				px = -150;
+				py = rand(-150, FRAME_HEIGHT + 150);
+				dx = FRAME_WIDTH + 150;
+				dy = rand(-150, FRAME_HEIGHT + 150);
+			}
+			case(1)
+			{
+				px = rand(-150, FRAME_WIDTH + 150);
+				py = -150;
+				dx = rand(-150, FRAME_WIDTH + 150);
+				dy = FRAME_HEIGHT + 150;
+			}
+			case(2)
+			{
+				px = FRAME_WIDTH + 150;
+				py = rand(-150, FRAME_HEIGHT + 150);
+				dx = -150;
+				dy = rand(-150, FRAME_HEIGHT + 150);
+			}
+			case(3)
+			{
+				px = rand(-150, FRAME_WIDTH + 150);
+				py = FRAME_HEIGHT + 150;
+				dx = rand(-150, FRAME_WIDTH + 150);
+				dy = -150;
+			}*/
+		
+		// Warning
+		side = (side == 1) ? 0 : 1;
+		float px = [110, FRAME_WIDTH - 110][side];
+		ObjMove_SetX(_objBoss, px);
+		int verts = 40;
+		int objLine = CreatePrimObject(RP_FX_MED_H, PRIMITIVE_LINELIST, verts * 2);
+		rad = 100;
+		float ang = 90; //GetAngleToPlayer(_objBoss);
+		for(int i = 0; i < verts; i++)
+		{
+			async
+			{
+				float ang2 = i * (360 / verts);
+				
+				int curVert = i * 2;
+				
+				int len = 0;
+				
+				for(int j = 0; j <= 90; j++)
+				{
+					if(j <= 20) len = Interpolate_Smooth(0, 1024, j / 20);
+					
+					float posX = _enmX + (rad * cos(ang2 + j));
+					float posY = _enmY + ((rad * sin(ang2 + j)) * 0.35);
+					
+					float[] pos = Rotate2D(posX, posY, ang + 90, _enmX, _enmY);
+					
+					ObjPrim_SetVertexPosition(objLine, curVert, pos[0], pos[1], ID_INVALID);
+					ObjPrim_SetVertexPosition(objLine, curVert + 1, pos[0] + (len * cos(ang)), pos[1] + (len * sin(ang)), ID_INVALID);
+					
+					ObjRender_SetColorHSV(objLine, j * 2.5, 100, 255);
+					
+					yield;
+				}
+			}
+		}
+		
+		wait(90);
+		
+		//ObjMove_SetDestAtFrame(_objBoss, dx, dy, 30, LERP_LINEAR);
+		//ObjMove_SetAngle(_objBoss, ang);
+		//ObjMove_SetAngle(_objBoss, 90);
+		//ObjMove_SetSpeed(_objBoss, 2);
+		ObjMove_SetDestAtFrame(_objBoss, px, FRAME_HEIGHT + 150, 30, LERP_LINEAR);
+		Obj_Delete(objLine);
+		
+		_RenderScreenShake(45, 7);
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BURST);
+		
+		loop(30)
+		{
+			loop(15)
+			{
+				float ang = rand(0, 360);
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, prand_int(SHOT_STAR_RED, SHOT_STAR_DPINK), 0);
+				Obj_SetRenderPriorityI(objShot, RP_STG_SHOT);
+				ObjMove_AddPatternB2(objShot, 0, 0, 0, 0, 0, 0, 0);
+				ObjMove_AddPatternB2(objShot, 130, 0.1 * cos(ang), 0.05 * sin(ang), 0.025 * cos(ang), 0.02 * sin(ang), 6 * cos(ang), 3 * sin(ang));
+			}
+			
+			loop(36)
+			{
+				float ang = rand(0, 360);
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_LARGE_STAR_GREY, 10);
+				ObjRender_SetBlendType(objShot, BLEND_ADD_ARGB);
+				Obj_SetRenderPriorityI(objShot, RP_STG_SHOT + 1);
+				ObjMove_AddPatternB2(objShot, 0, 0.1 * cos(ang), 0.05 * sin(ang), 0.015 * cos(ang), 0.01 * sin(ang), 6 * cos(ang), 3 * sin(ang));
+				_Shrink(objShot, 150);
+			}
+			
+			loop(48)
+			{
+				float ang = rand(0, 360);
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, prand_int(SHOT_STAR_RED, SHOT_STAR_DPINK), 5);
+				ObjRender_SetBlendType(objShot, BLEND_SUBTRACT);
+				Obj_SetRenderPriorityI(objShot, RP_STG_SHOT + 2);
+				ObjMove_AddPatternB2(objShot, 0, 0.075 * cos(ang), 0.03 * sin(ang), 0.015 * cos(ang), 0.01 * sin(ang), 3 * cos(ang), 1.5 * sin(ang));
+				_Shrink(objShot, rand(60, 100));
+			}
+			
+			yield;
+		}
+		
+		//ObjMove_SetSpeed(_objBoss, 0);
+		ObjMove_SetPosition(_objBoss, CENTER_X, -150);
+		ObjMove_SetDestAtFrame(_objBoss, CENTER_X, 100, 30, LERP_LINEAR);
+		
+		wait(30);
+		
+	}
+}
+
+task _Laser(float ang_, int rad_, int dir_)
+{
+	int objLaser = CreateLaser_Straight(_enmX + (rad_ * cos(ang_)), _enmY + (rad_ * sin(ang_)), ang_, 512, 20, 70, SHOT_LIGHTNING, 60, COLOR_WHITE);
+	
+	for(int i = 0; Obj_IsExists(objLaser); i++)
+	{
+		ObjRender_SetColorHSV(objLaser, i * 3, 100, 255);
+		ObjStLaser_SetAngle(objLaser, ang_ + ((i * 0.175) * dir_));
+		
+		yield;
+	}
+}
+
+task _Comet(int wave_, int index_, int[] stars_, int[] orbs_, float off_, float offA_, int dir_)
+{
+	const int[] COLORS = [COLOR_RED, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_PINK];
+	
+	int objComet = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, orbs_[wave_], 8);
+	
+	ObjShot_SetAutoDelete(objComet, false);
+	
+	/*int[] color = ColorHexToARGB(COLORS[wave_], COLOR_PERMUTE_RGB);
+	color = [Interpolate_Linear(color[0], 255, 0.55), Interpolate_Linear(color[1], 255, 0.55), Interpolate_Linear(color[2], 255, 0.55)];
+	ObjRender_SetColor(objComet, color[0], color[1], color[2]);*/
+	
+	ObjRender_SetBlendType(objComet, BLEND_ADD_ARGB);
+	Obj_SetValueI(objComet, VAL_GRZCOL, false);
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	float initX = _enmX;
+	float initY = _enmY;
+	
+	float ang = index_ * (360 / 4) + off_;
+	float rad = 0;
+	float speed = 1 + (offA_ * 0.75);
+	float wvel = 1.5 + offA_;
+	float accel = 0.005;
+	float waccel = 0.0003;
+	for(int i = 0; i < 600; i++)
+	{
+		rad += speed;
+		ang += wvel;
+		
+		ObjMove_SetPosition(objComet, initX + (rad * cos(ang * dir_)), initY + (rad * sin(ang * dir_)));
+		if(i > 8) _Particles(objComet, orbs_[wave_], COLORS[wave_]);
+		
+		if(i % 7 == 0)
+		{
+			float comX = ObjMove_GetX(objComet);
+			float comY = ObjMove_GetY(objComet);
+			for(int j = 0; j < 2; j++) CreateShot_Enemy(comX, comY, 0.5, dottheta(comX, comY, _enmX, _enmY) + (j * 180), 0.01, 2.5, stars_[wave_], 15);
+		}
+		
+		speed += accel;
+		wvel += waccel;
+		
+		yield;
+	}
+	
+	Obj_Delete(objComet);
+}
+
+task _Particles(int objComet_, int orb_, int color_)
+{
+	// Trail
+	int objComet = CreateShot_Enemy(ObjMove_GetX(objComet_), ObjMove_GetY(objComet_), 0, 0, 0, 0, orb_, 0);
+	ObjRender_SetBlendType(objComet, BLEND_ADD_ARGB);
+	ObjShot_SetIntersectionEnable(objComet, false);
+	ObjShot_SetGrazeFrame(objComet, INT_MAX);
+	_Shrink(objComet, 0);
+	
+	// Stars
+	if(_prtSht) _CreateStarParticle(objComet_, orb_, color_);
+}
+
+task _Shrink(int objComet_, int delay_)
+{
+	wait(delay_);
+	
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Linear(1, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objComet_, scale, scale, ID_INVALID);
+		ObjShot_SetIntersectionScaleXY(objComet_, scale, scale);
+		yield;
+	}
+	
+	Obj_Delete(objComet_);
+}
+
+task _CreateStarParticle(int objComet_, int orb_, int color_)
+{
+	float rad = prand(15, 25);
+						
+										float orgX = ObjMove_GetX(objComet_) + prand(-10, 10);
+										float orgY = ObjMove_GetY(objComet_) + prand(-10, 10);
+										
+										float posX = orgX;
+										float posY = orgY;
+										
+										float destX = posX + (rad * cos(prand(0, 360))); 
+										float destY = posY + (rad * sin(prand(0, 360))); 
+										
+										float angX = prand(0, 180);
+										float angY = prand(0, 180);
+										
+										float scaleOrg = prand(0.25, 0.3);
+										float scaleCur = scaleOrg;
+										
+										float alphaOrg = 0;
+										float alphaCur = alphaOrg;
+										
+										float iMax = 45;
+										for(int i = 0; i <= iMax; i++)
+										{
+											// Color
+											ObjParticleList_SetColor(objPart_, color_);
+										
+											// Position
+											posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+											posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+											ObjParticleList_SetPosition(objPart_, posX, posY, ID_INVALID);
+											
+											// Rotation
+											angX += prand(1, 2);
+											angY -= prand(1, 2);
+											ObjParticleList_SetAngle(objPart_, angX, angY, (angX * angY) / 100);
+											
+											// Size
+											scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+											ObjParticleList_SetScale(objPart_, scaleCur);
+											
+											// Fade
+											alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+											ObjParticleList_SetAlpha(objPart_, alphaCur);
+											
+											ObjParticleList_AddInstance(objPart_);
+											
+											yield;
+										}
+}
+
+task _Hitbox()
+{
+const int RADIUS_HITBOX = 32;
+	
+	loop
+	{
+		if(_hitbox)
+		{
+			ObjEnemy_SetIntersectionCircleToShot(_objBoss, ObjMove_GetX(_objBoss), ObjMove_GetY(_objBoss), RADIUS_HITBOX);
+			ObjEnemy_SetIntersectionCircleToPlayer(_objBoss, ObjMove_GetX(_objBoss), ObjMove_GetY(_objBoss), RADIUS_HITBOX / 2);
+		}
+			
+		yield;
+	}
+}

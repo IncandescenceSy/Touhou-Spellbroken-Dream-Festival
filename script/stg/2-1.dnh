@@ -1,0 +1,136 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Cirno 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Cirno 1st"]
+#Text["Cirno 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions pertaining to items and bullet deletion effects
+#include "./../lib/lib_item.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_BLUE;
+int _colorB = COLOR_AZURE;
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 10);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_CIRNO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 415, 600, 164, 75, 70, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(10000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+	wait(70);
+		
+	loop
+	{
+		Spiral(1);
+		Spiral(-1);
+	}
+}
+
+function<void> Spiral(int dir_)
+{
+	float off = GetAngleToPlayer(_objBoss);
+	
+	int way = 6;
+	
+	int time = 2;
+	
+	float iMax = (200 * 2) / time;
+	for(int i = 0; i <= iMax; i++)
+	{
+		for(int j = 0; j <= way; j++) Obj_SetValueI(CreateShot_Enemy(_enmX, _enmY, 0.5, (((i * 2.25) * dir_) + (j * (360 / way))) + off, 0.05, 5, SHOT_ICE_BLUE, 20), VAL_MISC, i % 5);
+		
+		if(i == iMax - (70 / time)) _RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(time);
+	}
+	
+	for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+	{
+		if(ObjShot_GetImageID(iShots) == SHOT_ICE_GREY || Obj_GetValueDI(iShots, VAL_MISC, 0) != 0)
+		{
+			if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(iShots), ObjMove_GetY(iShots)], ObjRender_GetColor(iShots));
+			Obj_Delete(iShots);
+		}
+		else
+		{
+			ObjShot_SetGraphic(iShots, SHOT_ICE_GREY);
+			ObjMove_SetProcessMovement(iShots, false);
+		}
+	}
+}

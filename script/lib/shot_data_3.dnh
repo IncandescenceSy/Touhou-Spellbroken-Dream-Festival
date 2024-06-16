@@ -1,0 +1,13 @@
+#UserShotData
+
+shot_image = "./../assets/img/sys/shot_3.png"
+
+// SHOT_YINYANG
+ShotData{id = 1068; rect = (0, 0, 74, 74);    delay_color = (255, 0, 0);   collision = 32; angular_velocity = 4; fixed_angle = true;} // Red
+ShotData{id = 1069; rect = (74, 0, 148, 74);  delay_color = (255, 128, 0); collision = 32; angular_velocity = 4; fixed_angle = true;} // Orange
+ShotData{id = 1070; rect = (148, 0, 222, 74); delay_color = (255, 255, 0); collision = 32; angular_velocity = 4; fixed_angle = true;} // Yellow
+ShotData{id = 1071; rect = (222, 0, 296, 74); delay_color = (0, 255, 0);   collision = 32; angular_velocity = 4; fixed_angle = true;} // Green
+ShotData{id = 1072; rect = (296, 0, 370, 74); delay_color = (0, 255, 255); collision = 32; angular_velocity = 4; fixed_angle = true;} // Aqua
+ShotData{id = 1073; rect = (370, 0, 444, 74); delay_color = (0, 128, 255); collision = 32; angular_velocity = 4; fixed_angle = true;} // Azure
+ShotData{id = 1074; rect = (444, 0, 518, 74); delay_color = (128, 0, 255); collision = 32; angular_velocity = 4; fixed_angle = true;} // Purple
+ShotData{id = 1075; rect = (518, 0, 592, 74); delay_color = (255, 0, 255); collision = 32; angular_velocity = 4; fixed_angle = true;} // Magenta

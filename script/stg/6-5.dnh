@@ -1,0 +1,226 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Yuyuko 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yuyuko 2nd"]
+#Text["Yuyuko 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_PURPLE;
+int _colorB = COLOR_DMAGENTA;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 50);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUYUKO);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 334, 620, 189, 115, 45, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(22000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_AURA, _objBoss, DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", _colorB, COLOR_AZURE, 608, 304, 5, 1, 0);
+	
+	loop
+	{
+		_LaserWall(-15, 0, SHOT_BUTTERFLY_PINK, SHOT_CURVY_LASER_PINK, SHOT_SAKURA_PINK);
+		
+		wait(80);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		_GravLaser(SHOT_BUTTERFLY_AQUA, SHOT_CURVY_LASER_AQUA, SHOT_SAKURA_AQUA);
+		
+		wait(80);
+		
+		_LaserWall(FRAME_WIDTH + 15, 180, SHOT_BUTTERFLY_PURPLE, SHOT_CURVY_LASER_PURPLE, SHOT_SAKURA_PURPLE);
+		
+		wait(80);
+		
+		_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+		
+		wait(65);
+		
+		_GravLaser(SHOT_BUTTERFLY_AZURE, SHOT_CURVY_LASER_AZURE, SHOT_SAKURA_AZURE);
+		
+		wait(80);
+	}
+}
+
+// Wall of butterfly lasers
+task _LaserWall(float posX_, float ang_, int graphicA_, int graphicB_, int graphicC_)
+{
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	int way = 9 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 3800);
+	for(int i = 0; i < way; i++)
+	{
+		_ManageLaser(CreateLaserButterfly(posX_, (i * (FRAME_HEIGHT / way)) + 40, 1.5, ang_, 0, 0, 140, 16, 1.25, graphicA_, graphicB_, 0), graphicC_, (i % 2 == 0));
+	}
+}
+
+task _GravLaser(int graphicA_, int graphicB_, int graphicC_)
+{
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+	
+	int way = 5 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 7000);
+	for(int i = -way; i <= way; i++)
+	{
+		_ManageGravLaser(CreateLaserButterfly(_enmX, _enmY, 2, 90 + (i * 15), 0.01, 3, 140, 16, 0, graphicA_, graphicB_, 25), graphicC_, 90 + (i * 15));
+	}
+}
+
+task _ManageLaser(int[] shots_, int graphic_, bool isEven_)
+{
+	_Wiggle(shots_[0]);
+	_Wiggle(shots_[1]);
+	
+	if(isEven_) wait(65);
+	
+	while(Obj_IsExists(shots_[0]))
+	{
+		wait(65);
+		
+		loop(6)
+		{
+			if(Obj_IsDeleted(shots_[0]) || Obj_IsDeleted(shots_[1])) return;
+			
+			float shotX = ObjMove_GetX(shots_[0]);
+			float shotY = ObjMove_GetY(shots_[0]);
+			
+			//float ang = ObjMove_GetAngle(shots_[0]); //[GetObjectDeltaAngle(shots_[0], _objBoss), GetAngleToPlayer(shots_[0])];
+			
+			for(int i = -1; i <= 1; i += 2) ObjMove_AddPatternA2(CreateShot_Enemy(shotX, shotY, 0, i * 90, 0, 0, graphic_, 25), 120, 0, NO_CHANGE, 0.02, 2, 0);
+			
+			wait(5);
+		}
+	}
+}
+
+task _ManageGravLaser(int[] shots_, int graphic_, float ang_)
+{
+	ObjMove_AddPatternB2(shots_[0], 0, 1 * cos(ang_), 1.7 * sin(ang_), 0.01 * cos(ang_), -0.02, 2 * cos(ang_), -5);
+	ObjMove_AddPatternB2(shots_[1], 0, 1 * cos(ang_), 1.7 * sin(ang_), 0.01 * cos(ang_), -0.02, 2 * cos(ang_), -5);
+	
+	int way = 1;
+	
+	for(int i = 0; ObjMove_GetY(shots_[0]) > 0; i++)
+	{
+		float shotX = ObjMove_GetX(shots_[0]);
+		float shotY = ObjMove_GetY(shots_[0]);
+			
+		float ang = ObjMove_GetAngle(shots_[0]); //[GetObjectDeltaAngle(shots_[0], _objBoss), GetAngleToPlayer(shots_[0])];
+			
+		for(int j = -way; j <= way; j++) CreateShot_Enemy(shotX, shotY, 0, ang + (j * 12), 0.01, 2, graphic_, 25);
+		
+		if(i > 3) way = 2;
+		
+		loop(30)
+		{
+			if(Obj_IsDeleted(shots_[0]) || Obj_IsDeleted(shots_[1])) return;
+			
+			if(ObjMove_GetY(shots_[0]) <= 0) break;
+			
+			yield;
+		}
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	
+	float shotX = ObjMove_GetX(shots_[0]);
+	float shotY = ObjMove_GetY(shots_[0]);
+	
+	float ang = GetAngleToPlayer(shots_[0]);
+	
+	int stack = 10;
+	int spread = 2;
+	for(int i = 0; i < stack; i++) for(int j = -spread; j <= spread; j++) CreateShot_Enemy(shotX, shotY, 0 + (i * 0.1), ang + (j * 20), 0.01 + (i * 0.008), 2 + (i * 0.15), graphic_, 25);
+}
+
+task _Wiggle(int objShot_)
+{
+	wait(15);
+	
+	while(Obj_IsExists(objShot_))
+	{
+		ObjMove_SetAngularVelocity(objShot_, -1.25);
+		
+		wait(30);
+		
+		ObjMove_SetAngularVelocity(objShot_, 1.25);
+		
+		wait(30);
+	}
+}

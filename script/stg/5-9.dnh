@@ -1,0 +1,406 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Clownpiece 3rd ////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Clownpiece 3rd"]
+#Text["Clownpiece 3rd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions pertaining to items and bullet deletion effects
+#include "./../lib/lib_item.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DBLUE;
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Moon trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_4,
+		0, 0, 602, 602,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+// Particle list for laser collision effects
+int _objPartStar = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+// Decoy enemy for collision purposes
+int _objDecoy = CreateEnemy
+(
+	INT_MAX, 0, false, false,
+	false, 0, false, false,
+	-999999, -999999, -999999, -999999, 0
+);
+ObjEnemy_SetDamageRate(_objDecoy, 0, 0);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 45);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_CLOWNPIECE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 500, 740, 182, 82, 50, _colorA, _colorB, CENTER_X, 100, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_PLAYER, EV_CHANGE_DEL_RP, RP_FX_MED + 2);
+	
+	// Pattern
+	_Pattern();
+	_Lasers();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)             SetScriptResult(1);
+		case(EV_REQUEST_TIMER)            SetScriptResult(30);
+		case(EV_REQUEST_IS_DURABLE_SPELL) SetScriptResult(true);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	loop
+	{
+		_ManageMoon(CreateShot_Enemy(-90, 170, 0, 0, 0.02, 3, SHOT_MOON_RED, 0, 0.225), COLOR_RED);
+		_ManageMoon(CreateShot_Enemy(FRAME_WIDTH + 90, 240, 0, 180, 0.01, 2.5, SHOT_MOON_GREEN, 0, 0.225), COLOR_GREEN);
+		_ManageMoon(CreateShot_Enemy(-90, 310, 0, 0, 0.02, 3, SHOT_MOON_BLUE, 0, 0.225), COLOR_BLUE);
+		
+		wait(57);
+	}
+}
+
+task _Lasers()
+{
+	wait(110);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	const int[] SHOTS = [SHOT_LARGE_STAR_RED, SHOT_LARGE_STAR_GREEN, SHOT_LARGE_STAR_BLUE];
+	
+	int time = 35;
+	int cnt = 30;
+	int way = 75;
+	
+	for(int i = 0; i <= 16; i++)
+	{
+		for(int j = 0; j <= cnt; j++)
+		{
+			float off = rand(0, 360);
+			
+			for(int k = 0; k < way; k++)
+			{
+				ObjShot_SetIntersectionScaleXY(CreateShot_Enemy(_enmX, _enmY, 2, (k * (360 / way)) + off, 0.07, 9, SHOTS[i % 3], 5), 1.75, 1.75);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+			wait(3);
+		}
+		
+		time = max(time - 5, 10);
+		cnt = max(cnt - 2, 10);
+		
+		wait(time * 2);
+	}
+	
+	for(int i = 0; ; i++)
+	{
+		float off = rand(0, 360);
+		way = 33;
+		
+		for(int k = 0; k < way * 0.65; k++)
+		{
+			CreateShot_Enemy(_enmX, _enmY, 1.5, (k * (360 / way)) + off, 0.06, 8, SHOTS[i % 3], 5);
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+			
+		wait(3);
+	}
+}
+
+/*task _Rotate(int objLaser_, float spd_, int dir_)
+{
+	while(Obj_IsExists(objLaser_))
+	{
+		ObjStLaser_SetAngle(objLaser_, ObjStLaser_GetAngle(objLaser_) + (spd_ * dir_));
+		
+		yield;
+	}
+}*/
+
+task _ManageMoon(int objMoon_, int color_)
+{
+	ObjShot_SetAutoDelete(objMoon_, false);
+	Obj_SetRenderPriorityI(objMoon_, RP_FX_MED + 1);
+	ObjRender_SetColor(objMoon_, color_);
+	
+	int[] colorArr = ColorHexToARGB(color_, COLOR_PERMUTE_RGB);
+	
+	for(int i = 0; i <= 350; i++)
+	{
+		float shotX = ObjMove_GetX(objMoon_);
+		float shotY = ObjMove_GetY(objMoon_);
+		
+		ObjEnemy_SetIntersectionCircleToShot(_objDecoy, shotX, shotY, STANDARD_ENEMYHITBOX * 2.5);
+		
+		for each(int iShots in ref GetShotIdInCircleA2(shotX, shotY, 57, TARGET_ENEMY))
+		{
+			int graphic = ObjShot_GetImageID(iShots);
+			if(graphic < 1076)
+			{
+				int[] col = GetShotDataInfoA1(graphic, TARGET_ENEMY, INFO_DELAY_COLOR);
+				if(col == colorArr)
+				{
+					//if(_prtSht) _CreateDeletionEffect([ObjMove_GetX(iShots), ObjMove_GetY(iShots)], col);
+					Obj_Delete(iShots);
+				}
+			}
+		}
+		
+		// Trail
+		if(_prtSht && i % 10 == 0)
+		{
+			async
+			{					
+				float posX = shotX;
+				float posY = shotY;
+				
+				float scaleOrg = 0.225;
+				float scaleCur = scaleOrg;
+				
+				float alphaOrg = 255;
+				float alphaCur = alphaOrg;
+				
+				float iMax = 60;
+				for(int i = 0; i <= iMax; i++)
+				{
+					// Color
+					ObjParticleList_SetColor(_objPartTrail, color_);
+								
+					// Position
+					ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+									
+					// Size
+					scaleCur = Interpolate_Smooth(scaleOrg, scaleOrg * 1.5, i / iMax);
+					ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+					// Fade
+					alphaCur = Interpolate_Smooth(alphaOrg, 0, i / iMax);
+					ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+					ObjParticleList_AddInstance(_objPartTrail);
+						
+					yield;
+				}
+			}
+		}
+		
+		yield;
+	}
+	
+	Obj_Delete(objMoon_);
+}
+
+/*
+function<int> CreateLaser_Moon(float posX_, float posY_, float ang_, float length_, float width_, int deleteFrame_, int graphic_, float rate_, int color_)
+{
+	int objStLaser = ObjShot_Create(OBJ_STRAIGHT_LASER);
+	ObjShot_Regist(objStLaser);
+	ObjMove_SetPosition(objStLaser, posX_, posY_);
+	ObjStLaser_SetAngle(objStLaser, ang_);
+	ObjLaser_SetIntersectionWidth(objStLaser, width_);
+	ObjLaser_SetRenderWidth(objStLaser, width_);
+	ObjShot_SetDeleteFrame(objStLaser, deleteFrame_);
+	ObjShot_SetGraphic(objStLaser, graphic_);
+	ObjShot_SetGrazeInvalidFrame(objStLaser, 63);
+	
+	int[] shotColor = GetShotDataInfoA1(graphic_, TARGET_ENEMY, INFO_DELAY_COLOR);
+	
+	int[] colorArr = ColorHexToARGB(color_, COLOR_PERMUTE_RGB);
+	
+	async
+	{
+		int t = 0;
+		while(Obj_IsExists(objStLaser))
+		{
+			//for each(iMoons in ref _moons)
+			//{
+				if(ObjRender_GetColor(_moons[0]) == colorArr)
+				{
+					local
+					{
+						int lx = ObjMove_GetX(objStLaser);
+						int ly = ObjMove_GetY(objStLaser);
+						
+						float px = ObjMove_GetX(_moons[0]);
+						float py = ObjMove_GetY(_moons[0]);
+						
+						let dx = px - lx;
+						let dy = py - ly;
+						
+						ang_ = ObjStLaser_GetAngle(objStLaser);
+						let vx = cos(ang_);
+						let vy = sin(ang_);
+						
+						let lw = dx * vy - dy * vx;
+						let ld = dx * vx + dy * vy;
+						
+						ObjLaser_SetLength(objStLaser, min(t * 12, length_));
+						
+						if (ld > 0) 
+						{
+							let lh = 46 * 46 - lw * lw;
+							if (lh > 0)
+							{
+								let ll = ld - sqrt(lh);
+								ObjLaser_SetLength(objStLaser, max(ll, 0));
+								
+								float pdx = ObjMove_GetX(_moons[0]) + (vx * rate_);
+								float pdy = ObjMove_GetY(_moons[0]) + (vy * rate_);
+								//if(t > delay_)
+								//{
+									float laserEndX = lx + (max(ll, 0) * vx);
+									float laserEndY = ly + (max(ll, 0) * vy);
+									
+									if(_prtLsr)
+									{
+										if(t % 18 == 0) _CreateDeletionEffect([laserEndX, laserEndY], shotColor);
+										
+										// Deletion particle effect
+										if(t % 6 == 0)
+										{
+											async
+											{
+												float rad = prand(30, 50);
+								
+												float orgX = laserEndX + prand(-10, 10);
+												float orgY = laserEndY + prand(-10, 10);
+												
+												float posX = orgX;
+												float posY = orgY;
+												
+												float destX = posX + (rad * cos(prand(0, 360))); 
+												float destY = posY + (rad * sin(prand(0, 360))); 
+												
+												float angX = prand(0, 180);
+												float angY = prand(0, 180);
+												
+												float scaleOrg = prand(0.25, 0.3);
+												float scaleCur = scaleOrg;
+												
+												float alphaOrg = 0;
+												float alphaCur = alphaOrg;
+												
+												float iMax = 60;
+												for(int i = 0; i <= iMax; i++)
+												{
+													// Color
+													ObjParticleList_SetColor(_objPartStar, shotColor[0], shotColor[1], shotColor[2]);
+												
+													// Position
+													posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+													posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+													ObjParticleList_SetPosition(_objPartStar, posX, posY, ID_INVALID);
+													
+													// Rotation
+													angX += prand(1, 2);
+													angY -= prand(1, 2);
+													ObjParticleList_SetAngle(_objPartStar, angX, angY, (angX * angY) / 100);
+													
+													// Size
+													scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+													ObjParticleList_SetScale(_objPartStar, scaleCur);
+													
+													// Fade
+													alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+													ObjParticleList_SetAlpha(_objPartStar, alphaCur);
+													
+													ObjParticleList_AddInstance(_objPartStar);
+													
+													yield;
+												}
+											}
+										}
+									}
+								//}
+							}
+						}
+					}
+				}
+			//}
+        
+            t++;
+			
+            yield;
+		}
+	}
+	
+	return objStLaser;
+}*/

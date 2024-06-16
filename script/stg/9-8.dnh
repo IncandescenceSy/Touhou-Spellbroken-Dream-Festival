@@ -1,0 +1,499 @@
+///////////////////////////////////////////////////////////////
+/////////////////////////// Sariel ////////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Sariel"]
+#Text["Sariel"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DAZURE;
+
+// Rain particles
+int objPartR_ = CreateParticleList2D 
+(
+	DIR_IMG_SYS_SHOT_0,
+	432, 306, 450, 324,
+	BLEND_ADD_ARGB, RP_FX_MED_H
+);
+
+// Star particles
+int objPart_ = CreateParticleList2D 
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, true);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 75);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SARIEL);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_yachie.png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 795, 600, 157, 88, 60, _colorA, _colorB, CENTER_X, 160, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(37500);
+		case(EV_REQUEST_TIMER) SetScriptResult(180);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	int dir = 1;
+	
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_AURA, _objBoss, DIR_IMG_ENM ~ "/aura_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png", _colorA, _colorB, 425, 154, 5, 1.75, -15);
+	
+	_Glow();
+	if(_prtSht) _Rain();
+	
+	for(int l = 0; ; l++)
+	{
+		_DualBowap();
+		for(int i = 0; i < 6; i++)
+		{
+			_BubbleRing((i % 2 == 0) ? 1 : -1);
+			wait(20);
+			_FireRing();
+			wait(20);
+			_FireRing();
+			wait(20);
+		}
+		
+		wait(90);
+		
+		SunComet(dir);
+		
+		wait(90);
+	}
+}
+
+task _DualBowap()
+{
+	float start = rand(0, 360);
+	int way = 18;
+	
+	for(int f = 0; f < 360; f++)
+	{
+		if(f % 12 == 0)
+		{
+			for(int i = 0; i < way; i++)
+			{
+				CreateShot_Enemy(_enmX, _enmY, 0.25, start + (sin(f) * 20) + (i * (360 / way)), 0.015, 5, SHOT_ICE_GREY, 20);
+				CreateShot_Enemy(_enmX, _enmY, 0.25, start - (sin(f) * 20) + (i * (360 / way)), 0.015, 5, SHOT_ICE_GREY, 20);
+			}
+		}
+		
+		yield;
+	}
+}
+
+task _BubbleRing(dir_)
+{
+	float start = rand(0, 360);
+	int way = 19;
+	
+	for(int i = 0; i < way; i++)
+	{
+		int objShot = CreateShot_Enemy(_enmX, _enmY, 0.15, start + (i * (360 / way)), 0.008, 3, SHOT_BUBBLE_AQUA, 30);
+		Obj_SetRenderPriorityI(objShot, RP_STG_SHOT - 1);
+		ObjMove_SetAngularVelocity(objShot, dir_);
+		ObjMove_AddPatternA2(objShot, 150, NO_CHANGE, NO_CHANGE, 0.008, 3, 0);
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+}
+
+task _FireRing()
+{
+	float start = rand(0, 360);
+	int way = 32;
+	
+	for(int i = 0; i < way; i++)
+	{
+		Obj_SetRenderPriorityI(CreateShot_Enemy(_enmX, _enmY, 0.15, start + (i * (360 / way)), 0.008, 3, SHOT_FIREBALL_AQUA, 30), RP_STG_SHOT - 1);
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+}
+
+function<int> SunComet(int dir)
+{
+	int objComet = CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_ORB_AZURE, 8);
+	ObjRender_SetBlendType(objComet, BLEND_ADD_ARGB);
+	Obj_SetValueI(objComet, VAL_GRZCOL, false);
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+	ObjMove_SetDestAtFrame(objComet, CENTER_X, FRAME_HEIGHT, 100, LERP_SMOOTH);
+	_CometParticles(objComet);
+	
+	wait(100);
+	
+	_Shrink(objComet);
+	int posX = CENTER_X;
+	int posY = FRAME_HEIGHT;
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BURST);
+	if(_prtSht)
+	{
+		_RenderChargeWave(posX, posY, 0, 3.5, 255, 0, _colorA);
+		loop(40)
+		{
+			_RenderBurstParticle(posX, posY, _colorB);
+		}
+	}
+	
+	_CreateSun();
+	
+	wait(25);
+	
+	Obj_Delete(objComet);
+	
+	
+	posY = FRAME_HEIGHT + 30;
+	
+	int life = ObjEnemy_GetInfo(_objBoss, INFO_LIFE);
+	
+	float start = rand(0, 360);
+	int way = 43 - (life / 3000);
+	
+	for(int j = 1; j <= 18; j++)
+	{
+		for(int i = 0; i < way; i++)
+		{
+			ObjMove_SetAngularVelocity(CreateShot_Enemy(posX, posY, 0, start + (i * (360 / way)), 0.015, 2, SHOT_ICE_GREY, 10), dir * 0.25);
+		}
+		dir *= -1;
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		wait(20);
+		if(j % 4 == 0){_OrbRing();}
+	}
+	
+	return dir;
+}
+
+task _OrbRing()
+{
+	float start = rand(0, 360);
+	int way = 12;
+	
+	for(int i = 0; i < way; i++)
+	{
+		Obj_SetRenderPriorityI(CreateShot_Enemy(_enmX, _enmY, 0.1, start + (i * (360 / way)), 0.005, 1.5, SHOT_LARGE_INVERT_AQUA, 15), RP_STG_SHOT - 1);
+	}
+	
+	NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+}
+
+task _CreateSun()
+{	
+	int dur = 12 * 30;
+	
+	float scale = 1.35;
+	float mult = 1; //0.6607929515;
+	
+	// The sun
+	int sun = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_CIRCLE_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 300, 300,
+		0, 0,
+		CENTER_X, FRAME_HEIGHT + 30
+	);
+	//ObjRender_SetColor(sun, COLOR_RED);
+	
+	// The sun's glow
+	int glowS = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_WAVE, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 454, 454,
+		0, 0,
+		CENTER_X, FRAME_HEIGHT + 30
+	);
+	ObjRender_SetColor(glowS, COLOR_AZURE);
+	
+	async
+	{
+		float iMax = 45;
+		for(int i = 0; i <= iMax; i++)
+		{
+			float scaleCur = Interpolate_Smooth(0, scale, i / iMax);
+			ObjRender_SetScaleXYZ(sun, scaleCur);
+			ObjRender_SetScaleXYZ(glowS, scaleCur * mult);
+			
+			if(GetObjectDistance(_objPlayer, sun) < scaleCur * 130) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, 0);
+			yield;
+		}
+		
+		for(int i = 0; i < dur; i++)
+		{
+			ObjRender_SetScaleXYZ(glowS, (scale * mult) + (sin(i * 2) * 0.75));
+			if(GetObjectDistance(_objPlayer, sun) < scale * 130) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, 0);
+			yield;
+		}
+		
+		iMax = 45;
+		for(int i = 0; i <= iMax; i++)
+		{
+			float scaleCur = Interpolate_Smooth(scale, 0, i / iMax);
+			ObjRender_SetScaleXYZ(sun, scaleCur);
+			ObjRender_SetScaleXYZ(glowS, scaleCur * mult);
+			
+			if(GetObjectDistance(_objPlayer, sun) < scaleCur * 130) NotifyEvent(_ID_PLAYER, EV_KILL_PLAYER, 0);
+			yield;
+		}
+		
+		Obj_Delete(sun);
+		Obj_Delete(glowS);
+	}
+	
+	for(int i = 0; i < dur; i++)
+	{
+		// Sun color
+		ObjRender_SetColorHSV(sun, 210, 60 + (sin(i) * 60), 255);
+		
+		yield;
+	}
+}
+
+task _CometParticles(int objComet)
+{
+	wait(8);
+	
+	while(Obj_IsExists(objComet))
+	{
+		// Trail
+		int objCometA = CreateShot_Enemy(ObjMove_GetX(objComet), ObjMove_GetY(objComet), 0, 0, 0, 0, SHOT_ORB_AZURE, 0);
+		ObjRender_SetBlendType(objCometA, BLEND_ADD_ARGB);
+		ObjShot_SetIntersectionEnable(objCometA, false);
+		ObjShot_SetGrazeFrame(objCometA, INT_MAX);
+		_Shrink(objCometA);
+	
+		// Stars
+		if(_prtSht) _CreateStarParticle(objComet, COLOR_AZURE);
+		
+		yield;
+	}
+}
+
+task _Shrink(int objComet_)
+{
+	
+	float iMax = 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		float scale = Interpolate_Linear(1, 0, i / iMax);
+		ObjRender_SetScaleXYZ(objComet_, scale, scale, ID_INVALID);
+		//ObjShot_SetIntersectionScaleXY(objComet_, scale, scale);
+		yield;
+	}
+	
+	Obj_Delete(objComet_);
+}
+
+task _CreateStarParticle(int objComet_, int color_)
+{
+	float rad = prand(15, 25);
+						
+										float orgX = ObjMove_GetX(objComet_) + prand(-10, 10);
+										float orgY = ObjMove_GetY(objComet_) + prand(-10, 10);
+										
+										float posX = orgX;
+										float posY = orgY;
+										
+										float destX = posX + (rad * cos(prand(0, 360))); 
+										float destY = posY + (rad * sin(prand(0, 360))); 
+										
+										float angX = prand(0, 180);
+										float angY = prand(0, 180);
+										
+										float scaleOrg = prand(0.25, 0.3);
+										float scaleCur = scaleOrg;
+										
+										float alphaOrg = 0;
+										float alphaCur = alphaOrg;
+										
+										float iMax = 45;
+										for(int i = 0; i <= iMax; i++)
+										{
+											// Color
+											ObjParticleList_SetColor(objPart_, color_);
+										
+											// Position
+											posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+											posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+											ObjParticleList_SetPosition(objPart_, posX, posY, ID_INVALID);
+											
+											// Rotation
+											angX += prand(1, 2);
+											angY -= prand(1, 2);
+											ObjParticleList_SetAngle(objPart_, angX, angY, (angX * angY) / 100);
+											
+											// Size
+											scaleCur = Interpolate_Smooth(scaleOrg, 0, i / iMax);
+											ObjParticleList_SetScale(objPart_, scaleCur);
+											
+											// Fade
+											alphaCur = Interpolate_Smooth(alphaOrg, 255, i / iMax);
+											ObjParticleList_SetAlpha(objPart_, alphaCur);
+											
+											ObjParticleList_AddInstance(objPart_);
+											
+											yield;
+										}
+}
+
+task _Glow()
+{
+
+	float scale = 2;
+	float mult = 0.5;
+	
+	// The sun's glow
+	int glowS = CreateSprite2D_Pos
+	(
+		DIR_IMG_EFF_WAVE, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 454, 454,
+		0, 0,
+		_enmX, _enmY
+	);
+	ObjRender_SetColor(glowS, COLOR_AZURE);
+	
+		float iMax = 45;
+		for(int i = 0; i <= iMax; i++)
+		{
+			float scaleCur = Interpolate_Smooth(0, scale, i / iMax);
+			ObjRender_SetScaleXYZ(glowS, scaleCur * mult);
+			yield;
+		}
+		
+		for(int i = 0; ; i++)
+		{
+			ObjRender_SetScaleXYZ(glowS, (scale * mult) + (sin(i * 2) * 0.12));
+			yield;
+		}
+}
+
+task _Rain()
+{
+	for(int i = 0; ; i++)
+	{
+		loop(10)
+		{
+			_CreateScaleParticle();
+		}
+		
+		yield;
+	}
+}
+
+task _CreateScaleParticle()
+{
+	float orgX = prand(-3, FRAME_WIDTH + 3);
+	float orgY = -10;
+							
+	float posX = orgX;
+	float posY = orgY;
+										
+	float destX = posX;
+	float destY = posY + prand(50, 210);
+										
+	float scaleOrg = 1.3;
+	float scaleCur = scaleOrg;
+	
+	int delay = prand(38, 48);
+										
+	float iMax = delay + 25;
+	for(int i = 0; i <= iMax; i++)
+	{
+		// Position
+		posX = Interpolate_Accelerate(orgX, destX, i / iMax);
+		posY = Interpolate_Accelerate(orgY, destY, i / iMax);
+		ObjParticleList_SetPosition(objPartR_, posX, posY, ID_INVALID);
+											
+		// Rotation
+		ObjParticleList_SetAngleZ(objPartR_, 180);
+		
+		// Color
+		//ObjParticleList_SetColor(objPart_, COLOR_WHITE);
+											
+		// Size
+		scaleCur = scaleOrg;
+		
+		if(i > delay)
+		{
+			scaleCur = Interpolate_Smooth(scaleOrg, 0, (i - delay) / (iMax - delay));
+			ObjParticleList_SetScale(objPartR_, scaleCur);
+		}
+
+		ObjParticleList_AddInstance(objPartR_);
+											
+		yield;
+	}
+}

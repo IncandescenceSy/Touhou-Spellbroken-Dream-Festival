@@ -1,0 +1,197 @@
+///////////////////////////////////////////////////////////////
+///////////////////////// Seiran 2nd //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Seiran 2nd"]
+#Text["Seiran 2nd"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Starting boss life
+int _lifeMax = 28000;
+
+// Boss colors
+int _colorA = COLOR_ORANGE;
+int _colorB = COLOR_AZURE;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 6);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_SEIRAN);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 379, 660, 143, 107, 50, _colorA, _colorB, CENTER_X, CENTER_Y, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Triangles();
+	_Portal();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(18000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Triangles()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(70);
+	
+	int way = 4;
+	
+	loop
+	{
+		float ang = GetAngleToPlayer(_objBoss);
+		
+		loop(way)
+		{
+			for(int i = 0; i <= 3; i++)
+			{
+				for(int j = 0; j <= 3 - i; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 2 + j * 0.15, ang - i * 1.7, 0, 0, SHOT_BULLET_GREY, 15);
+				}
+			}
+			for(int i = 0; i <= 3; i++)
+			{
+				for(int j = 0; j <= 3 - i; j++)
+				{
+					CreateShot_Enemy(_enmX, _enmY, 2 + j * 0.15, ang + i * 1.7, 0, 0, SHOT_BULLET_GREY, 15);
+				}
+			}
+			
+			ang += 360 / way;
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		wait(90);
+	}
+}
+
+task _Portal()
+{
+	// Top
+	int portalA = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 1, 30,
+		-FRAME_WIDTH, -30, 0, 0
+	);
+	ObjRender_SetColor(portalA, _colorA);
+	ObjRender_SetAngleZ(portalA, 180);
+	
+	// Left
+	int portalB = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_B, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 29, 1,
+		0, 0, 30, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(portalB, _colorA);
+	
+	// Bottom
+	int portalC = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_A, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 1, 30,
+		0, FRAME_HEIGHT - 30, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(portalC, _colorB);
+	
+	// Right
+	int portalD = CreateSprite2D_Dest
+	(
+		DIR_IMG_EFF_GLOW_C, RP_FX_MED_H, BLEND_ADD_ARGB,
+		0, 0, 30, 1,
+		FRAME_WIDTH - 30, 0, FRAME_WIDTH, FRAME_HEIGHT
+	);
+	ObjRender_SetColor(portalD, _colorB);
+	
+	loop
+	{
+		for each(int iShots in ref GetShotIdInCircleA2(CENTER_X, CENTER_Y, 1024, TARGET_ENEMY))
+		{
+			if(ObjShot_GetImageID(iShots) == SHOT_BULLET_GREY)
+			{
+				if(ObjMove_GetX(iShots) < -10)
+				{
+					ObjMove_SetX(iShots, FRAME_WIDTH + 10);
+					ObjShot_SetGraphic(iShots, SHOT_BULLET_ORANGE);
+				}
+				else if(ObjMove_GetX(iShots) > FRAME_WIDTH + 10)
+				{
+					ObjMove_SetX(iShots, -10);
+					ObjShot_SetGraphic(iShots, SHOT_BULLET_AZURE);
+				}
+				else if(ObjMove_GetY(iShots) < -10)
+				{
+					ObjMove_SetY(iShots, FRAME_HEIGHT + 10);
+					ObjShot_SetGraphic(iShots, SHOT_BULLET_ORANGE);
+				}
+				else if(ObjMove_GetY(iShots) > FRAME_HEIGHT + 10)
+				{
+					ObjMove_SetY(iShots, -10);
+					ObjShot_SetGraphic(iShots, SHOT_BULLET_AZURE);
+				}
+			}
+		}
+		
+		yield;
+	}
+}

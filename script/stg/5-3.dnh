@@ -1,0 +1,271 @@
+///////////////////////////////////////////////////////////////
+/////////////////////// Clownpiece 1st ////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Clownpiece 1st"]
+#Text["Clownpiece 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_RED;
+int _colorB = COLOR_DBLUE;
+
+// Whether shot particles are enabled
+bool _prtSht = GetAreaCommonData(AREA_SETTINGS, PRT_SHT, 1);
+
+// Moon trail effect
+int _objPartTrail;
+
+if(_prtSht)
+{
+	_objPartTrail = CreateParticleList2D
+	(
+		DIR_IMG_SYS_SHOT_4,
+		0, 0, 602, 602,
+		BLEND_ADD_ARGB, RP_FX_MED
+	);
+}
+
+// Particle list for laser collision effects
+int _objPartStar = CreateParticleList2D
+(
+	DIR_IMG_EFF_STAR,
+	0, 0, 256, 256,
+	BLEND_ADD_ARGB, RP_FX_MED
+);
+
+// Decoy enemy for collision purposes
+int _objDecoy = CreateEnemy
+(
+	INT_MAX, 0, false, false,
+	false, 0, false, false,
+	-999999, -999999, -999999, -999999, 0
+);
+ObjEnemy_SetDamageRate(_objDecoy, 0, 0);
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{
+	SetAutoDeleteObject(true);
+	 
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 39);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_CLOWNPIECE);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 500, 740, 182, 82, 50, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	NotifyEvent(_ID_SYSTEM, EV_RENDER_PLAYER_CIRCLE, _objBoss, 0.2, COLOR_DINDIGO);
+	NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, true);
+	NotifyEvent(_ID_SYSTEM, EV_WARNING_GLOW, _colorA);
+	
+	NotifyEvent(_ID_PLAYER, EV_CHANGE_DEL_RP, RP_FX_MED + 2);
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(16000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{	
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{
+	wait(60);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	_ManageMoon(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_MOON_RED, 90, 0.225), 0, COLOR_DRED, SHOT_CURVY_LASER_RED, 0.5, -0.03, SHOT_FIREBALL_RED);
+	_ManageMoon(CreateShot_Enemy(_enmX, _enmY, 0, 0, 0, 0, SHOT_MOON_BLUE, 90, 0.225), 1, COLOR_DBLUE, SHOT_CURVY_LASER_BLUE, -0.5, 0.03, SHOT_FIREBALL_BLUE);
+	
+	wait(30);
+	
+	loop
+	{
+		int way = 80 - (ObjEnemy_GetInfo(_objBoss, INFO_LIFE) / 275);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+		
+		wait(155);
+		
+		for(int i = 0; i < way; i++)
+		{
+			_ManageFire(CreateShot_Enemy(_enmX, _enmY, 1.5, i * (360 / way), 0, INT_MAX, SHOT_FIREBALL_RED, 25), -0.03);
+		}
+			
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(20);
+		
+		for(int i = 0; i < way; i++)
+		{
+			_ManageFire(CreateShot_Enemy(_enmX, _enmY, 1.5, i * (360 / way), 0, INT_MAX, SHOT_FIREBALL_BLUE, 25), 0.03);
+		}
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		
+		wait(40);
+	}
+}
+
+task _ManageMoon(int objMoon_, int index_, int color_, int laser_, float ang_, float spd_, int fire_)
+{
+	Obj_SetRenderPriorityI(objMoon_, RP_FX_MED + 1);
+	
+	float rad = 0;
+	float ang = index_;
+	int way = 2;
+	int wayA = 9;
+	
+	async
+	{
+		wait(90);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_LASER);
+		
+		for(int i = 0; i < 5; i++) _ManageLaser(CreateLaser_Blockable(0, 0, i * (360 / 5), 450, 15, INT_MAX, laser_, 0.4, 56, _objPartStar), objMoon_, i, ang_);
+	}
+	
+	for(int i = 0; Obj_IsExists(objMoon_); i++)
+	{
+		ObjMove_SetPosition(objMoon_, _enmX + rad * cos(ang * (360 / way)), _enmY + rad * sin(ang * (360 / way)));
+		
+		float shotX = ObjMove_GetX(objMoon_);
+		float shotY = ObjMove_GetY(objMoon_);
+		
+		ObjEnemy_SetIntersectionCircleToShot(_objDecoy, shotX, shotY, STANDARD_ENEMYHITBOX * 2.5);
+		
+		ang += 0.0035;
+		rad = sin(i / 4) * 150;
+		
+		/*if(i >= 90 && i % 150 == 0)
+		{
+			for(int i = 0; i < wayA; i++)
+			{
+				_ManageFire(CreateShot_Enemy(shotX, shotY, 1.5, i * (360 / wayA), 0, INT_MAX, fire_, 0), spd_);
+			}
+			
+			NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_SHOOT);
+		}*/
+
+		// Trail
+		if(_prtSht && i > 90 && i % 13 == 0)
+		{
+			async
+			{					
+				float posX = shotX;
+				float posY = shotY;
+				
+				float scaleOrg = 0.225;
+				float scaleCur = scaleOrg;
+				
+				float alphaOrg = 255;
+				float alphaCur = alphaOrg;
+				
+				float iMax = 120;
+				for(int i = 0; i <= iMax; i++)
+				{
+					// Color
+					ObjParticleList_SetColor(_objPartTrail, color_);
+								
+					// Position
+					ObjParticleList_SetPosition(_objPartTrail, posX, posY, ID_INVALID);
+									
+					// Size
+					scaleCur = Interpolate_Smooth(scaleOrg, scaleOrg * 1.5, i / iMax);
+					ObjParticleList_SetScale(_objPartTrail, scaleCur);
+						
+					// Fade
+					alphaCur = Interpolate_Smooth(alphaOrg, 0, i / iMax);
+					ObjParticleList_SetAlpha(_objPartTrail, alphaCur);
+						
+					ObjParticleList_AddInstance(_objPartTrail);
+						
+					yield;
+				}
+			}
+		}
+			
+		
+		yield;
+	}
+}
+
+task _ManageLaser(int objLaser_, int objMoon_, int index_, float ang_)
+{
+	Obj_SetRenderPriorityI(objLaser_, RP_FX_MED);
+	
+	while(Obj_IsExists(objLaser_) && Obj_IsExists(objMoon_))
+	{
+		ObjStLaser_SetAngle(objLaser_, ObjStLaser_GetAngle(objLaser_) + ang_);
+		
+		ObjMove_SetPosition(objLaser_, ObjMove_GetX(objMoon_), ObjMove_GetY(objMoon_));
+		
+		yield;
+	}
+}
+
+task _ManageFire(int objShot_, float spd_)
+{
+	//Obj_SetRenderPriorityI(objShot_, RP_FX_MED);
+	
+	while(Obj_IsExists(objShot_))
+	{
+		if(GetObjectDistance(_objPlayer, objShot_) <= 56) ObjMove_SetSpeed(objShot_, max(0.5, min(4, ObjMove_GetSpeed(objShot_) + spd_)));
+		
+		yield;
+	}
+}

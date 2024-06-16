@@ -1,0 +1,151 @@
+///////////////////////////////////////////////////////////////
+////////////////////////// Yuuma 1st //////////////////////////
+///////////////////////////////////////////////////////////////
+
+
+//////////////////////// Script Header ////////////////////////
+
+#TouhouDanmakufu[Single]
+#Title["Yuuma 1st"]
+#Text["Yuuma 1st"]
+#System["./../system/system.dnh"]
+
+
+////////////////////// Script Inclusions //////////////////////
+
+// This library contains all variables and functions needed in order for singles to properly manage bosses
+#include "./../lib/lib_boss.dnh"
+
+// This library contains constants for various things so that I don't need to remember tons of things that never change
+#include "./../lib/lib_const.dnh"
+
+// This library contains functions for creating and manipulating bullets
+#include "./../lib/lib_shot.dnh"
+
+// This is the shot constants for Terraformer9x's shotsheet, which loads the shot data
+#include "./../lib/shot_const.dnh"
+
+
+///////////////////// File Scope Variables ////////////////////
+
+// Boss colors
+int _colorA = COLOR_AZURE;
+int _colorB = COLOR_DRED;
+
+
+//////////////////////// Script Blocks ////////////////////////
+
+@Initialize
+{	
+	SetAutoDeleteObject(true);
+	
+	// Boss
+	_objBoss = ObjEnemy_Create(OBJ_ENEMY_BOSS);
+	ObjEnemy_Regist(_objBoss);
+	
+	// Scene
+	_objScene = GetEnemyBossSceneObjectID();
+	ObjEnemyBossScene_StartSpell(_objScene);	
+	
+	// Script ID logging
+	SetAreaCommonData(AREA_SCRIPTS, SCRIPT_SINGLE, GetOwnScriptID());
+	
+	// Spell ID
+	SetAreaCommonData(AREA_GAME, SPELL_ID, 48);
+	
+	// Setup
+	SetAreaCommonData(AREA_GAME, BOSS_NAME, CHAR_YUUMA);
+	SetAreaCommonData(AREA_GAME, BACKGROUND, [DIR_IMG_BG ~ "/back_" ~ GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID) ~ ".png"]);
+	
+	NotifyEvent(_ID_SYSTEM, EV_SPELL_START, _objBoss, _objScene, GetAreaCommonData(AREA_GAME, SPELL_ID, ID_INVALID), GetAreaCommonData(AREA_GAME, BOSS_NAME, ID_INVALID), 477, 600, 190, 105, 45, _colorA, _colorB, CENTER_X, 140, STANDARD_SPELLSCORE, GetAreaCommonData(AREA_GAME, BACKGROUND, ID_INVALID));
+	
+	// Pattern
+	_Pattern();
+}
+
+@Event
+{
+	alternative(GetEventType())
+		case(EV_REQUEST_LIFE)  SetScriptResult(26000);
+		case(EV_REQUEST_TIMER) SetScriptResult(90);
+}
+
+@MainLoop
+{
+	_enmX = ObjMove_GetX(_objBoss);
+	_enmY = ObjMove_GetY(_objBoss);
+	
+	yield;
+}
+
+
+///////////////////////// Script Tasks ////////////////////////
+
+task _Pattern()
+{	
+	wait(60);
+	
+	NotifyEvent(_ID_SYSTEM, EV_TOGGLE_PLAYER_CIRCLE, false);
+	
+	_RenderCharge(_enmX, _enmY, 1, _colorA, _colorB);
+	
+	wait(65);
+	
+	// Pattern
+	
+	const int[] SHOTS = [SHOT_FIREBALL_GREY, SHOT_FIREBALL_RED];
+	
+	int stack = 15;
+	int dir = 1;
+	float off = 0;
+	
+	for(int i = 0; ; i++)
+	{
+		for(int j = 0; j < stack; j++)
+		{
+			int way = 5 + min(i, 5);
+			if(j % 5 == 0)
+			{
+				off = i * 90;
+				dir *= -1;
+				way = 25 + (min(i, 5) * 5);
+			}
+			
+			for(int k = 0; k < way; k++)
+			{
+				int objShot = CreateShot_Enemy(_enmX, _enmY, 1.25 + (0.25 * j), off + (k * (360 / way)), -0.002 + (-0.00125 * j), 0, SHOTS[i % 2], 25);
+				ObjMove_SetAngularVelocity(objShot, 0.3 * dir);
+				ObjShot_SetAutoDelete(objShot, false);
+				ObjMove_AddPatternA2(objShot, 180, NO_CHANGE, ObjMove_GetAngle(objShot) + 180, 0.01, 3, 0);
+				ObjShot_SetDeleteFrame(objShot, 500);
+			}
+		}
+		
+		wait(150);
+		
+		_RenderCharge(_enmX, _enmY, 3, _colorA, _colorB);
+	
+		wait(20);
+		
+		NotifyEvent(_ID_PACKAGE, EV_SFX_PLAY, DIR_SFX_BULLET_TRANS);
+		
+		wait(135);
+	}
+}
+
+task _ManageShot(int objShot_, int index_, int dir_)
+{
+	ObjMove_SetAngularVelocity(objShot_, 0.3 * dir_);
+	ObjShot_SetAutoDelete(objShot_, false);
+	
+	wait(180);
+	
+	ObjMove_SetAngularVelocity(objShot_, 0.3 * -dir_);
+	ObjMove_SetAcceleration(objShot_, 0.01);
+	ObjMove_SetMaxSpeed(objShot_, 3);
+	ObjMove_SetAngle(objShot_, ObjMove_GetAngle(objShot_) + 180);
+	
+	wait(120);
+	
+	ObjShot_SetAutoDelete(objShot_, true);
+}
